@@ -12,6 +12,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency } from '@/lib/utils';
 import { CreateContaFinanceiraDto, financeiroService } from '@/services/financeiro.service';
+import { contasBancariasService } from '@/services/contas-bancarias.service';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, DollarSign, Loader2, Truck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -47,6 +48,7 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
   const [valorPago, setValorPago] = useState<number | ''>('');
   const [dataPagamento, setDataPagamento] = useState<string>(new Date().toISOString().split('T')[0]);
   const [formaPagamento, setFormaPagamento] = useState<string>('');
+  const [contaBancariaId, setContaBancariaId] = useState<string>('');
   const [observacoes, setObservacoes] = useState<string>('');
   const [chequeBanco, setChequeBanco] = useState<string>('');
   const [chequeNumero, setChequeNumero] = useState<string>('');
@@ -62,6 +64,13 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
     /** Sempre alinhar ao servidor ao entrar (ex.: valor em aberto mudou após editar a despesa). */
     refetchOnMount: 'always',
   });
+
+  const { data: contasBancariasData, isLoading: isLoadingContasBancarias } = useQuery({
+    queryKey: ['contas-bancarias', 'ativas'],
+    queryFn: () => contasBancariasService.listar({ limit: 100, apenasAtivos: true }),
+  });
+
+  const contasBancarias = contasBancariasData?.contas ?? [];
 
   const valorEmAberto = Number(detalhe?.valor_em_aberto ?? 0);
   const valorTotal = Number(detalhe?.valor_total_pedido ?? 0);
@@ -81,6 +90,7 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
     autoFilledFormaRef.current = false;
     setValorPago('');
     setFormaPagamento('');
+    setContaBancariaId('');
   }, [contaId]);
 
   useEffect(() => {
@@ -97,7 +107,11 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
       setFormaPagamento(String(formaConta));
       autoFilledFormaRef.current = true;
     }
-  }, [detalhe?.pagamento?.forma_pagamento]);
+    const cbId = (detalhe as any)?.conta_bancaria_id ?? (detalhe as any)?.pagamento?.conta_bancaria_id ?? (detalhe as any)?.conta_id;
+    if (cbId) {
+      setContaBancariaId(String(cbId));
+    }
+  }, [detalhe]);
 
   const registrarMutation = useMutation({
     mutationFn: async () => {
@@ -114,6 +128,7 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
         forma_pagamento: formaPagamento as CreateContaFinanceiraDto['forma_pagamento'],
         data_pagamento: dataPagamento,
         ...(observacoes?.trim() ? { observacoes: observacoes.trim() } : {}),
+        ...(contaBancariaId ? ({ conta_bancaria_id: Number(contaBancariaId) } as any) : {}),
       });
     },
     onSuccess: () => {
@@ -226,7 +241,7 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
                 Valor em aberto: {formatCurrency(valorEmAberto)}. Permite pagamento parcial.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Data de Pagamento</Label>
                 <Input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} />
@@ -243,6 +258,29 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
                         {f.label}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Conta (Banco)</Label>
+                <Select value={contaBancariaId} onValueChange={setContaBancariaId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={isLoadingContasBancarias ? 'Carregando contas...' : 'Selecione a conta/banco'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contasBancarias.length === 0 ? (
+                      <SelectItem value="empty" disabled>
+                        Nenhuma conta bancária encontrada
+                      </SelectItem>
+                    ) : (
+                      contasBancarias.map((cb) => (
+                        <SelectItem key={cb.id} value={String(cb.id)}>
+                          {cb.nome}
+                          {cb.banco ? ` (${cb.banco})` : ''}
+                          {cb.numeroConta ? ` - CC: ${cb.numeroConta}` : ''}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

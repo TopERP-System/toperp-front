@@ -454,6 +454,8 @@ class FinanceiroService {
     }
     
     if (shouldInclude(data.forma_pagamento)) payload.forma_pagamento = data.forma_pagamento;
+    if (shouldInclude((data as any).conta_bancaria_id)) payload.conta_bancaria_id = Number((data as any).conta_bancaria_id);
+    if (shouldInclude((data as any).conta_id)) payload.conta_id = Number((data as any).conta_id);
     const includeOptionalId = (
       field: 'cliente_id' | 'fornecedor_id' | 'pedido_id',
     ) => {
