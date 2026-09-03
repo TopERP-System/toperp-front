@@ -5,6 +5,7 @@ import {
 } from "@/lib/utils";
 import { centroCustoService } from "@/services/centro-custo.service";
 import { financeiroService } from "@/services/financeiro.service";
+import { contasBancariasService } from "@/services/contas-bancarias.service";
 import { Fornecedor, fornecedoresService } from "@/services/fornecedores.service";
 import { useQueries } from "@tanstack/react-query";
 import { ArrowLeft, DollarSign, Loader2 } from "lucide-react";
@@ -28,7 +29,7 @@ const ContasAPagarDespesaDetalhes = () => {
   const contaId = contaIdParam ? Number(contaIdParam) : 0;
   const idValido = Number.isFinite(contaId) && contaId > 0;
 
-  const [contaQuery, detalheQuery, fornecedoresQuery, despesaCcQuery] =
+  const [contaQuery, detalheQuery, fornecedoresQuery, despesaCcQuery, contasBancariasQuery] =
     useQueries({
       queries: [
         {
@@ -79,6 +80,10 @@ const ContasAPagarDespesaDetalhes = () => {
           enabled: idValido,
           retry: false,
         },
+        {
+          queryKey: ["contas-bancarias"],
+          queryFn: () => contasBancariasService.listar({ limit: 100 }),
+        },
       ],
     });
 
@@ -88,6 +93,20 @@ const ContasAPagarDespesaDetalhes = () => {
     ? fornecedoresQuery.data
     : [];
   const despesaCentroPorConta = despesaCcQuery.data ?? null;
+  const contasBancarias = contasBancariasQuery.data?.contas ?? [];
+
+  const getBancoLabel = (cbId?: number | null, directName?: string | null) => {
+    if (directName && directName.trim() !== "" && directName !== "—") {
+      return directName;
+    }
+    if (cbId) {
+      const cb = contasBancarias.find((item) => item.id === Number(cbId));
+      if (cb) {
+        return `${cb.nome}${cb.banco ? ` (${cb.banco})` : ""}`;
+      }
+    }
+    return "—";
+  };
 
   const historicoPagamentos = useMemo((): LinhaHistoricoDespesa[] => {
     const centro = despesaCentroPorConta?.pagamentos;
@@ -97,12 +116,17 @@ const ContasAPagarDespesaDetalhes = () => {
           (a, b) =>
             new Date(b.data).getTime() - new Date(a.data).getTime(),
         )
-        .map((p) => ({
-          key: `cc-${p.id}`,
-          data: p.data,
-          valor: p.valor,
-          formaLabel: "—",
-        }));
+        .map((p) => {
+          const cbId = (p as any).conta_bancaria_id ?? (p as any).conta_id ?? (conta as any)?.conta_bancaria_id ?? (detalhe as any)?.conta_bancaria_id;
+          const directName = (p as any).banco ?? (p as any).conta_bancaria_nome ?? (conta as any)?.banco ?? (detalhe as any)?.pagamento?.banco;
+          return {
+            key: `cc-${p.id}`,
+            data: p.data,
+            valor: p.valor,
+            formaLabel: (p as any).forma_pagamento ? formatarFormaPagamento((p as any).forma_pagamento) : "—",
+            bancoLabel: getBancoLabel(cbId, directName),
+          };
+        });
     }
     const c = conta;
     if (
@@ -110,6 +134,20 @@ const ContasAPagarDespesaDetalhes = () => {
       Number((c as any).valor_pago) > 0.009 &&
       (c as any).data_pagamento
     ) {
+      const cbId =
+        (c as any).conta_bancaria_id ??
+        (c as any).conta_id ??
+        (detalhe as any)?.conta_bancaria_id ??
+        (detalhe as any)?.pagamento?.conta_bancaria_id ??
+        (detalhe as any)?.conta_id;
+      const directName =
+        (c as any).banco ??
+        (c as any).conta_bancaria_nome ??
+        (c as any).conta_bancaria?.nome ??
+        (detalhe as any)?.relacionamentos?.conta_bancaria_nome ??
+        (detalhe as any)?.pagamento?.banco ??
+        (detalhe as any)?.conta_bancaria_nome;
+
       return [
         {
           key: "conta-saldo",
@@ -118,11 +156,12 @@ const ContasAPagarDespesaDetalhes = () => {
           formaLabel: (c as any).forma_pagamento
             ? formatarFormaPagamento((c as any).forma_pagamento)
             : "—",
+          bancoLabel: getBancoLabel(cbId, directName),
         },
       ];
     }
     return [];
-  }, [despesaCentroPorConta, conta]);
+  }, [despesaCentroPorConta, conta, detalhe, contasBancarias]);
 
   const valorAberto = useMemo(() => {
     if (!conta) return 0;

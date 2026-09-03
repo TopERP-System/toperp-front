@@ -23,6 +23,7 @@ export type LinhaHistoricoDespesa = {
   data: string;
   valor: number;
   formaLabel: string;
+  bancoLabel?: string;
 };
 
 /** Mesmo padrão visual de `ContasAPagarPedidoDetalhes` (cards + tabela de histórico). */
@@ -144,6 +145,7 @@ export function DespesaDetalheConteudo({
               <TableHead>Data</TableHead>
               <TableHead>Valor</TableHead>
               <TableHead>Forma</TableHead>
+              <TableHead>Banco / Conta</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -155,12 +157,13 @@ export function DespesaDetalheConteudo({
                     {formatCurrency(row.valor)}
                   </TableCell>
                   <TableCell>{row.formaLabel}</TableCell>
+                  <TableCell>{row.bancoLabel || "—"}</TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={3}
+                  colSpan={4}
                   className="text-muted-foreground py-8 text-center"
                 >
                   Nenhum pagamento registrado

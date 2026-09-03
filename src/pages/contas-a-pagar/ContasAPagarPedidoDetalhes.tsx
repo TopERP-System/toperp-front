@@ -364,6 +364,7 @@ const ContasAPagarPedidoDetalhes = () => {
                 <TableHead>Data</TableHead>
                 <TableHead>Valor</TableHead>
                 <TableHead>Forma</TableHead>
+                <TableHead>Banco / Conta</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -376,6 +377,7 @@ const ContasAPagarPedidoDetalhes = () => {
                         <TableCell>{formatarDataBR(item.data_pagamento)}</TableCell>
                         <TableCell className="font-medium">{formatCurrency(item.valor)}</TableCell>
                         <TableCell>{formatarFormaPagamento(item.forma_pagamento)}</TableCell>
+                        <TableCell>{(item as any).banco || (item as any).conta_bancaria_nome || item.cheque?.banco || "—"}</TableCell>
                       </TableRow>,
                     ];
                     if (item.forma_pagamento === 'CHEQUE' && item.cheque) {
@@ -384,7 +386,7 @@ const ContasAPagarPedidoDetalhes = () => {
                       if (temAlgum) {
                         rows.push(
                           <TableRow key={`${item.id}-cheque`} className="bg-muted/20 hover:bg-muted/20">
-                            <TableCell colSpan={3} className="py-3 align-top">
+                            <TableCell colSpan={4} className="py-3 align-top">
                               <div className="rounded-lg border bg-card p-4 shadow-sm">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Detalhes do cheque</p>
                                 <dl className="grid grid-cols-2 md:grid-cols-5 gap-x-4 gap-y-2 text-sm">
@@ -429,7 +431,7 @@ const ContasAPagarPedidoDetalhes = () => {
                   })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     Nenhum pagamento registrado
                   </TableCell>
                 </TableRow>
