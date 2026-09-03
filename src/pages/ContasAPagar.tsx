@@ -79,6 +79,7 @@ import {
   CreateContaFinanceiraDto,
   financeiroService,
 } from "@/services/financeiro.service";
+import { contasBancariasService } from "@/services/contas-bancarias.service";
 import { controleRocaService } from "@/services/controle-roca.service";
 import { useRotuloRoca } from "@/hooks/useRotuloRoca";
 import { Fornecedor, fornecedoresService } from "@/services/fornecedores.service";
@@ -269,6 +270,7 @@ function ContasAPagar() {
   const [editingStatusId, setEditingStatusId] = useState<number | null>(null);
   const [newTransacao, setNewTransacao] = useState<CreateContaFinanceiraDto & { 
     data_emissao: string;
+    conta_bancaria_id?: number;
   }>({
     tipo: "PAGAR",
     descricao: "",
@@ -276,10 +278,18 @@ function ContasAPagar() {
     data_emissao: new Date().toISOString().split('T')[0],
     data_vencimento: "",
     roca_id: undefined,
+    conta_bancaria_id: undefined,
   });
 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  const { data: contasBancariasData } = useQuery({
+    queryKey: ["contas-bancarias", "contas-pagar-page"],
+    queryFn: () => contasBancariasService.listar({ limit: 100, apenasAtivos: true }),
+    retry: false,
+  });
+  const contasBancarias = contasBancariasData?.contas ?? [];
 
   const { data: rocasData } = useQuery({
     queryKey: ["contas-pagar", "rocas-ativas"],
@@ -1246,6 +1256,7 @@ function ContasAPagar() {
         data_emissao: new Date().toISOString().split('T')[0],
         data_vencimento: "",
         roca_id: undefined,
+        conta_bancaria_id: undefined,
       });
     },
     onError: (error: any) => {
@@ -1754,6 +1765,7 @@ function ContasAPagar() {
       forma_pagamento: newTransacao.forma_pagamento || undefined,
       data_pagamento: newTransacao.data_pagamento || undefined,
       observacoes: newTransacao.observacoes || undefined,
+      ...(newTransacao.conta_bancaria_id ? ({ conta_bancaria_id: newTransacao.conta_bancaria_id } as any) : {}),
     };
 
     createContaMutation.mutate(contaData);
@@ -1948,30 +1960,58 @@ function ContasAPagar() {
                     <CreditCard className="w-4 h-4 text-blue-500" />
                     Pagamento
                   </h3>
-                  <div className="space-y-2">
-                    <Label>Forma de Pagamento</Label>
-                    <Select
-                      value={newTransacao.forma_pagamento || undefined}
-                      onValueChange={(value) => 
-                        setNewTransacao({
-                          ...newTransacao, 
-                          forma_pagamento: value ? (value as any) : undefined
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione a forma de pagamento" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
-                        <SelectItem value="PIX">PIX</SelectItem>
-                        <SelectItem value="CARTAO_CREDITO">Cartão de Crédito</SelectItem>
-                        <SelectItem value="CARTAO_DEBITO">Cartão de Débito</SelectItem>
-                        <SelectItem value="BOLETO">Boleto</SelectItem>
-                        <SelectItem value="TRANSFERENCIA">Transferência</SelectItem>
-                        <SelectItem value="CHEQUE">Cheque</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Forma de Pagamento</Label>
+                      <Select
+                        value={newTransacao.forma_pagamento || undefined}
+                        onValueChange={(value) => 
+                          setNewTransacao({
+                            ...newTransacao, 
+                            forma_pagamento: value ? (value as any) : undefined
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a forma de pagamento" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                          <SelectItem value="PIX">PIX</SelectItem>
+                          <SelectItem value="CARTAO_CREDITO">Cartão de Crédito</SelectItem>
+                          <SelectItem value="CARTAO_DEBITO">Cartão de Débito</SelectItem>
+                          <SelectItem value="BOLETO">Boleto</SelectItem>
+                          <SelectItem value="TRANSFERENCIA">Transferência</SelectItem>
+                          <SelectItem value="CHEQUE">Cheque</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Conta (Banco)</Label>
+                      <Select
+                        value={newTransacao.conta_bancaria_id?.toString() || undefined}
+                        onValueChange={(value) => 
+                          setNewTransacao({
+                            ...newTransacao, 
+                            conta_bancaria_id: value && value !== "none" ? Number(value) : undefined
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a conta/banco" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          {contasBancarias.map((cb) => (
+                            <SelectItem key={cb.id} value={String(cb.id)}>
+                              {cb.nome}
+                              {cb.banco ? ` (${cb.banco})` : ""}
+                              {cb.numeroConta ? ` - CC: ${cb.numeroConta}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
 

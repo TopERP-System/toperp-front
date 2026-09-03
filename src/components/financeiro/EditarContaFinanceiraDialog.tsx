@@ -32,6 +32,7 @@ import {
   CreateContaFinanceiraDto,
   financeiroService,
 } from "@/services/financeiro.service";
+import { contasBancariasService } from "@/services/contas-bancarias.service";
 import { Fornecedor, fornecedoresService } from "@/services/fornecedores.service";
 import type { Roca } from "@/types/roca";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -99,6 +100,15 @@ export function EditarContaFinanceiraDialog({
     enabled: open && contaId != null && contaId > 0,
     retry: false,
   });
+
+  const { data: contasBancariasData } = useQuery({
+    queryKey: ["contas-bancarias", "editar-dialog"],
+    queryFn: () => contasBancariasService.listar({ limit: 100, apenasAtivos: true }),
+    enabled: open,
+    retry: false,
+  });
+
+  const contasBancarias = contasBancariasData?.contas ?? [];
 
   const { data: clientesFetched } = useQuery({
     queryKey: ["clientes", "editar-conta"],
@@ -607,38 +617,71 @@ export function EditarContaFinanceiraDialog({
                 <div>
                   <h3 className="text-lg font-semibold">Pagamento</h3>
                   <p className="text-sm text-muted-foreground">
-                    Forma de pagamento
+                    Forma de pagamento e conta bancária
                   </p>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Forma de Pagamento</Label>
-                <Select
-                  value={editConta.forma_pagamento ?? "none"}
-                  onValueChange={(value) =>
-                    setEditConta({
-                      ...editConta,
-                      forma_pagamento:
-                        value === "none"
-                          ? undefined
-                          : (value as ContaFinanceiraEdicaoForm["forma_pagamento"]),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a forma de pagamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhuma</SelectItem>
-                    <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
-                    <SelectItem value="PIX">PIX</SelectItem>
-                    <SelectItem value="CARTAO_CREDITO">Cartão de Crédito</SelectItem>
-                    <SelectItem value="CARTAO_DEBITO">Cartão de Débito</SelectItem>
-                    <SelectItem value="BOLETO">Boleto</SelectItem>
-                    <SelectItem value="TRANSFERENCIA">Transferência</SelectItem>
-                    <SelectItem value="CHEQUE">Cheque</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Forma de Pagamento</Label>
+                  <Select
+                    value={editConta.forma_pagamento ?? "none"}
+                    onValueChange={(value) =>
+                      setEditConta({
+                        ...editConta,
+                        forma_pagamento:
+                          value === "none"
+                            ? undefined
+                            : (value as ContaFinanceiraEdicaoForm["forma_pagamento"]),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a forma de pagamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                      <SelectItem value="PIX">PIX</SelectItem>
+                      <SelectItem value="CARTAO_CREDITO">Cartão de Crédito</SelectItem>
+                      <SelectItem value="CARTAO_DEBITO">Cartão de Débito</SelectItem>
+                      <SelectItem value="BOLETO">Boleto</SelectItem>
+                      <SelectItem value="TRANSFERENCIA">Transferência</SelectItem>
+                      <SelectItem value="CHEQUE">Cheque</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Conta (Banco)</Label>
+                  <Select
+                    value={
+                      editConta.conta_bancaria_id != null
+                        ? String(editConta.conta_bancaria_id)
+                        : "none"
+                    }
+                    onValueChange={(value) =>
+                      setEditConta({
+                        ...editConta,
+                        conta_bancaria_id:
+                          value && value !== "none" ? Number(value) : null,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a conta/banco" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      {contasBancarias.map((cb) => (
+                        <SelectItem key={cb.id} value={String(cb.id)}>
+                          {cb.nome}
+                          {cb.banco ? ` (${cb.banco})` : ""}
+                          {cb.numeroConta ? ` - CC: ${cb.numeroConta}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 

@@ -6,6 +6,7 @@ import type {
 export type ContaFinanceiraEdicaoForm = CreateContaFinanceiraDto & {
   data_emissao: string;
   data_prevista?: string;
+  conta_bancaria_id?: number | null;
 };
 
 /** Valor para input type="date" (YYYY-MM-DD). */
@@ -62,6 +63,7 @@ export function mapContaApiParaEdicao(
   const cliente = r.cliente as { id?: number } | undefined;
   const fornecedor = r.fornecedor as { id?: number } | undefined;
   const pedido = r.pedido as { id?: number } | undefined;
+  const pagamento = r.pagamento as { conta_bancaria_id?: number } | undefined;
 
   return {
     tipo: (r.tipo as CreateContaFinanceiraDto["tipo"]) || "PAGAR",
@@ -82,6 +84,11 @@ export function mapContaApiParaEdicao(
     ),
     pedido_id: pickOptionalId(r.pedido_id, pedido?.id, r.pedidoId),
     roca_id: pickOptionalId(r.roca_id, r.rocaId),
+    conta_bancaria_id: pickOptionalId(
+      r.conta_bancaria_id,
+      pagamento?.conta_bancaria_id,
+      r.conta_id,
+    ) ?? null,
     forma_pagamento:
       (r.forma_pagamento as CreateContaFinanceiraDto["forma_pagamento"]) ??
       undefined,
@@ -112,6 +119,9 @@ export function buildPatchContaFinanceira(
           : null,
       forma_pagamento: editConta.forma_pagamento,
       observacoes: editConta.observacoes,
+      ...(editConta.conta_bancaria_id !== undefined
+        ? ({ conta_bancaria_id: editConta.conta_bancaria_id } as any)
+        : {}),
     };
   }
 
@@ -149,6 +159,9 @@ export function buildPatchContaFinanceira(
 
   if (editConta.forma_pagamento) {
     dados.forma_pagamento = editConta.forma_pagamento;
+  }
+  if (editConta.conta_bancaria_id !== undefined) {
+    (dados as any).conta_bancaria_id = editConta.conta_bancaria_id;
   }
   if (editConta.data_pagamento?.trim()) {
     dados.data_pagamento = editConta.data_pagamento;
