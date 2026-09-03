@@ -1,0 +1,253 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Core brand colors - Blue palette */
+    --navy: 216 96% 22%;
+    --royal: 227 64% 42%;
+    --azure: 205 79% 38%;
+    --cyan: 189 96% 45%;
+    
+    /* Neutral colors - Platinum/Ice white */
+    --platinum: 0 0% 91%;
+    --platinum-light: 0 0% 96%;
+    --platinum-dark: 0 0% 85%;
+    
+    /* Semantic tokens */
+    --background: 0 0% 96%;
+    --foreground: 216 96% 22%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 216 96% 22%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 216 96% 22%;
+
+    --primary: 227 64% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 91%;
+    --secondary-foreground: 216 96% 22%;
+
+    --muted: 0 0% 91%;
+    --muted-foreground: 216 30% 45%;
+
+    --accent: 189 96% 45%;
+    --accent-foreground: 216 96% 22%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
+    --ring: 227 64% 42%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-background: 216 96% 22%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 189 96% 45%;
+    --sidebar-primary-foreground: 216 96% 22%;
+    --sidebar-accent: 227 64% 42%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 227 64% 32%;
+    --sidebar-ring: 189 96% 45%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(216 96% 22%) 0%, hsl(227 64% 42%) 50%, hsl(205 79% 38%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(205 79% 38%) 0%, hsl(189 96% 45%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(216 96% 22%) 0%, hsl(227 64% 42%) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(216 96% 22% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(216 96% 22% / 0.1), 0 2px 4px -2px hsl(216 96% 22% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(216 96% 22% / 0.1), 0 4px 6px -4px hsl(216 96% 22% / 0.1);
+    --shadow-glow: 0 0 30px hsl(189 96% 45% / 0.3);
+  }
+
+  .dark {
+    --background: 216 96% 12%;
+    --foreground: 0 0% 96%;
+
+    --card: 216 96% 16%;
+    --card-foreground: 0 0% 96%;
+
+    --popover: 216 96% 16%;
+    --popover-foreground: 0 0% 96%;
+
+    --primary: 189 96% 45%;
+    --primary-foreground: 216 96% 22%;
+
+    --secondary: 227 64% 32%;
+    --secondary-foreground: 0 0% 96%;
+
+    --muted: 227 64% 25%;
+    --muted-foreground: 0 0% 70%;
+
+    --accent: 189 96% 45%;
+    --accent-foreground: 216 96% 22%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 96%;
+
+    --border: 227 64% 25%;
+    --input: 227 64% 25%;
+    --ring: 189 96% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply overflow-x-hidden;
+    /* Evitar efeitos scroll-linked para compatibilidade com panning assíncrono (Firefox) */
+    scroll-behavior: auto;
+    /* Safe area para celulares com notch (iPhone X+, etc.) */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    /*
+     * Tamanho da letra de acordo com a tela:
+     * tela menor → fonte menor; tela maior → fonte no tamanho padrão.
+     * A partir de 1920px (≈ 24") exibe sempre o tamanho normal (16px).
+     */
+    font-size: clamp(11px, 9px + 0.4vw, 16px);
+  }
+
+  @media (min-width: 1920px) {
+    html {
+      font-size: 16px;
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased overflow-x-hidden;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    /* Evitar zoom em inputs no iOS */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  /* Corrigir cursor de texto aparecendo em elementos que não deveriam */
+  * {
+    cursor: default;
+  }
+
+  button,
+  a,
+  [role="button"],
+  [tabindex]:not([tabindex="-1"]) {
+    cursor: pointer;
+  }
+
+  input,
+  textarea,
+  select,
+  [contenteditable="true"],
+  [contenteditable=""] {
+    cursor: text;
+  }
+
+  /* Prevenir seleção de texto em elementos não interativos */
+  button,
+  a,
+  img,
+  svg {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 shadow-md;
+  }
+
+  /* Área tocável mínima para celulares (acessibilidade) */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-accent);
+  }
+
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  .login-page-bg {
+    background:
+      linear-gradient(
+        165deg,
+        hsl(222 85% 7%) 0%,
+        hsl(var(--navy)) 32%,
+        hsl(var(--royal)) 68%,
+        hsl(205 70% 32%) 100%
+      );
+  }
+
+  .accent-gradient {
+    background: var(--gradient-accent);
+  }
+
+  .primary-gradient {
+    background: var(--gradient-primary);
+  }
+}
+
+@layer utilities {
+  /** Permite scroll com mouse/trackpad/teclado sem exibir a barra nativa */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-float-delayed {
+    animation: float 6s ease-in-out infinite;
+    animation-delay: 2s;
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  @keyframes pulse-soft {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+}
