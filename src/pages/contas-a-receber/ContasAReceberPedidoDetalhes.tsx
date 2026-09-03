@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatarDataBR, formatarFormaPagamento } from '@/lib/utils';
 import { financeiroService } from '@/services/financeiro.service';
+import { contasBancariasService } from '@/services/contas-bancarias.service';
 import { pedidosService } from '@/services/pedidos.service';
 import type { ItemHistoricoPagamento } from '@/types/pedido-financeiro.types';
 import { useQueries } from '@tanstack/react-query';
@@ -27,7 +28,7 @@ const ContasAReceberPedidoDetalhes = () => {
   const navigate = useNavigate();
   const id = pedidoId ? Number(pedidoId) : 0;
 
-  const [pedidoQuery, resumoQuery, pagamentosQuery, contaDetalheQuery, contasPedidoQuery] = useQueries({
+  const [pedidoQuery, resumoQuery, pagamentosQuery, contaDetalheQuery, contasPedidoQuery, contasBancariasQuery] = useQueries({
     queries: [
       {
         queryKey: ['pedidos', pedidoId],
@@ -65,6 +66,10 @@ const ContasAReceberPedidoDetalhes = () => {
         enabled: !!id,
         retry: false,
       },
+      {
+        queryKey: ['contas-bancarias'],
+        queryFn: () => contasBancariasService.listar({ limit: 100 }),
+      },
     ],
   });
 
@@ -73,6 +78,22 @@ const ContasAReceberPedidoDetalhes = () => {
   const pagamentosNovo = pagamentosQuery.data;
   const contaDetalhe = contaDetalheQuery.data ?? null;
   const contasDoPedido = contasPedidoQuery.data ?? [];
+  const contasBancarias = contasBancariasQuery.data?.contas ?? [];
+
+  const getBancoLabel = (item: ItemHistoricoPagamento) => {
+    const directName = item.banco || item.conta_bancaria_nome || (item as any).conta_bancaria?.nome;
+    if (directName && directName.trim() !== '' && directName !== '—') {
+      return directName;
+    }
+    const cbId = item.conta_bancaria_id ?? (item as any).conta_id;
+    if (cbId) {
+      const cb = contasBancarias.find((c) => c.id === Number(cbId));
+      if (cb) {
+        return `${cb.nome}${cb.banco ? ` (${cb.banco})` : ''}`;
+      }
+    }
+    return item.cheque?.banco || '—';
+  };
 
   const isLoading = pedidoQuery.isLoading || resumoQuery.isLoading;
   const error = pedidoQuery.error || resumoQuery.error;
@@ -108,6 +129,8 @@ const ContasAReceberPedidoDetalhes = () => {
           valor: pg.valor_pago ?? 0,
           forma_pagamento: pg.forma_pagamento ?? '',
           data_pagamento: pg.data_lancamento ?? pg.data_pagamento ?? '',
+          conta_bancaria_id: pg.conta_bancaria_id ?? pg.conta_id,
+          banco: pg.banco || pg.conta_bancaria_nome,
         })))
       : []);
 
@@ -500,6 +523,7 @@ const ContasAReceberPedidoDetalhes = () => {
                 <TableHead>Data</TableHead>
                 <TableHead>Valor</TableHead>
                 <TableHead>Forma</TableHead>
+                <TableHead>Banco / Conta</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -512,6 +536,7 @@ const ContasAReceberPedidoDetalhes = () => {
                         <TableCell>{formatarDataBR(item.data_pagamento)}</TableCell>
                         <TableCell className="font-medium">{formatCurrency(item.valor)}</TableCell>
                         <TableCell>{formatarFormaPagamento(item.forma_pagamento)}</TableCell>
+                        <TableCell>{getBancoLabel(item)}</TableCell>
                       </TableRow>,
                     ];
                     if (item.forma_pagamento === 'CHEQUE' && item.cheque) {
@@ -520,7 +545,7 @@ const ContasAReceberPedidoDetalhes = () => {
                       if (temAlgum) {
                         rows.push(
                           <TableRow key={`${item.id}-cheque`} className="bg-muted/20 hover:bg-muted/20">
-                            <TableCell colSpan={3} className="py-3 align-top">
+                            <TableCell colSpan={4} className="py-3 align-top">
                               <div className="rounded-lg border bg-card p-4 shadow-sm">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Detalhes do cheque</p>
                                 <dl className="grid grid-cols-2 md:grid-cols-5 gap-x-4 gap-y-2 text-sm">
@@ -565,7 +590,7 @@ const ContasAReceberPedidoDetalhes = () => {
                   })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     Nenhum pagamento registrado
                   </TableCell>
                 </TableRow>

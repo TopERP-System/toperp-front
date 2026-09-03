@@ -43,6 +43,9 @@ export interface ItemHistoricoPagamento {
   valor: number;
   forma_pagamento: string;
   data_pagamento: string;
+  conta_bancaria_id?: number | null;
+  conta_bancaria_nome?: string | null;
+  banco?: string | null;
   cheque?: DadosCheque;
 }
 

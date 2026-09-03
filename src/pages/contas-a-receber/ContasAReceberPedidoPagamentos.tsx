@@ -12,9 +12,10 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency, formatarFormaPagamento } from '@/lib/utils';
 import { financeiroService } from '@/services/financeiro.service';
+import { contasBancariasService } from '@/services/contas-bancarias.service';
 import { pagamentosService } from '@/services/pagamentos.service';
 import { pedidosService } from '@/services/pedidos.service';
-import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, DollarSign, Loader2, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -59,12 +60,20 @@ const ContasAReceberPedidoPagamentos = () => {
   const [dataPagamento, setDataPagamento] = useState<string>(new Date().toISOString().split('T')[0]);
   const [formaPagamento, setFormaPagamento] = useState<string>('');
   const [contaFinanceiraId, setContaFinanceiraId] = useState<string>('');
+  const [contaBancariaId, setContaBancariaId] = useState<string>('');
   const [observacoes, setObservacoes] = useState<string>('');
   const [chequeBanco, setChequeBanco] = useState<string>('');
   const [chequeNumero, setChequeNumero] = useState<string>('');
   const [chequeAgencia, setChequeAgencia] = useState<string>('');
   const [chequeConta, setChequeConta] = useState<string>('');
   const [chequeTitular, setChequeTitular] = useState<string>('');
+
+  const { data: contasBancariasData, isLoading: isLoadingContasBancarias } = useQuery({
+    queryKey: ['contas-bancarias', 'ativas'],
+    queryFn: () => contasBancariasService.listar({ limit: 100, apenasAtivos: true }),
+  });
+
+  const contasBancarias = contasBancariasData?.contas ?? [];
 
   const [pedidoQuery, resumoQuery, contasQuery] = useQueries({
     queries: [
@@ -162,6 +171,10 @@ const ContasAReceberPedidoPagamentos = () => {
         setFormaPagamento(String(primeira.forma_pagamento));
       }
       setContaFinanceiraId(String(primeira.id));
+      const cbId = (primeira as any).conta_bancaria_id ?? (primeira as any).conta_id;
+      if (cbId) {
+        setContaBancariaId(String(cbId));
+      }
       if (contasAbertas.length > 1) {
         setValorPago(Number(abertoConta(primeira).toFixed(2)));
         autoFilledValorRef.current = true;
@@ -186,6 +199,10 @@ const ContasAReceberPedidoPagamentos = () => {
     if (conta.forma_pagamento) {
       setFormaPagamento(String(conta.forma_pagamento));
     }
+    const cbId = (conta as any).conta_bancaria_id ?? (conta as any).conta_id;
+    if (cbId) {
+      setContaBancariaId(String(cbId));
+    }
     setValorPago(Number(abertoConta(conta).toFixed(2)));
   };
 
@@ -201,6 +218,7 @@ const ContasAReceberPedidoPagamentos = () => {
         forma_pagamento: formaPagamento,
         data_pagamento: dataPagamento,
         ...(contaFinanceiraId ? { conta_financeira_id: Number(contaFinanceiraId) } : {}),
+        ...(contaBancariaId ? ({ conta_bancaria_id: Number(contaBancariaId) } as any) : {}),
         ...(observacoes?.trim() ? { observacoes: observacoes.trim() } : {}),
         ...(ehPagamentoAdiantamento ? { tipo_lancamento: 'ADIANTAMENTO' } : {}),
         ...(formaPagamento === 'CHEQUE' ? {
@@ -247,6 +265,7 @@ const ContasAReceberPedidoPagamentos = () => {
         data_lancamento: dataPagamento,
         data_pagamento: dataPagamento,
         observacoes: observacoes || undefined,
+        ...(contaBancariaId ? ({ conta_bancaria_id: Number(contaBancariaId) } as any) : {}),
       });
     },
     onSuccess: () => {
@@ -393,7 +412,7 @@ const ContasAReceberPedidoPagamentos = () => {
                 Valor em aberto: {formatCurrency(valorEmAberto)}. Permite pagamento parcial.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Data de Pagamento</Label>
                 <Input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} />
@@ -408,6 +427,29 @@ const ContasAReceberPedidoPagamentos = () => {
                     {formasSelect.map((f) => (
                       <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Conta (Banco)</Label>
+                <Select value={contaBancariaId} onValueChange={setContaBancariaId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={isLoadingContasBancarias ? 'Carregando contas...' : 'Selecione a conta/banco'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contasBancarias.length === 0 ? (
+                      <SelectItem value="empty" disabled>
+                        Nenhuma conta bancária encontrada
+                      </SelectItem>
+                    ) : (
+                      contasBancarias.map((cb) => (
+                        <SelectItem key={cb.id} value={String(cb.id)}>
+                          {cb.nome}
+                          {cb.banco ? ` (${cb.banco})` : ''}
+                          {cb.numeroConta ? ` - CC: ${cb.numeroConta}` : ''}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

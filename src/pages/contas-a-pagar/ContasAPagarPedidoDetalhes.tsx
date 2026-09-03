@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatarDataBR, formatarFormaPagamento } from '@/lib/utils';
 import { financeiroService } from '@/services/financeiro.service';
+import { contasBancariasService } from '@/services/contas-bancarias.service';
 import { pedidosService } from '@/services/pedidos.service';
 import type { ItemHistoricoPagamento } from '@/types/pedido-financeiro.types';
 import { useQueries } from '@tanstack/react-query';
@@ -27,7 +28,7 @@ const ContasAPagarPedidoDetalhes = () => {
   const navigate = useNavigate();
   const id = pedidoId ? Number(pedidoId) : 0;
 
-  const [pedidoQuery, resumoQuery, pagamentosQuery, contasPedidoQuery] = useQueries({
+  const [pedidoQuery, resumoQuery, pagamentosQuery, contasPedidoQuery, contasBancariasQuery] = useQueries({
     queries: [
       {
         queryKey: ['pedidos', pedidoId],
@@ -55,6 +56,10 @@ const ContasAPagarPedidoDetalhes = () => {
         enabled: !!id,
         retry: false,
       },
+      {
+        queryKey: ['contas-bancarias'],
+        queryFn: () => contasBancariasService.listar({ limit: 100 }),
+      },
     ],
   });
 
@@ -62,6 +67,22 @@ const ContasAPagarPedidoDetalhes = () => {
   const resumoRaw = resumoQuery.data;
   const pagamentosNovo = pagamentosQuery.data;
   const contasDoPedido = contasPedidoQuery.data ?? [];
+  const contasBancarias = contasBancariasQuery.data?.contas ?? [];
+
+  const getBancoLabel = (item: ItemHistoricoPagamento) => {
+    const directName = (item as any).banco || (item as any).conta_bancaria_nome || (item as any).conta_bancaria?.nome;
+    if (directName && String(directName).trim() !== '' && directName !== '—') {
+      return directName;
+    }
+    const cbId = (item as any).conta_bancaria_id ?? (item as any).conta_id;
+    if (cbId) {
+      const cb = contasBancarias.find((c) => c.id === Number(cbId));
+      if (cb) {
+        return `${cb.nome}${cb.banco ? ` (${cb.banco})` : ''}`;
+      }
+    }
+    return item.cheque?.banco || '—';
+  };
 
   const isLoading = pedidoQuery.isLoading || resumoQuery.isLoading;
   const error = pedidoQuery.error || resumoQuery.error;
@@ -97,6 +118,8 @@ const ContasAPagarPedidoDetalhes = () => {
           valor: pg.valor_pago ?? 0,
           forma_pagamento: pg.forma_pagamento ?? '',
           data_pagamento: pg.data_lancamento ?? pg.data_pagamento ?? '',
+          conta_bancaria_id: pg.conta_bancaria_id ?? pg.conta_id,
+          banco: pg.banco || pg.conta_bancaria_nome,
         })))
       : []);
 
@@ -377,7 +400,7 @@ const ContasAPagarPedidoDetalhes = () => {
                         <TableCell>{formatarDataBR(item.data_pagamento)}</TableCell>
                         <TableCell className="font-medium">{formatCurrency(item.valor)}</TableCell>
                         <TableCell>{formatarFormaPagamento(item.forma_pagamento)}</TableCell>
-                        <TableCell>{(item as any).banco || (item as any).conta_bancaria_nome || item.cheque?.banco || "—"}</TableCell>
+                        <TableCell>{getBancoLabel(item)}</TableCell>
                       </TableRow>,
                     ];
                     if (item.forma_pagamento === 'CHEQUE' && item.cheque) {
