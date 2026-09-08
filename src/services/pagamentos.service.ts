@@ -13,8 +13,10 @@ export type FormaPagamento =
 export type { ChequeDto } from '@/shared/types/cheque.types';
 
 export interface CreatePagamentoDto {
-  pedido_id: number;
+  pedido_id?: number;
+  parcela_id?: number;
   conta_financeira_id?: number; // Opcional se backend inferir do pedido (1 conta por pedido)
+  conta_bancaria_id?: number;
   forma_pagamento: FormaPagamento;
   valor_pago: number;
   data_lancamento: string;
