@@ -81,11 +81,26 @@ const ContasAReceberPedidoDetalhes = () => {
   const contasBancarias = contasBancariasQuery.data?.contas ?? [];
 
   const getBancoLabel = (item: ItemHistoricoPagamento) => {
-    const directName = item.banco || item.conta_bancaria_nome || (item as any).conta_bancaria?.nome;
+    const directName =
+      item.banco ||
+      item.conta_bancaria_nome ||
+      (item as any).conta_bancaria?.nome ||
+      contasDoPedido.find((c) => (c as any).conta_bancaria_nome)?.conta_bancaria_nome ||
+      (contasDoPedido.find((c) => (c as any).banco) as any)?.banco ||
+      (contaDetalhe as any)?.pagamento?.banco ||
+      (contaDetalhe as any)?.conta_bancaria_nome;
+
     if (directName && directName.trim() !== '' && directName !== '—') {
       return directName;
     }
-    const cbId = item.conta_bancaria_id ?? (item as any).conta_id;
+    const cbId =
+      item.conta_bancaria_id ??
+      (item as any).conta_id ??
+      (contasDoPedido.find((c) => (c as any).conta_bancaria_id ?? (c as any).conta_id) as any)?.conta_bancaria_id ??
+      (contasDoPedido.find((c) => (c as any).conta_id) as any)?.conta_id ??
+      (contaDetalhe as any)?.conta_bancaria_id ??
+      (contaDetalhe as any)?.pagamento?.conta_bancaria_id;
+
     if (cbId) {
       const cb = contasBancarias.find((c) => c.id === Number(cbId));
       if (cb) {
