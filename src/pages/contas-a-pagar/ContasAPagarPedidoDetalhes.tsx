@@ -70,11 +70,22 @@ const ContasAPagarPedidoDetalhes = () => {
   const contasBancarias = contasBancariasQuery.data?.contas ?? [];
 
   const getBancoLabel = (item: ItemHistoricoPagamento) => {
-    const directName = (item as any).banco || (item as any).conta_bancaria_nome || (item as any).conta_bancaria?.nome;
+    const directName =
+      (item as any).banco ||
+      (item as any).conta_bancaria_nome ||
+      (item as any).conta_bancaria?.nome ||
+      contasDoPedido.find((c) => (c as any).conta_bancaria_nome)?.conta_bancaria_nome ||
+      (contasDoPedido.find((c) => (c as any).banco) as any)?.banco;
+
     if (directName && String(directName).trim() !== '' && directName !== '—') {
       return directName;
     }
-    const cbId = (item as any).conta_bancaria_id ?? (item as any).conta_id;
+    const cbId =
+      (item as any).conta_bancaria_id ??
+      (item as any).conta_id ??
+      (contasDoPedido.find((c) => (c as any).conta_bancaria_id ?? (c as any).conta_id) as any)?.conta_bancaria_id ??
+      (contasDoPedido.find((c) => (c as any).conta_id) as any)?.conta_id;
+
     if (cbId) {
       const cb = contasBancarias.find((c) => c.id === Number(cbId));
       if (cb) {

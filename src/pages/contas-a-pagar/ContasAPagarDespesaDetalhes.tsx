@@ -117,13 +117,30 @@ const ContasAPagarDespesaDetalhes = () => {
             new Date(b.data).getTime() - new Date(a.data).getTime(),
         )
         .map((p) => {
-          const cbId = (p as any).conta_bancaria_id ?? (p as any).conta_id ?? (conta as any)?.conta_bancaria_id ?? (detalhe as any)?.conta_bancaria_id;
-          const directName = (p as any).banco ?? (p as any).conta_bancaria_nome ?? (conta as any)?.banco ?? (detalhe as any)?.pagamento?.banco;
+          const cbId =
+            (p as any).conta_bancaria_id ??
+            (p as any).conta_id ??
+            (conta as any)?.conta_bancaria_id ??
+            (detalhe as any)?.conta_bancaria_id ??
+            (detalhe as any)?.pagamento?.conta_bancaria_id;
+          const directName =
+            (p as any).banco ??
+            (p as any).conta_bancaria_nome ??
+            (conta as any)?.banco ??
+            (conta as any)?.conta_bancaria_nome ??
+            (detalhe as any)?.pagamento?.banco ??
+            (detalhe as any)?.pagamento?.conta_bancaria_nome;
+          const formaRaw =
+            (p as any).forma_pagamento ??
+            (p as any).forma ??
+            (conta as any)?.forma_pagamento ??
+            (detalhe as any)?.pagamento?.forma_pagamento ??
+            (detalhe as any)?.forma_pagamento;
           return {
             key: `cc-${p.id}`,
             data: p.data,
             valor: p.valor,
-            formaLabel: (p as any).forma_pagamento ? formatarFormaPagamento((p as any).forma_pagamento) : "—",
+            formaLabel: formaRaw ? formatarFormaPagamento(String(formaRaw)) : "—",
             bancoLabel: getBancoLabel(cbId, directName),
           };
         });
@@ -147,15 +164,17 @@ const ContasAPagarDespesaDetalhes = () => {
         (detalhe as any)?.relacionamentos?.conta_bancaria_nome ??
         (detalhe as any)?.pagamento?.banco ??
         (detalhe as any)?.conta_bancaria_nome;
+      const formaRaw =
+        (c as any).forma_pagamento ??
+        (detalhe as any)?.pagamento?.forma_pagamento ??
+        (detalhe as any)?.forma_pagamento;
 
       return [
         {
           key: "conta-saldo",
           data: String((c as any).data_pagamento),
           valor: Number((c as any).valor_pago),
-          formaLabel: (c as any).forma_pagamento
-            ? formatarFormaPagamento((c as any).forma_pagamento)
-            : "—",
+          formaLabel: formaRaw ? formatarFormaPagamento(String(formaRaw)) : "—",
           bancoLabel: getBancoLabel(cbId, directName),
         },
       ];

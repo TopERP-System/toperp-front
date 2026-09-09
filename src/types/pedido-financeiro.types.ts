@@ -68,6 +68,8 @@ export interface RegistrarPagamentoBody {
   observacoes?: string;
   /** Conta específica quando o pedido tem múltiplas formas */
   conta_financeira_id?: number;
+  /** Conta bancária para onde vai o recurso/origem do pagamento */
+  conta_bancaria_id?: number;
   /** ADIANTAMENTO = pagamento do adiantamento (boleto descontado). Backend pode preencher automaticamente. */
   tipo_lancamento?: string;
   /** Dados do cheque (obrigatório quando forma_pagamento = CHEQUE) */
