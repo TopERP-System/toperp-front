@@ -589,6 +589,7 @@ class PedidosService {
     const situacaoNormalizado = normalizeString(params?.situacao);
     const dataInicialNormalizada = normalizeString(params?.data_inicial);
     const dataFinalNormalizada = normalizeString(params?.data_final);
+    const buscaNormalizada = normalizeString(params?.busca);
     
     // Adicionar strings normalizadas
     if (codigoNormalizado) {
@@ -596,6 +597,9 @@ class PedidosService {
     }
     if (clienteNomeNormalizado) {
       queryParams.append('cliente_nome', clienteNomeNormalizado);
+    }
+    if (buscaNormalizada) {
+      queryParams.append('busca', buscaNormalizada);
     }
     if (formaPagamentoNormalizado) {
       queryParams.append('forma_pagamento', formaPagamentoNormalizado);
@@ -699,6 +703,7 @@ class PedidosService {
     const situacaoNormalizado = normalizeString(params?.situacao);
     const dataInicialNormalizada = normalizeString(params?.data_inicial);
     const dataFinalNormalizada = normalizeString(params?.data_final);
+    const buscaNormalizada = normalizeString(params?.busca);
     
     // Adicionar strings normalizadas
     if (codigoNormalizado) {
@@ -706,6 +711,9 @@ class PedidosService {
     }
     if (fornecedorNomeNormalizado) {
       queryParams.append('fornecedor_nome', fornecedorNomeNormalizado);
+    }
+    if (buscaNormalizada) {
+      queryParams.append('busca', buscaNormalizada);
     }
     if (formaPagamentoNormalizado) {
       queryParams.append('forma_pagamento', formaPagamentoNormalizado);

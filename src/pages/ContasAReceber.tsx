@@ -347,7 +347,7 @@ const ContasAReceber = () => {
 
   // Usar endpoint /pedidos/contas-receber (cada linha = 1 pedido) — filtro por cliente e card é enviado à API / client-side
   const { data: pedidosContasReceber, isLoading: isLoadingPedidosContasReceber } = useQuery({
-    queryKey: ["pedidos", "contas-receber", clienteFilterId, rocaFilterId, statusFilter, dataInicialFilter, dataFinalFilter],
+    queryKey: ["pedidos", "contas-receber", clienteFilterId, rocaFilterId, statusFilter, dataInicialFilter, dataFinalFilter, searchTerm],
     queryFn: async () => {
       try {
         const params: import('@/types/contas-financeiras.types').FiltrosContasReceber = {};
@@ -363,11 +363,15 @@ const ContasAReceber = () => {
         if (dataFinalFilter && /^\d{4}-\d{2}-\d{2}$/.test(dataFinalFilter)) {
           params.data_final = dataFinalFilter;
         }
+        if (searchTerm.trim()) {
+          params.busca = searchTerm.trim();
+        }
         const hasFilters =
           (params.cliente_id != null && params.cliente_id > 0) ||
           (params.roca_id != null && params.roca_id > 0) ||
           !!params.data_inicial ||
-          !!params.data_final;
+          !!params.data_final ||
+          !!params.busca;
         return await pedidosService.listarContasReceber(hasFilters ? params : undefined);
       } catch (error: any) {
         if (error?.response?.status === 400) {
@@ -418,6 +422,7 @@ const ContasAReceber = () => {
       statusFilter,
       dataInicialFilter,
       dataFinalFilter,
+      searchTerm,
     ],
     queryFn: async () => {
       try {
@@ -441,6 +446,7 @@ const ContasAReceber = () => {
           roca_id: rocaArg,
           data_inicial: dataInicialArg,
           data_final: dataFinalArg,
+          busca: searchTerm.trim() || undefined,
         };
 
         const comoResposta = (merged: ContaFinanceira[]) => ({
@@ -1302,23 +1308,10 @@ const ContasAReceber = () => {
     });
   }, [contasExibir, clientes]);
 
-  // Query para buscar conta por ID quando o termo de busca for numérico (apenas no fallback de contas financeiras)
+  // Query para buscar conta por ID desativada no campo de busca global para evitar chamadas GET 404 e permitir busca por valor
   const isNumericSearch = !isNaN(Number(searchTerm)) && searchTerm.trim() !== "";
   const searchId = isNumericSearch ? Number(searchTerm) : null;
-
-  const { data: contaPorId } = useQuery({
-    queryKey: ["conta-financeira", "busca", searchId],
-    queryFn: async () => {
-      if (!searchId) return null;
-      try {
-        return await financeiroService.buscarPorId(searchId);
-      } catch (error) {
-        return null;
-      }
-    },
-    enabled: !!searchId && isNumericSearch && usarFallbackContasFinanceiras,
-    retry: false,
-  });
+  const contaPorId = null;
 
   // Linhas de pedidos: cada linha = 1 pedido (novo formato)
   const linhasPedidos = useMemo(() => {
@@ -1328,13 +1321,21 @@ const ContasAReceber = () => {
     
     // Filtrar por termo de busca
     if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
+      const termRaw = searchTerm.trim().toLowerCase();
+      const termDot = termRaw.replace(',', '.');
       linhasFiltradas = pedidosContasReceber.filter((p: ContaReceber) => {
+        const valTotalStr = p.valor_total != null ? String(p.valor_total).toLowerCase() : '';
+        const valPagoStr = p.valor_pago != null ? String(p.valor_pago).toLowerCase() : '';
+        const valAbertoStr = p.valor_em_aberto != null ? String(p.valor_em_aberto).toLowerCase() : '';
+
         return (
-          p.numero_pedido?.toLowerCase().includes(term) ||
-          p.cliente_nome?.toLowerCase().includes(term) ||
-          p.roca_nome?.toLowerCase().includes(term) ||
-          p.pedido_id?.toString().includes(term)
+          p.numero_pedido?.toLowerCase().includes(termRaw) ||
+          p.cliente_nome?.toLowerCase().includes(termRaw) ||
+          p.roca_nome?.toLowerCase().includes(termRaw) ||
+          p.pedido_id?.toString().includes(termRaw) ||
+          valTotalStr.includes(termRaw) || valTotalStr.includes(termDot) ||
+          valPagoStr.includes(termRaw) || valPagoStr.includes(termDot) ||
+          valAbertoStr.includes(termRaw) || valAbertoStr.includes(termDot)
         );
       });
     }
@@ -1451,17 +1452,20 @@ const ContasAReceber = () => {
     });
 
     if (!searchTerm.trim()) return result;
-    const term = searchTerm.toLowerCase();
+    const termRaw = searchTerm.trim().toLowerCase();
+    const termDot = termRaw.replace(',', '.');
     return result.filter((g) => {
       const rocaNomes = g.parcelas
         .map((p) => p.roca_nome)
         .filter((n): n is string => !!n?.trim());
       const rocaTxt = rocaNomes.join(" ").toLowerCase();
+      const valAbertoStr = String(g.valor_aberto);
       return (
-        g.descricaoBase.toLowerCase().includes(term) ||
-        g.cliente_nome.toLowerCase().includes(term) ||
-        String(g.pedido_id ?? "").includes(term) ||
-        g.parcelas.some((p) => String(p.id ?? "").includes(term)) ||
+        g.descricaoBase.toLowerCase().includes(termRaw) ||
+        g.cliente_nome.toLowerCase().includes(termRaw) ||
+        String(g.pedido_id ?? "").includes(termRaw) ||
+        valAbertoStr.includes(termRaw) || valAbertoStr.includes(termDot) ||
+        g.parcelas.some((p) => String(p.id ?? "").includes(termRaw)) ||
         g.parcelas.some((p) =>
           String(
             (p as ContaFinanceira & {
@@ -1472,10 +1476,12 @@ const ContasAReceber = () => {
               "",
           )
             .toLowerCase()
-            .includes(term),
+            .includes(termRaw),
         ) ||
-        g.parcelas.some((p) => (p.numero_conta ?? "").toLowerCase().includes(term)) ||
-        rocaTxt.includes(term)
+        g.parcelas.some((p) => (p.numero_conta ?? "").toLowerCase().includes(termRaw)) ||
+        g.parcelas.some((p) => String(p.valor_original ?? "").includes(termRaw) || String(p.valor_original ?? "").includes(termDot)) ||
+        g.parcelas.some((p) => String(p.valor_pago ?? "").includes(termRaw) || String(p.valor_pago ?? "").includes(termDot)) ||
+        rocaTxt.includes(termRaw)
       );
     });
   }, [contasExibir, clientes, searchTerm]);
@@ -1778,15 +1784,30 @@ const ContasAReceber = () => {
 
     // Filtrar por termo de busca
     if (searchTerm.trim()) {
+      const termRaw = searchTerm.trim().toLowerCase();
+      const termDot = termRaw.replace(',', '.');
       filtered = filtered.filter(t => {
-      const rocaNome = (t as { roca_nome?: string | null }).roca_nome ?? "";
-      const matchesSearch = 
-        t.descricao.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        rocaNome.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesSearch;
-    });
+        const rocaNome = (t as { roca_nome?: string | null }).roca_nome ?? "";
+        const valStr = t.valor ? String(t.valor).toLowerCase() : "";
+        const valPagoStr = t.valorPago ? String(t.valorPago).toLowerCase() : "";
+        
+        const conta = contas.find(c => c.id === t.contaId);
+        const valOrigStr = conta?.valor_original != null ? String(conta.valor_original) : "";
+        const valPagoContaStr = conta?.valor_pago != null ? String(conta.valor_pago) : "";
+        const valRestStr = (conta as any)?.valor_restante != null ? String((conta as any).valor_restante) : "";
+
+        const matchesSearch = 
+          t.descricao.toLowerCase().includes(termRaw) || 
+          t.id.toLowerCase().includes(termRaw) ||
+          t.cliente.toLowerCase().includes(termRaw) ||
+          rocaNome.toLowerCase().includes(termRaw) ||
+          valStr.includes(termRaw) || valStr.includes(termDot) ||
+          valPagoStr.includes(termRaw) || valPagoStr.includes(termDot) ||
+          valOrigStr.includes(termRaw) || valOrigStr.includes(termDot) ||
+          valPagoContaStr.includes(termRaw) || valPagoContaStr.includes(termDot) ||
+          valRestStr.includes(termRaw) || valRestStr.includes(termDot);
+        return matchesSearch;
+      });
     }
 
     return filtered;

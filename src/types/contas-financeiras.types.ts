@@ -61,6 +61,7 @@ export interface FiltrosContasReceber {
   codigo?: string;
   cliente_id?: number;
   cliente_nome?: string;
+  busca?: string;
   valor_inicial?: number;
   valor_final?: number;
   forma_pagamento?: string;
@@ -75,6 +76,7 @@ export interface FiltrosContasPagar {
   codigo?: string;
   fornecedor_id?: number;
   fornecedor_nome?: string;
+  busca?: string;
   valor_inicial?: number;
   valor_final?: number;
   forma_pagamento?: string;

@@ -1647,20 +1647,7 @@ function ContasAPagar() {
 
   const isNumericSearch = !isNaN(Number(searchTerm)) && searchTerm.trim() !== "";
   const searchId = isNumericSearch ? Number(searchTerm) : null;
-
-  const { data: contaPorId } = useQuery({
-    queryKey: ["conta-financeira", "busca", searchId],
-    queryFn: async () => {
-      if (!searchId) return null;
-      try {
-        return await financeiroService.buscarPorId(searchId);
-      } catch (error) {
-        return null;
-      }
-    },
-    enabled: !!searchId && isNumericSearch,
-    retry: false,
-  });
+  const contaPorId = null;
 
   // Filtrar por busca, tab ativa e card clicável (como Contas a Receber)
   const filteredTransacoes = useMemo(() => {
@@ -1681,71 +1668,36 @@ function ContasAPagar() {
       });
     }
 
-    // Busca numérica por ID
-    if (isNumericSearch && contaPorId && contaPorId.tipo === "PAGAR") {
-      const contaEncontrada = contasFallback.find((c) => c.id === contaPorId.id);
-      if (contaEncontrada) {
-        const conta = contaEncontrada;
-        let nomeFornecedor = "N/A";
-        const temPedidoBusca = !!(conta as any).pedido_id;
-        const categoria = temPedidoBusca ? "Compras" : "Centro de custo";
+    // Filtrar por termo de busca
+    if (searchTerm.trim()) {
+      const termRaw = searchTerm.trim().toLowerCase();
+      const termDot = termRaw.replace(',', '.');
+      filtered = filtered.filter(t => {
+        const rocaNome = (t as { roca_nome?: string | null }).roca_nome ?? "";
+        const valStr = t.valor ? String(t.valor).toLowerCase() : "";
+        const valPagoStr = t.valorPago ? String(t.valorPago).toLowerCase() : "";
 
-        if (conta.fornecedor_id) {
-          const fornecedor = fornecedores.find(f => f.id === conta.fornecedor_id);
-          nomeFornecedor = fornecedor?.nome_fantasia || fornecedor?.nome_razao || "Fornecedor não encontrado";
-        }
+        const conta = contasFallback.find(c => c.id === t.contaId);
+        const valOrigStr = conta?.valor_original != null ? String(conta.valor_original) : "";
+        const valPagoContaStr = conta?.valor_pago != null ? String(conta.valor_pago) : "";
+        const valRestStr = (conta as any)?.valor_restante != null ? String((conta as any).valor_restante) : "";
 
-        const valorTotalConta = Number(conta.valor_original) || 0;
-        const valorRestante = Number((conta as any).valor_restante) ?? Number((conta as any).valor_em_aberto) ?? 0;
-        const valorPagoConta = (conta as any).valor_pago != null ? Number((conta as any).valor_pago) : Math.max(0, valorTotalConta - valorRestante);
-        const valorFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorTotalConta);
-        const valorPagoFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorPagoConta);
-
-        const dataFormatada = conta.data_vencimento
-          ? formatDate(conta.data_vencimento)
-          : "N/A";
-
-        const statusMap: Record<string, string> = {
-          PENDENTE: "Pendente",
-          ABERTO: "Pendente",
-          PAGO_PARCIAL: "Pago Parcial",
-          PARCIAL: "Pago Parcial",
-          PAGO_TOTAL: "Pago Total",
-          QUITADO: "Quitado",
-          VENCIDO: "Vencido",
-          CANCELADO: "Cancelado",
-        };
-        const statusFormatado = statusMap[conta.status] || conta.status;
-
-        const diasAteVencimento = conta.dias_ate_vencimento !== undefined 
-          ? conta.dias_ate_vencimento 
-          : calcularDiasAteVencimento(conta.data_vencimento);
-        
-        const vencimentoStatus = getVencimentoStatus(diasAteVencimento, conta.status);
-
-        const origemContaBusca = temPedidoBusca ? ("COMPRA" as const) : ("DESPESA" as const);
-
-        return [{
-          id: conta.numero_conta || `CONTA-${conta.id}`,
-          rowKey: `conta-${conta.id}`,
-          descricao: conta.descricao,
-          categoria: categoria,
-          origemConta: origemContaBusca,
-          valor: valorFormatado,
-          valorPago: valorPagoFormatado,
-          data: dataFormatada,
-          status: statusFormatado,
-          statusOriginal: conta.status,
-          contaId: conta.id,
-          fornecedor: nomeFornecedor,
-          diasAteVencimento,
-          vencimentoStatus,
-        }];
-      }
+        const matchesSearch = 
+          t.descricao.toLowerCase().includes(termRaw) || 
+          t.id.toLowerCase().includes(termRaw) ||
+          t.fornecedor.toLowerCase().includes(termRaw) ||
+          rocaNome.toLowerCase().includes(termRaw) ||
+          valStr.includes(termRaw) || valStr.includes(termDot) ||
+          valPagoStr.includes(termRaw) || valPagoStr.includes(termDot) ||
+          valOrigStr.includes(termRaw) || valOrigStr.includes(termDot) ||
+          valPagoContaStr.includes(termRaw) || valPagoContaStr.includes(termDot) ||
+          valRestStr.includes(termRaw) || valRestStr.includes(termDot);
+        return matchesSearch;
+      });
     }
 
     return filtered;
-  }, [transacoesDisplay, isNumericSearch, contaPorId, contasExibir, fornecedores, activeTab]);
+  }, [transacoesDisplay, searchTerm, contasExibir, contasFallback, fornecedores, activeTab]);
 
   const handleCreate = () => {
     if (!newTransacao.descricao || !newTransacao.valor_original || !newTransacao.data_vencimento) {
