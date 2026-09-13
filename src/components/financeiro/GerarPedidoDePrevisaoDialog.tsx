@@ -110,6 +110,7 @@ export function GerarPedidoDePrevisaoDialog({
       await queryClient.invalidateQueries({ queryKey: ['fluxo-caixa'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard-receber'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard-resumo'] });
+      await queryClient.invalidateQueries({ queryKey: ['centro-custo'] });
       toast.success('Pedido criado e previsão removida.');
       onOpenChange(false);
       onSuccess?.();

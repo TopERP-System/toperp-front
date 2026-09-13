@@ -958,6 +958,9 @@ const Financeiro = () => {
       await financeiroService.deletar(contaId);
       queryClient.invalidateQueries({ queryKey: ["contas-financeiras"] });
       queryClient.invalidateQueries({ queryKey: ["fluxo-caixa"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-pagar"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-resumo-financeiro"] });
+      queryClient.invalidateQueries({ queryKey: ["centro-custo"] });
       toast.success("Transação excluída!");
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Erro ao excluir transação");
@@ -1765,6 +1768,7 @@ const Financeiro = () => {
             ["dashboard-receber"],
             ["dashboard-pagar"],
             ["dashboard-resumo"],
+            ["centro-custo"],
           ]}
         />
 

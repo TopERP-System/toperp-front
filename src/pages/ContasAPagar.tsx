@@ -1247,6 +1247,7 @@ function ContasAPagar() {
       queryClient.invalidateQueries({ queryKey: ["contas-financeiras"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-pagar"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-resumo-financeiro"] });
+      queryClient.invalidateQueries({ queryKey: ["centro-custo"] });
       toast.success("Conta a pagar registrada com sucesso!");
       setDialogOpen(false);
       setNewTransacao({
@@ -1273,6 +1274,7 @@ function ContasAPagar() {
       queryClient.invalidateQueries({ queryKey: ["contas-financeiras"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-pagar"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-resumo-financeiro"] });
+      queryClient.invalidateQueries({ queryKey: ["centro-custo"] });
       toast.success("Status atualizado com sucesso!");
       setEditingStatusId(null);
     },
@@ -1308,6 +1310,7 @@ function ContasAPagar() {
         queryClient.invalidateQueries({ queryKey: ["dashboard-pagar"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard-resumo-financeiro"] }),
         queryClient.invalidateQueries({ queryKey: ["pedidos"] }),
+        queryClient.invalidateQueries({ queryKey: ["centro-custo"] }),
       ]);
       toast.success("Pedido cancelado com sucesso!");
       setPedidoCancelar(null);
@@ -1334,6 +1337,7 @@ function ContasAPagar() {
         queryClient.invalidateQueries({ queryKey: ["dashboard-pagar"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard-resumo-financeiro"] }),
         queryClient.invalidateQueries({ queryKey: ["pedidos"] }),
+        queryClient.invalidateQueries({ queryKey: ["centro-custo"] }),
       ]);
       toast.success(
         itemApagar?.tipo === "conta"
@@ -2673,6 +2677,7 @@ function ContasAPagar() {
             ["dashboard-pagar"],
             ["dashboard-resumo-financeiro"],
             ["pedidos", "contas-pagar"],
+            ["centro-custo"],
           ]}
         />
         <Dialog

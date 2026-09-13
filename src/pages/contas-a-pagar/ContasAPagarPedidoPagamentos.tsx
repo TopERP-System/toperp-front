@@ -252,6 +252,7 @@ const ContasAPagarPedidoPagamentos = () => {
       queryClient.invalidateQueries({ queryKey: ['contas-financeiras'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-pagar'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'unificado'] });
+      queryClient.invalidateQueries({ queryKey: ['centro-custo'] });
       setTimeout(() => navigate(`/financeiro/contas-pagar/${pedidoId}`), 1000);
     },
     onError: (error: any) => {
@@ -285,6 +286,7 @@ const ContasAPagarPedidoPagamentos = () => {
       queryClient.invalidateQueries({ queryKey: ['pedidos', 'contas-pagar'] });
       queryClient.invalidateQueries({ queryKey: ['contas-financeiras'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-pagar'] });
+      queryClient.invalidateQueries({ queryKey: ['centro-custo'] });
       setTimeout(() => navigate(`/financeiro/contas-pagar/${pedidoId}`), 1000);
     },
     onError: (error: any) => {

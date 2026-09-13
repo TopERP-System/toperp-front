@@ -353,6 +353,9 @@ export function CentroCustosProvider({ children }: { children: ReactNode }) {
 
   const invalidateCentroCustoLists = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['centro-custo'] });
+    void queryClient.invalidateQueries({ queryKey: ['contas-financeiras'] });
+    void queryClient.invalidateQueries({ queryKey: ['dashboard-pagar'] });
+    void queryClient.invalidateQueries({ queryKey: ['dashboard-resumo-financeiro'] });
   }, [queryClient]);
 
   const buscarDespesaPorId = useCallback(async (id: string) => {
