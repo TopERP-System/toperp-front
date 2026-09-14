@@ -60,6 +60,10 @@ export function DespesaDetalheConteudo({
   const statusFin = String(
     detalhe?.status_original || detalhe?.status || conta.status,
   );
+  const dataEmissao =
+    conta.data_emissao ||
+    detalhe?.datas?.data_criacao ||
+    (conta as any).created_at;
   const dataVenc = detalhe?.datas?.data_vencimento ?? conta.data_vencimento;
   const formaPag =
     detalhe?.pagamento?.forma_pagamento &&
@@ -103,7 +107,7 @@ export function DespesaDetalheConteudo({
             <div className="font-medium">{statusFin}</div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 border-t pt-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 border-t pt-4 md:grid-cols-5">
           <div className="space-y-1">
             <div className="text-sm text-muted-foreground">Valor Total</div>
             <div className="text-primary text-xl font-bold">
@@ -122,6 +126,12 @@ export function DespesaDetalheConteudo({
               {formatCurrency(valorAberto)}
             </div>
           </div>
+          {dataEmissao ? (
+            <div className="space-y-1">
+              <div className="text-sm text-muted-foreground">Data de Emissão</div>
+              <div className="font-medium">{formatarDataBR(dataEmissao)}</div>
+            </div>
+          ) : null}
           {dataVenc ? (
             <div className="space-y-1">
               <div className="text-sm text-muted-foreground">Vencimento</div>
