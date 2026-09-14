@@ -65,13 +65,21 @@ export async function listarContasTodasAsPaginas(
 
 export function contaTemSaldoAberto(c: ContaFinanceira): boolean {
   const st = String(c.status ?? '').toUpperCase();
-  if (st === 'QUITADO' || st === 'PAGO_TOTAL' || st === 'CANCELADO') return false;
-  const aberto = Number(
-    (c as { valor_restante?: number; valor_em_aberto?: number }).valor_restante ??
-      (c as { valor_em_aberto?: number }).valor_em_aberto ??
-      0,
-  );
+  if (st === 'CANCELADO') return false;
+
+  const original = Number(c.valor_original ?? 0);
+  const pago = Number(c.valor_pago ?? 0);
+  const abertoExplicit = (c as { valor_restante?: number; valor_em_aberto?: number }).valor_restante ??
+    (c as { valor_em_aberto?: number }).valor_em_aberto;
+  
+  const aberto = abertoExplicit !== undefined && abertoExplicit !== null
+    ? Number(abertoExplicit)
+    : (original > 0 ? original - pago : 0);
+
   if (aberto > 0.009) return true;
+
+  if (st === 'QUITADO' || st === 'PAGO_TOTAL') return false;
+
   if (
     st === 'PENDENTE' ||
     st === 'ABERTO' ||
@@ -87,6 +95,10 @@ export function contaTemSaldoAberto(c: ContaFinanceira): boolean {
 
 export function contaEstaPaga(c: ContaFinanceira): boolean {
   const st = String(c.status ?? '').toUpperCase();
+  if (st === 'CANCELADO') return false;
+  const pago = Number(c.valor_pago ?? 0);
+  if (pago > 0.009) return true;
+  if ((st === 'PAGO_TOTAL' || st === 'QUITADO') && pago <= 0) return false;
   return (
     st === 'PAGO_TOTAL' ||
     st === 'PAGO_PARCIAL' ||

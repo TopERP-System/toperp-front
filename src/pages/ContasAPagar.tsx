@@ -784,6 +784,15 @@ function ContasAPagar() {
          * nas 15 linhas da página atual.
          */
         if (!filtro && !searchTerm.trim()) {
+          const paginateLocal = (merged: ContaFinanceira[]) => {
+            const agrupado = agruparContasPorPedido(merged);
+            const start = (currentPage - 1) * pageSize;
+            return {
+              data: agrupado.slice(start, start + pageSize),
+              total: agrupado.length,
+            };
+          };
+
           if (activeCardFilter === "valor_pago") {
             const [pagasTotal, pagasParcial] = await Promise.all([
               listarContasPagarTodasAsPaginas({
@@ -809,62 +818,20 @@ function ContasAPagar() {
               ...pagasTotal,
               ...pagasParcial,
             ]);
-            const agrupado = agruparContasPorPedido(merged);
-            const start = (currentPage - 1) * pageSize;
-            return {
-              data: agrupado.slice(start, start + pageSize),
-              total: agrupado.length,
-            };
+            return paginateLocal(merged);
           }
+
           if (activeCardFilter === "a_pagar") {
-            const [emAberto, vencidasSt, parcial] = await Promise.all([
-              listarContasPagarTodasAsPaginas({
-                tipo: "PAGAR",
-                status: "PENDENTE",
-                fornecedor_id: fornecedorArg,
-                roca_id: rocaArg,
-                tipo_despesa_id: tipoDespesaArg,
-                data_inicial: dataInicialArg,
-                data_final: dataFinalArg,
-              }),
-              listarContasPagarTodasAsPaginas({
-                tipo: "PAGAR",
-                status: "VENCIDO",
-                fornecedor_id: fornecedorArg,
-                roca_id: rocaArg,
-                tipo_despesa_id: tipoDespesaArg,
-                data_inicial: dataInicialArg,
-                data_final: dataFinalArg,
-              }),
-              listarContasPagarTodasAsPaginas({
-                tipo: "PAGAR",
-                status: "PAGO_PARCIAL",
-                fornecedor_id: fornecedorArg,
-                roca_id: rocaArg,
-                tipo_despesa_id: tipoDespesaArg,
-                data_inicial: dataInicialArg,
-                data_final: dataFinalArg,
-              }),
-            ]);
-            const merged = dedupeContasFinanceirasPagar([
-              ...emAberto,
-              ...vencidasSt,
-              ...parcial,
-            ]);
-            const start = (currentPage - 1) * pageSize;
-            return {
-              data: merged.slice(start, start + pageSize),
-              total: merged.length,
-            };
+            const todas = await listarContasPagarTodasAsPaginas({
+              tipo: "PAGAR",
+              fornecedor_id: fornecedorArg,
+              roca_id: rocaArg,
+              tipo_despesa_id: tipoDespesaArg,
+              data_inicial: dataInicialArg,
+              data_final: dataFinalArg,
+            });
+            return paginateLocal(todas.filter(contaTemSaldoAberto));
           }
-          const paginateLocal = (merged: ContaFinanceira[]) => {
-            const agrupado = agruparContasPorPedido(merged);
-            const start = (currentPage - 1) * pageSize;
-            return {
-              data: agrupado.slice(start, start + pageSize),
-              total: agrupado.length,
-            };
-          };
 
           if (activeCardFilter === "vencidas") {
             const merged = await listarContasPagarTodasAsPaginas({
@@ -907,7 +874,7 @@ function ContasAPagar() {
         const usaVisaoAgrupada =
           !tipoDespesaArg &&
           !proximidadeVencimento &&
-          !activeCardFilter;
+          (!activeCardFilter || activeCardFilter === "todos");
 
         if (usaVisaoAgrupada) {
           const response = await financeiroService.listarAgrupado({
