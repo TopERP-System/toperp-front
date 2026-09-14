@@ -277,6 +277,28 @@ function ContasAPagar() {
     activeCardFilter,
   ]);
   const [filtrosDialogOpen, setFiltrosDialogOpen] = useState(false);
+
+  // Estados de Rascunho para a gaveta de Filtros Avançados (só aplicados ao clicar no botão "Aplicar Filtros")
+  const [draftFornecedorFilterId, setDraftFornecedorFilterId] = useState<number | null>(fornecedorFilterId);
+  const [draftRocaFilterId, setDraftRocaFilterId] = useState<number | null>(rocaFilterId);
+  const [draftTipoDespesaFilterId, setDraftTipoDespesaFilterId] = useState<number | null>(tipoDespesaFilterId);
+  const [draftStatusFilter, setDraftStatusFilter] = useState<string>(statusFilter);
+  const [draftDataInicialFilter, setDraftDataInicialFilter] = useState<string>(dataInicialFilter);
+  const [draftDataFinalFilter, setDraftDataFinalFilter] = useState<string>(dataFinalFilter);
+  const [draftCampoDataFilter, setDraftCampoDataFilter] = useState<"vencimento" | "emissao" | "pagamento">(campoDataFilter);
+
+  const handleOpenFiltros = (open: boolean) => {
+    if (open) {
+      setDraftFornecedorFilterId(fornecedorFilterId);
+      setDraftRocaFilterId(rocaFilterId);
+      setDraftTipoDespesaFilterId(tipoDespesaFilterId);
+      setDraftStatusFilter(statusFilter);
+      setDraftDataInicialFilter(dataInicialFilter);
+      setDraftDataFinalFilter(dataFinalFilter);
+      setDraftCampoDataFilter(campoDataFilter);
+    }
+    setFiltrosDialogOpen(open);
+  };
   const [relatorioFornecedorPdfOpen, setRelatorioFornecedorPdfOpen] = useState(false);
   const [relatorioGeralPdfOpen, setRelatorioGeralPdfOpen] = useState(false);
   const [relatorioCentroCustoPdfOpen, setRelatorioCentroCustoPdfOpen] = useState(false);
@@ -1018,7 +1040,18 @@ function ContasAPagar() {
     campoDataFilter !== "vencimento" ||
     (activeTab !== "Todos");
 
-  const handleAplicarFiltros = () => setFiltrosDialogOpen(false);
+  const handleAplicarFiltros = () => {
+    setFornecedorFilterId(draftFornecedorFilterId);
+    setRocaFilterId(draftRocaFilterId);
+    setTipoDespesaFilterId(draftTipoDespesaFilterId);
+    setStatusFilter(draftStatusFilter);
+    setDataInicialFilter(draftDataInicialFilter);
+    setDataFinalFilter(draftDataFinalFilter);
+    setCampoDataFilter(draftCampoDataFilter);
+    setCurrentPage(1);
+    setFiltrosDialogOpen(false);
+  };
+
   const handleLimparFiltros = () => {
     sessionStorage.removeItem(SESSION_KEY_CPAGAR);
     setFornecedorFilterId(null);
@@ -1032,6 +1065,15 @@ function ContasAPagar() {
     setActiveTab("Todos");
     setSearchTerm("");
     setCurrentPage(1);
+
+    setDraftFornecedorFilterId(null);
+    setDraftRocaFilterId(null);
+    setDraftTipoDespesaFilterId(null);
+    setDraftStatusFilter("");
+    setDraftCampoDataFilter("vencimento");
+    setDraftDataInicialFilter("");
+    setDraftDataFinalFilter("");
+
     if (dataInicialFiltroRef.current) dataInicialFiltroRef.current.value = "";
     if (dataFinalFiltroRef.current) dataFinalFiltroRef.current.value = "";
     setFiltrosDialogOpen(false);
@@ -2138,7 +2180,7 @@ function ContasAPagar() {
                 </span>
               )}
             </Button>
-            <Sheet open={filtrosDialogOpen} onOpenChange={setFiltrosDialogOpen}>
+            <Sheet open={filtrosDialogOpen} onOpenChange={handleOpenFiltros}>
               <SheetContent
                 side="right"
                 className="w-[400px] sm:w-[540px] overflow-y-auto"
@@ -2160,8 +2202,8 @@ function ContasAPagar() {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">Fornecedor</Label>
                     <Select
-                      value={fornecedorFilterId == null ? "todos" : String(fornecedorFilterId)}
-                      onValueChange={(v) => setFornecedorFilterId(v === "todos" ? null : parseInt(v, 10))}
+                      value={draftFornecedorFilterId == null ? "todos" : String(draftFornecedorFilterId)}
+                      onValueChange={(v) => setDraftFornecedorFilterId(v === "todos" ? null : parseInt(v, 10))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Todos os fornecedores" />
@@ -2183,9 +2225,9 @@ function ContasAPagar() {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">{rotulo.singular}</Label>
                     <Select
-                      value={rocaFilterId == null ? "todos" : String(rocaFilterId)}
+                      value={draftRocaFilterId == null ? "todos" : String(draftRocaFilterId)}
                       onValueChange={(v) =>
-                        setRocaFilterId(v === "todos" ? null : parseInt(v, 10))
+                        setDraftRocaFilterId(v === "todos" ? null : parseInt(v, 10))
                       }
                     >
                       <SelectTrigger>
@@ -2211,12 +2253,12 @@ function ContasAPagar() {
                     <Label className="text-sm font-semibold">Centro de despesa</Label>
                     <Select
                       value={
-                        tipoDespesaFilterId == null
+                        draftTipoDespesaFilterId == null
                           ? "todos"
-                          : String(tipoDespesaFilterId)
+                          : String(draftTipoDespesaFilterId)
                       }
                       onValueChange={(v) =>
-                        setTipoDespesaFilterId(
+                        setDraftTipoDespesaFilterId(
                           v === "todos" ? null : parseInt(v, 10),
                         )
                       }
@@ -2242,9 +2284,9 @@ function ContasAPagar() {
                     <div className="space-y-3">
                       <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
                       <RadioGroup
-                        value={campoDataFilter}
+                        value={draftCampoDataFilter}
                         onValueChange={(v) =>
-                          setCampoDataFilter(v as "vencimento" | "emissao" | "pagamento")
+                          setDraftCampoDataFilter(v as "vencimento" | "emissao" | "pagamento")
                         }
                         className="space-y-2"
                       >
@@ -2281,8 +2323,8 @@ function ContasAPagar() {
                               type="date"
                               ref={dataInicialFiltroRef}
                               className="pr-10 [color-scheme:light] [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:pointer-events-none"
-                              value={dataInicialFilter}
-                              onChange={(e) => setDataInicialFilter(e.target.value || "")}
+                              value={draftDataInicialFilter}
+                              onChange={(e) => setDraftDataInicialFilter(e.target.value || "")}
                             />
                             <button
                               type="button"
@@ -2301,8 +2343,8 @@ function ContasAPagar() {
                               type="date"
                               ref={dataFinalFiltroRef}
                               className="pr-10 [color-scheme:light] [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:pointer-events-none"
-                              value={dataFinalFilter}
-                              onChange={(e) => setDataFinalFilter(e.target.value || "")}
+                              value={draftDataFinalFilter}
+                              onChange={(e) => setDraftDataFinalFilter(e.target.value || "")}
                             />
                             <button
                               type="button"
@@ -2324,8 +2366,8 @@ function ContasAPagar() {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">Status</Label>
                     <RadioGroup
-                      value={statusFilter || "todos"}
-                      onValueChange={(v) => setStatusFilter(v === "todos" ? "" : v)}
+                      value={draftStatusFilter || "todos"}
+                      onValueChange={(v) => setDraftStatusFilter(v === "todos" ? "" : v)}
                       className="space-y-2"
                     >
                       <div className="flex items-center space-x-2">

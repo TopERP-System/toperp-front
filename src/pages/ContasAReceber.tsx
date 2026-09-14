@@ -169,6 +169,26 @@ const ContasAReceber = () => {
     campoDataFilter,
   ]);
   const [filtrosDialogOpen, setFiltrosDialogOpen] = useState(false);
+
+  // Estados de Rascunho para a gaveta de Filtros Avançados (só aplicados ao clicar em "Aplicar Filtros")
+  const [draftClienteFilterId, setDraftClienteFilterId] = useState<number | null>(clienteFilterId);
+  const [draftRocaFilterId, setDraftRocaFilterId] = useState<number | null>(rocaFilterId);
+  const [draftStatusFilter, setDraftStatusFilter] = useState<string>(statusFilter);
+  const [draftDataInicialFilter, setDraftDataInicialFilter] = useState<string>(dataInicialFilter);
+  const [draftDataFinalFilter, setDraftDataFinalFilter] = useState<string>(dataFinalFilter);
+  const [draftCampoDataFilter, setDraftCampoDataFilter] = useState<"vencimento" | "emissao" | "pagamento">(campoDataFilter);
+
+  const handleOpenFiltros = (open: boolean) => {
+    if (open) {
+      setDraftClienteFilterId(clienteFilterId);
+      setDraftRocaFilterId(rocaFilterId);
+      setDraftStatusFilter(statusFilter);
+      setDraftDataInicialFilter(dataInicialFilter);
+      setDraftDataFinalFilter(dataFinalFilter);
+      setDraftCampoDataFilter(campoDataFilter);
+    }
+    setFiltrosDialogOpen(open);
+  };
   // Dialog do relatório geral (PDF / imprimir)
   const [relatorioDialogOpen, setRelatorioDialogOpen] = useState(false);
   const [relatorioClientePdfOpen, setRelatorioClientePdfOpen] = useState(false);
@@ -692,7 +712,16 @@ const ContasAReceber = () => {
     !!dataFinalFilter ||
     campoDataFilter !== "vencimento";
 
-  const handleAplicarFiltros = () => setFiltrosDialogOpen(false);
+  const handleAplicarFiltros = () => {
+    setClienteFilterId(draftClienteFilterId);
+    setRocaFilterId(draftRocaFilterId);
+    setStatusFilter(draftStatusFilter);
+    setDataInicialFilter(draftDataInicialFilter);
+    setDataFinalFilter(draftDataFinalFilter);
+    setCampoDataFilter(draftCampoDataFilter);
+    setFiltrosDialogOpen(false);
+  };
+
   const handleLimparFiltros = () => {
     sessionStorage.removeItem(SESSION_KEY_CRECEBER);
     setClienteFilterId(null);
@@ -703,6 +732,14 @@ const ContasAReceber = () => {
     setDataFinalFilter("");
     setActiveCardFilter("todos");
     setSearchTerm("");
+
+    setDraftClienteFilterId(null);
+    setDraftRocaFilterId(null);
+    setDraftStatusFilter("");
+    setDraftCampoDataFilter("vencimento");
+    setDraftDataInicialFilter("");
+    setDraftDataFinalFilter("");
+
     setFiltrosDialogOpen(false);
   };
 
@@ -2209,7 +2246,7 @@ const ContasAReceber = () => {
                 </span>
               )}
             </Button>
-            <Sheet open={filtrosDialogOpen} onOpenChange={setFiltrosDialogOpen}>
+            <Sheet open={filtrosDialogOpen} onOpenChange={handleOpenFiltros}>
               <SheetContent
                 side="right"
                 className="w-[400px] sm:w-[540px] overflow-y-auto"
@@ -2231,8 +2268,8 @@ const ContasAReceber = () => {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">Cliente</Label>
                     <Select
-                      value={clienteFilterId == null ? "todos" : String(clienteFilterId)}
-                      onValueChange={(v) => setClienteFilterId(v === "todos" ? null : parseInt(v, 10))}
+                      value={draftClienteFilterId == null ? "todos" : String(draftClienteFilterId)}
+                      onValueChange={(v) => setDraftClienteFilterId(v === "todos" ? null : parseInt(v, 10))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Todos os clientes" />
@@ -2252,9 +2289,9 @@ const ContasAReceber = () => {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">{rotulo.singular}</Label>
                     <Select
-                      value={rocaFilterId == null ? "todos" : String(rocaFilterId)}
+                      value={draftRocaFilterId == null ? "todos" : String(draftRocaFilterId)}
                       onValueChange={(v) =>
-                        setRocaFilterId(v === "todos" ? null : parseInt(v, 10))
+                        setDraftRocaFilterId(v === "todos" ? null : parseInt(v, 10))
                       }
                     >
                       <SelectTrigger>
@@ -2280,9 +2317,9 @@ const ContasAReceber = () => {
                     <div className="space-y-3">
                       <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
                       <RadioGroup
-                        value={campoDataFilter}
+                        value={draftCampoDataFilter}
                         onValueChange={(v) =>
-                          setCampoDataFilter(v as "vencimento" | "emissao" | "pagamento")
+                          setDraftCampoDataFilter(v as "vencimento" | "emissao" | "pagamento")
                         }
                         className="space-y-2"
                       >
@@ -2317,8 +2354,8 @@ const ContasAReceber = () => {
                           <Input
                             type="date"
                             className="[color-scheme:light]"
-                            value={dataInicialFilter}
-                            onChange={(e) => setDataInicialFilter(e.target.value || "")}
+                            value={draftDataInicialFilter}
+                            onChange={(e) => setDraftDataInicialFilter(e.target.value || "")}
                           />
                         </div>
                         <div className="space-y-2">
@@ -2326,8 +2363,8 @@ const ContasAReceber = () => {
                           <Input
                             type="date"
                             className="[color-scheme:light]"
-                            value={dataFinalFilter}
-                            onChange={(e) => setDataFinalFilter(e.target.value || "")}
+                            value={draftDataFinalFilter}
+                            onChange={(e) => setDraftDataFinalFilter(e.target.value || "")}
                           />
                         </div>
                       </div>
@@ -2340,8 +2377,8 @@ const ContasAReceber = () => {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">Status</Label>
                     <RadioGroup
-                      value={statusFilter || "todos"}
-                      onValueChange={(v) => setStatusFilter(v === "todos" ? "" : v)}
+                      value={draftStatusFilter || "todos"}
+                      onValueChange={(v) => setDraftStatusFilter(v === "todos" ? "" : v)}
                       className="space-y-2"
                     >
                       <div className="flex items-center space-x-2">
