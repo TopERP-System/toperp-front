@@ -110,7 +110,20 @@ import {
     XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+
+const SESSION_KEY_CPAGAR = "cpagar_filtros_v2";
+
+function getSavedCPagarState<T>(key: string, defaultValue: T): T {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY_CPAGAR);
+    if (!raw) return defaultValue;
+    const parsed = JSON.parse(raw);
+    return parsed[key] !== undefined ? parsed[key] : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
 import { relatoriosClienteService } from "@/services/relatorios-cliente.service";
 import { centroCustoService } from "@/services/centro-custo.service";
 import { toast } from "sonner";
@@ -214,24 +227,55 @@ function rowKeyContasPagar(transacao: {
 }
 
 function ContasAPagar() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const rotulo = useRotuloRoca();
   const dataInicialFiltroRef = useRef<HTMLInputElement | null>(null);
   const dataFinalFiltroRef = useRef<HTMLInputElement | null>(null);
-  const [activeTab, setActiveTab] = useState("Todos");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<string>(() => getSavedCPagarState("activeTab", "Todos"));
+  const [searchTerm, setSearchTerm] = useState<string>(() => getSavedCPagarState("searchTerm", ""));
+  const [currentPage, setCurrentPage] = useState<number>(() => getSavedCPagarState("currentPage", 1));
   const [pageSize] = useState(15);
-  const [fornecedorFilterId, setFornecedorFilterId] = useState<number | null>(null);
-  const [rocaFilterId, setRocaFilterId] = useState<number | null>(null);
-  const [tipoDespesaFilterId, setTipoDespesaFilterId] = useState<number | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [dataInicialFilter, setDataInicialFilter] = useState<string>("");
-  const [dataFinalFilter, setDataFinalFilter] = useState<string>("");
-  const [campoDataFilter, setCampoDataFilter] = useState<"vencimento" | "emissao" | "pagamento">("vencimento");
+  const [fornecedorFilterId, setFornecedorFilterId] = useState<number | null>(() => getSavedCPagarState("fornecedorFilterId", null));
+  const [rocaFilterId, setRocaFilterId] = useState<number | null>(() => getSavedCPagarState("rocaFilterId", null));
+  const [tipoDespesaFilterId, setTipoDespesaFilterId] = useState<number | null>(() => getSavedCPagarState("tipoDespesaFilterId", null));
+  const [statusFilter, setStatusFilter] = useState<string>(() => getSavedCPagarState("statusFilter", ""));
+  const [dataInicialFilter, setDataInicialFilter] = useState<string>(() => getSavedCPagarState("dataInicialFilter", ""));
+  const [dataFinalFilter, setDataFinalFilter] = useState<string>(() => getSavedCPagarState("dataFinalFilter", ""));
+  const [campoDataFilter, setCampoDataFilter] = useState<"vencimento" | "emissao" | "pagamento">(() => getSavedCPagarState("campoDataFilter", "vencimento"));
   /** Filtro por card clicável (como Contas a Receber): ao clicar no card, filtra a tabela */
   const [activeCardFilter, setActiveCardFilter] = useState<
     "todos" | "a_pagar" | "valor_pago" | "vencidas" | "vencendo_hoje" | "vencendo_este_mes"
-  >("todos");
+  >(() => getSavedCPagarState("activeCardFilter", "todos"));
+
+  useEffect(() => {
+    const payload = {
+      activeTab,
+      searchTerm,
+      currentPage,
+      fornecedorFilterId,
+      rocaFilterId,
+      tipoDespesaFilterId,
+      statusFilter,
+      dataInicialFilter,
+      dataFinalFilter,
+      campoDataFilter,
+      activeCardFilter,
+    };
+    sessionStorage.setItem(SESSION_KEY_CPAGAR, JSON.stringify(payload));
+  }, [
+    activeTab,
+    searchTerm,
+    currentPage,
+    fornecedorFilterId,
+    rocaFilterId,
+    tipoDespesaFilterId,
+    statusFilter,
+    dataInicialFilter,
+    dataFinalFilter,
+    campoDataFilter,
+    activeCardFilter,
+  ]);
   const [filtrosDialogOpen, setFiltrosDialogOpen] = useState(false);
   const [relatorioFornecedorPdfOpen, setRelatorioFornecedorPdfOpen] = useState(false);
   const [relatorioGeralPdfOpen, setRelatorioGeralPdfOpen] = useState(false);
@@ -283,7 +327,6 @@ function ContasAPagar() {
   });
 
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   const { data: contasBancariasData } = useQuery({
     queryKey: ["contas-bancarias", "contas-pagar-page"],
@@ -977,6 +1020,7 @@ function ContasAPagar() {
 
   const handleAplicarFiltros = () => setFiltrosDialogOpen(false);
   const handleLimparFiltros = () => {
+    sessionStorage.removeItem(SESSION_KEY_CPAGAR);
     setFornecedorFilterId(null);
     setRocaFilterId(null);
     setTipoDespesaFilterId(null);
@@ -984,6 +1028,12 @@ function ContasAPagar() {
     setCampoDataFilter("vencimento");
     setDataInicialFilter("");
     setDataFinalFilter("");
+    setActiveCardFilter("todos");
+    setActiveTab("Todos");
+    setSearchTerm("");
+    setCurrentPage(1);
+    if (dataInicialFiltroRef.current) dataInicialFiltroRef.current.value = "";
+    if (dataFinalFiltroRef.current) dataFinalFiltroRef.current.value = "";
     setFiltrosDialogOpen(false);
   };
 
@@ -2511,10 +2561,15 @@ function ContasAPagar() {
                       <TableRowActionsMenu>
                           <DropdownMenuItem onClick={() => {
                             if ((transacao as any).pedidoId) {
-                              navigate(`/financeiro/contas-pagar/${(transacao as any).pedidoId}`);
+                              navigate(`/financeiro/contas-pagar/${(transacao as any).pedidoId}`, {
+                                state: { voltarPara: location.pathname + location.search },
+                              });
                             } else if (transacao.contaId != null) {
                               navigate(
                                 `/financeiro/contas-pagar/despesa/${transacao.contaId}`,
+                                {
+                                  state: { voltarPara: location.pathname + location.search },
+                                },
                               );
                             }
                           }}>
@@ -2559,6 +2614,9 @@ function ContasAPagar() {
                                 onClick={() =>
                                   navigate(
                                     `/financeiro/contas-pagar/${(transacao as any).pedidoId}/pagamentos`,
+                                    {
+                                      state: { voltarPara: location.pathname + location.search },
+                                    },
                                   )
                                 }
                               >
@@ -2570,6 +2628,9 @@ function ContasAPagar() {
                                 onClick={() =>
                                   navigate(
                                     `/financeiro/contas-pagar/conta/${transacao.contaId}/pagamentos`,
+                                    {
+                                      state: { voltarPara: location.pathname + location.search },
+                                    },
                                   )
                                 }
                               >

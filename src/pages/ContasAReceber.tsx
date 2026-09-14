@@ -105,29 +105,69 @@ import {
     XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
+const SESSION_KEY_CRECEBER = "creceber_filtros_v2";
+
+function getSavedCReceberState<T>(key: string, defaultValue: T): T {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY_CRECEBER);
+    if (!raw) return defaultValue;
+    const parsed = JSON.parse(raw);
+    return parsed[key] !== undefined ? parsed[key] : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
 const ContasAReceber = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const rotulo = useRotuloRoca();
-  const [viewMode, setViewMode] = useState<"clientes" | "pedidos">("pedidos");
+  const [viewMode, setViewMode] = useState<"clientes" | "pedidos">(() => getSavedCReceberState("viewMode", "pedidos"));
   /** Guia: card Total a Receber preferir soma da lista de clientes (bate com a tabela). */
   const [totalAReceberFromLista, setTotalAReceberFromLista] = useState<number | null>(null);
   /** Filtro por card clicável: todos | valor_pago | vencidas | vencendo_hoje | vencendo_este_mes */
   const [activeCardFilter, setActiveCardFilter] = useState<
     "todos" | "a_receber" | "valor_pago" | "vencidas" | "vencendo_hoje" | "vencendo_este_mes"
-  >("todos");
-  const [searchTerm, setSearchTerm] = useState("");
+  >(() => getSavedCReceberState("activeCardFilter", "todos"));
+  const [searchTerm, setSearchTerm] = useState<string>(() => getSavedCReceberState("searchTerm", ""));
   /** Filtro por cliente: null = todos; number = ID do cliente */
-  const [clienteFilterId, setClienteFilterId] = useState<number | null>(null);
+  const [clienteFilterId, setClienteFilterId] = useState<number | null>(() => getSavedCReceberState("clienteFilterId", null));
   /** Filtro por roça: null = todas */
-  const [rocaFilterId, setRocaFilterId] = useState<number | null>(null);
+  const [rocaFilterId, setRocaFilterId] = useState<number | null>(() => getSavedCReceberState("rocaFilterId", null));
   /** Filtro por status do pedido: '' = todos; ABERTO | PARCIAL | QUITADO | VENCIDO */
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>(() => getSavedCReceberState("statusFilter", ""));
   /** Filtro por período: data_inicial e data_final (YYYY-MM-DD) */
-  const [dataInicialFilter, setDataInicialFilter] = useState<string>("");
-  const [dataFinalFilter, setDataFinalFilter] = useState<string>("");
-  const [campoDataFilter, setCampoDataFilter] = useState<"vencimento" | "emissao" | "pagamento">("vencimento");
+  const [dataInicialFilter, setDataInicialFilter] = useState<string>(() => getSavedCReceberState("dataInicialFilter", ""));
+  const [dataFinalFilter, setDataFinalFilter] = useState<string>(() => getSavedCReceberState("dataFinalFilter", ""));
+  const [campoDataFilter, setCampoDataFilter] = useState<"vencimento" | "emissao" | "pagamento">(() => getSavedCReceberState("campoDataFilter", "vencimento"));
+
+  useEffect(() => {
+    const payload = {
+      viewMode,
+      activeCardFilter,
+      searchTerm,
+      clienteFilterId,
+      rocaFilterId,
+      statusFilter,
+      dataInicialFilter,
+      dataFinalFilter,
+      campoDataFilter,
+    };
+    sessionStorage.setItem(SESSION_KEY_CRECEBER, JSON.stringify(payload));
+  }, [
+    viewMode,
+    activeCardFilter,
+    searchTerm,
+    clienteFilterId,
+    rocaFilterId,
+    statusFilter,
+    dataInicialFilter,
+    dataFinalFilter,
+    campoDataFilter,
+  ]);
   const [filtrosDialogOpen, setFiltrosDialogOpen] = useState(false);
   // Dialog do relatório geral (PDF / imprimir)
   const [relatorioDialogOpen, setRelatorioDialogOpen] = useState(false);
@@ -172,7 +212,6 @@ const ContasAReceber = () => {
   });
 
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   const { data: rocasData } = useQuery({
     queryKey: ["contas-receber", "rocas-ativas"],
@@ -655,12 +694,15 @@ const ContasAReceber = () => {
 
   const handleAplicarFiltros = () => setFiltrosDialogOpen(false);
   const handleLimparFiltros = () => {
+    sessionStorage.removeItem(SESSION_KEY_CRECEBER);
     setClienteFilterId(null);
     setRocaFilterId(null);
     setStatusFilter("");
     setCampoDataFilter("vencimento");
     setDataInicialFilter("");
     setDataFinalFilter("");
+    setActiveCardFilter("todos");
+    setSearchTerm("");
     setFiltrosDialogOpen(false);
   };
 
@@ -2815,12 +2857,16 @@ const ContasAReceber = () => {
                         <TableRowActionsMenu>
                             <DropdownMenuItem onClick={() => {
                               if (grupo?.pedido_id != null) {
-                                navigate(`/financeiro/contas-receber/${grupo.pedido_id}`);
+                                navigate(`/financeiro/contas-receber/${grupo.pedido_id}`, {
+                                  state: { voltarPara: location.pathname + location.search },
+                                });
                                 return;
                               }
                               const contaIdAvulsa = grupo?.parcelas?.[0]?.id ?? null;
                               if (contaIdAvulsa != null) {
-                                navigate(`/financeiro/contas-receber/conta/${contaIdAvulsa}`);
+                                navigate(`/financeiro/contas-receber/conta/${contaIdAvulsa}`, {
+                                  state: { voltarPara: location.pathname + location.search },
+                                });
                                 return;
                               }
                               setSelectedContaId(grupo?.parcelas[0]?.id ?? null);
@@ -2845,6 +2891,9 @@ const ContasAReceber = () => {
                                 onClick={() =>
                                   navigate(
                                     `/financeiro/contas-receber/${grupo.pedido_id}/pagamentos`,
+                                    {
+                                      state: { voltarPara: location.pathname + location.search },
+                                    },
                                   )
                                 }
                               >
@@ -2859,6 +2908,9 @@ const ContasAReceber = () => {
                                 onClick={() =>
                                   navigate(
                                     `/financeiro/contas-receber/conta/${grupo.parcelas[0].id}/pagamentos`,
+                                    {
+                                      state: { voltarPara: location.pathname + location.search },
+                                    },
                                   )
                                 }
                               >
@@ -2874,6 +2926,9 @@ const ContasAReceber = () => {
                                 onClick={() =>
                                   navigate(
                                     `/financeiro/contas-receber/${grupo.pedido_id}/pagamentos`,
+                                    {
+                                      state: { voltarPara: location.pathname + location.search },
+                                    },
                                   )
                                 }
                               >
@@ -2985,7 +3040,7 @@ const ContasAReceber = () => {
                     </TableCell>
                     <TableCell>
                       <TableRowActionsMenu>
-                          <DropdownMenuItem onClick={() => navigate(`/financeiro/contas-receber/${transacao.pedidoId}`)}>
+                          <DropdownMenuItem onClick={() => navigate(`/financeiro/contas-receber/${transacao.pedidoId}`, { state: { voltarPara: location.pathname + location.search } })}>
                             <Eye className="w-4 h-4 mr-2" />
                             Ver detalhes
                           </DropdownMenuItem>
@@ -3039,7 +3094,7 @@ const ContasAReceber = () => {
                               st !== "cancelado";
                             return podeReceber;
                           })() ? (
-                            <DropdownMenuItem onClick={() => navigate(`/financeiro/contas-receber/${transacao.pedidoId}/pagamentos`)}>
+                            <DropdownMenuItem onClick={() => navigate(`/financeiro/contas-receber/${transacao.pedidoId}/pagamentos`, { state: { voltarPara: location.pathname + location.search } })}>
                               <DollarSign className="w-4 h-4 mr-2" />
                               Pagar
                             </DropdownMenuItem>
