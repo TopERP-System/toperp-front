@@ -1044,7 +1044,7 @@ function ContasAPagar() {
         if (campoDataFilter === "emissao") {
           dateVal = c.data_emissao || c.created_at;
         } else if (campoDataFilter === "pagamento") {
-          dateVal = c.data_pagamento || c.pagamento?.data_pagamento || (c.pagamentos?.[0]?.data);
+          dateVal = c.data_pagamento || c.pagamento?.data_pagamento || (c.pagamentos?.[0]?.data) || c.data_vencimento;
         } else {
           dateVal = c.data_vencimento;
         }
