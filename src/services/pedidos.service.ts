@@ -43,12 +43,14 @@ class PedidosService {
     data_final: string;
     /** Todos | PENDENTE | PAGO_PARCIAL | PAGO_TOTAL | VENCIDO | CANCELADO */
     status?: string;
+    campo_data?: string;
   }): Promise<RelatorioComprasClienteResponse> {
     const q = new URLSearchParams();
     q.set('cliente_id', String(params.cliente_id));
     q.set('data_inicial', params.data_inicial);
     q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
+    if (params.campo_data) q.set('campo_data', params.campo_data);
     return apiClient.get<RelatorioComprasClienteResponse>(
       `/pedidos/relatorio/compras-cliente?${q.toString()}`,
     );
@@ -60,12 +62,14 @@ class PedidosService {
     data_inicial: string;
     data_final: string;
     status?: string;
+    campo_data?: string;
   }): Promise<void> {
     const q = new URLSearchParams();
     q.set('cliente_id', String(params.cliente_id));
     q.set('data_inicial', params.data_inicial);
     q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
+    if (params.campo_data) q.set('campo_data', params.campo_data);
     const blob = await apiClient.getBlob(
       `/pedidos/relatorio/compras-cliente/pdf?${q.toString()}`,
     );
@@ -84,12 +88,14 @@ class PedidosService {
     data_inicial: string;
     data_final: string;
     status?: string;
+    campo_data?: string;
   }): Promise<void> {
     const q = new URLSearchParams();
     q.set('cliente_id', String(params.cliente_id));
     q.set('data_inicial', params.data_inicial);
     q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
+    if (params.campo_data) q.set('campo_data', params.campo_data);
     const blob = await apiClient.getBlob(
       `/pedidos/relatorio/compras-cliente/pdf?${q.toString()}`,
     );

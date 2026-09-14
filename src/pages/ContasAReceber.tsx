@@ -197,6 +197,9 @@ const ContasAReceber = () => {
   const [relatorioClienteDataInicial, setRelatorioClienteDataInicial] = useState("");
   const [relatorioClienteDataFinal, setRelatorioClienteDataFinal] = useState("");
   const [relatorioClienteStatusFiltro, setRelatorioClienteStatusFiltro] = useState<string>("Todos");
+  const [relatorioClienteCampoData, setRelatorioClienteCampoData] = useState<
+    "vencimento" | "emissao" | "pagamento"
+  >("vencimento");
   const [relatorioDataInicial, setRelatorioDataInicial] = useState<string>("");
   const [relatorioDataFinal, setRelatorioDataFinal] = useState<string>("");
   const [relatorioStatusFiltro, setRelatorioStatusFiltro] = useState<string>("Todos");
@@ -352,6 +355,7 @@ const ContasAReceber = () => {
       cliente_id: relatorioClienteIdParsed ?? undefined,
       data_inicial: relatorioClienteDataInicial || undefined,
       data_final: relatorioClienteDataFinal || undefined,
+      campo_data: relatorioClienteCampoData,
       status:
         relatorioClienteStatusFiltro !== "Todos"
           ? relatorioClienteStatusFiltro
@@ -362,6 +366,7 @@ const ContasAReceber = () => {
       relatorioClienteDataInicial,
       relatorioClienteDataFinal,
       relatorioClienteStatusFiltro,
+      relatorioClienteCampoData,
     ],
   );
 
@@ -395,11 +400,13 @@ const ContasAReceber = () => {
         relatorioClienteStatusFiltro !== "Todos"
           ? relatorioClienteStatusFiltro
           : undefined,
+      campoData: relatorioClienteCampoData,
     }),
     [
       relatorioClienteDataInicial,
       relatorioClienteDataFinal,
       relatorioClienteStatusFiltro,
+      relatorioClienteCampoData,
     ],
   );
 
@@ -2680,6 +2687,36 @@ const ContasAReceber = () => {
                 </Select>
               </div>
               <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-4">
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
+                  <RadioGroup
+                    value={relatorioClienteCampoData}
+                    onValueChange={(v) =>
+                      setRelatorioClienteCampoData(v as "vencimento" | "emissao" | "pagamento")
+                    }
+                    className="space-y-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="vencimento" id="relatorio-cliente-receber-campo-vencimento" />
+                      <Label htmlFor="relatorio-cliente-receber-campo-vencimento" className="cursor-pointer">
+                        Data de vencimento
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="emissao" id="relatorio-cliente-receber-campo-emissao" />
+                      <Label htmlFor="relatorio-cliente-receber-campo-emissao" className="cursor-pointer">
+                        Data de emissão
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="pagamento" id="relatorio-cliente-receber-campo-pagamento" />
+                      <Label htmlFor="relatorio-cliente-receber-campo-pagamento" className="cursor-pointer">
+                        Data de pagamento
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+                <Separator />
                 <RelatorioPeriodoFinanceiro
                   dataInicial={relatorioClienteDataInicial}
                   dataFinal={relatorioClienteDataFinal}

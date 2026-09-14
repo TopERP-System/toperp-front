@@ -40,6 +40,8 @@ export interface RelatorioFinanceiroClienteQuery {
   dataFinal?: string;
   /** PENDENTE, PAGO_PARCIAL, PAGO_TOTAL, VENCIDO, CANCELADO — omitir ou “Todos” = sem filtro */
   status?: string;
+  /** Campo do período: vencimento (padrão), emissão ou pagamento */
+  campoData?: 'vencimento' | 'emissao' | 'pagamento';
 }
 
 /** Mesmo filtro do relatório financeiro de cliente, aplicado ao fornecedor. */
@@ -47,6 +49,8 @@ export interface RelatorioFinanceiroFornecedorQuery {
   dataInicial?: string;
   dataFinal?: string;
   status?: string;
+  /** Campo do período: vencimento (padrão), emissão ou pagamento */
+  campoData?: 'vencimento' | 'emissao' | 'pagamento';
 }
 
 /** Filtros do relatório geral de contas a pagar. */
@@ -77,6 +81,8 @@ export interface RelatorioCentroCustoContasPagarQuery {
   dataFinal?: string;
   status?: string;
   tipoDespesaId?: number;
+  /** Campo do período: vencimento (padrão), emissão ou pagamento */
+  campoData?: 'vencimento' | 'emissao' | 'pagamento';
 }
 
 class RelatoriosClienteService {
@@ -128,6 +134,9 @@ class RelatoriosClienteService {
     if (filtros?.dataFinal) params.append('data_final', filtros.dataFinal);
     if (filtros?.status && filtros.status !== 'Todos') {
       params.append('status', filtros.status);
+    }
+    if (filtros?.campoData === 'emissao' || filtros?.campoData === 'vencimento' || filtros?.campoData === 'pagamento') {
+      params.append('campo_data', filtros.campoData);
     }
     const q = params.toString();
     return q ? `?${q}` : '';
@@ -185,6 +194,9 @@ class RelatoriosClienteService {
     if (filtros?.dataFinal) params.append('data_final', filtros.dataFinal);
     if (filtros?.status && filtros.status !== 'Todos') {
       params.append('status', filtros.status);
+    }
+    if (filtros?.campoData === 'emissao' || filtros?.campoData === 'vencimento' || filtros?.campoData === 'pagamento') {
+      params.append('campo_data', filtros.campoData);
     }
     const q = params.toString();
     return q ? `?${q}` : '';
@@ -391,6 +403,9 @@ class RelatoriosClienteService {
     }
     if (filtros?.tipoDespesaId != null && filtros.tipoDespesaId > 0) {
       params.append('tipo_despesa_id', String(filtros.tipoDespesaId));
+    }
+    if (filtros?.campoData === 'emissao' || filtros?.campoData === 'vencimento' || filtros?.campoData === 'pagamento') {
+      params.append('campo_data', filtros.campoData);
     }
     const q = params.toString();
     return q ? `?${q}` : '';

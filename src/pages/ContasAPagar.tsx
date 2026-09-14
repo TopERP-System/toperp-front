@@ -315,6 +315,9 @@ function ContasAPagar() {
   const [relatorioCentroCustoTipoSelect, setRelatorioCentroCustoTipoSelect] = useState("");
   const [relatorioFornecedorStatusFiltro, setRelatorioFornecedorStatusFiltro] =
     useState<string>("Todos");
+  const [relatorioFornecedorCampoData, setRelatorioFornecedorCampoData] = useState<
+    "vencimento" | "emissao" | "pagamento"
+  >("vencimento");
   const [relatorioGeralStatusFiltro, setRelatorioGeralStatusFiltro] =
     useState<string>("Todos");
   const [relatorioGeralCampoData, setRelatorioGeralCampoData] = useState<
@@ -322,6 +325,9 @@ function ContasAPagar() {
   >("vencimento");
   const [relatorioCentroCustoStatusFiltro, setRelatorioCentroCustoStatusFiltro] =
     useState<string>("Todos");
+  const [relatorioCentroCustoCampoData, setRelatorioCentroCustoCampoData] = useState<
+    "vencimento" | "emissao" | "pagamento"
+  >("vencimento");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedContaId, setSelectedContaId] = useState<number | null>(null);
@@ -438,6 +444,7 @@ function ContasAPagar() {
       fornecedor_id: relatorioFornecedorIdParsed ?? undefined,
       data_inicial: relatorioFornecedorDataInicial || undefined,
       data_final: relatorioFornecedorDataFinal || undefined,
+      campo_data: relatorioFornecedorCampoData,
       status:
         relatorioFornecedorStatusFiltro !== "Todos"
           ? relatorioFornecedorStatusFiltro
@@ -448,6 +455,7 @@ function ContasAPagar() {
       relatorioFornecedorDataInicial,
       relatorioFornecedorDataFinal,
       relatorioFornecedorStatusFiltro,
+      relatorioFornecedorCampoData,
     ],
   );
 
@@ -485,11 +493,13 @@ function ContasAPagar() {
         relatorioFornecedorStatusFiltro !== "Todos"
           ? relatorioFornecedorStatusFiltro
           : undefined,
+      campoData: relatorioFornecedorCampoData,
     }),
     [
       relatorioFornecedorDataInicial,
       relatorioFornecedorDataFinal,
       relatorioFornecedorStatusFiltro,
+      relatorioFornecedorCampoData,
     ],
   );
 
@@ -595,12 +605,14 @@ function ContasAPagar() {
           ? relatorioCentroCustoStatusFiltro
           : undefined,
       tipoDespesaId: relatorioCentroCustoTipoIdParsed ?? undefined,
+      campoData: relatorioCentroCustoCampoData,
     }),
     [
       relatorioCentroCustoDataInicial,
       relatorioCentroCustoDataFinal,
       relatorioCentroCustoStatusFiltro,
       relatorioCentroCustoTipoIdParsed,
+      relatorioCentroCustoCampoData,
     ],
   );
 
@@ -2880,6 +2892,7 @@ function ContasAPagar() {
               setRelatorioFornecedorDataInicial("");
               setRelatorioFornecedorDataFinal("");
               setRelatorioFornecedorStatusFiltro("Todos");
+              setRelatorioFornecedorCampoData("vencimento");
               setRelatorioFornecedorIdSelect(
                 fornecedorFilterId != null ? String(fornecedorFilterId) : "",
               );
@@ -2915,6 +2928,38 @@ function ContasAPagar() {
               </div>
 
               <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-4">
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
+                  <RadioGroup
+                    value={relatorioFornecedorCampoData}
+                    onValueChange={(v) =>
+                      setRelatorioFornecedorCampoData(v as "vencimento" | "emissao" | "pagamento")
+                    }
+                    className="space-y-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="vencimento" id="relatorio-fornecedor-campo-vencimento" />
+                      <Label htmlFor="relatorio-fornecedor-campo-vencimento" className="cursor-pointer">
+                        Data de vencimento
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="emissao" id="relatorio-fornecedor-campo-emissao" />
+                      <Label htmlFor="relatorio-fornecedor-campo-emissao" className="cursor-pointer">
+                        Data de emissão
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="pagamento" id="relatorio-fornecedor-campo-pagamento" />
+                      <Label htmlFor="relatorio-fornecedor-campo-pagamento" className="cursor-pointer">
+                        Data de pagamento
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                <Separator />
+
                 <RelatorioPeriodoFinanceiro
                   dataInicial={relatorioFornecedorDataInicial}
                   dataFinal={relatorioFornecedorDataFinal}
@@ -3224,6 +3269,7 @@ function ContasAPagar() {
               setRelatorioCentroCustoStatusFiltro(
                 statusFilter && statusFilter !== "" ? statusFilter : "Todos",
               );
+              setRelatorioCentroCustoCampoData("vencimento");
               setRelatorioCentroCustoTipoSelect("todos");
             }
           }}
@@ -3233,7 +3279,7 @@ function ContasAPagar() {
               <DialogTitle>Relatório por centro de custo</DialogTitle>
               <DialogDescription>
                 Despesas do centro de custo espelhadas em contas a pagar. Filtre por tipo de
-                despesa, período (vencimento) e status.
+                despesa, período (vencimento, emissão ou pagamento) e status.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
@@ -3259,32 +3305,43 @@ function ContasAPagar() {
 
               <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-4">
                 <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-[#1A3B70]">Período</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Data Inicial</Label>
-                      <Input
-                        type="date"
-                        className="rounded-lg border-border/80 bg-muted/50"
-                        value={relatorioCentroCustoDataInicial}
-                        onChange={(e) =>
-                          setRelatorioCentroCustoDataInicial(e.target.value || "")
-                        }
-                      />
+                  <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
+                  <RadioGroup
+                    value={relatorioCentroCustoCampoData}
+                    onValueChange={(v) =>
+                      setRelatorioCentroCustoCampoData(v as "vencimento" | "emissao" | "pagamento")
+                    }
+                    className="space-y-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="vencimento" id="relatorio-cc-campo-vencimento" />
+                      <Label htmlFor="relatorio-cc-campo-vencimento" className="cursor-pointer">
+                        Data de vencimento
+                      </Label>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Data Final</Label>
-                      <Input
-                        type="date"
-                        className="rounded-lg border-border/80 bg-muted/50"
-                        value={relatorioCentroCustoDataFinal}
-                        onChange={(e) =>
-                          setRelatorioCentroCustoDataFinal(e.target.value || "")
-                        }
-                      />
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="emissao" id="relatorio-cc-campo-emissao" />
+                      <Label htmlFor="relatorio-cc-campo-emissao" className="cursor-pointer">
+                        Data de emissão
+                      </Label>
                     </div>
-                  </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="pagamento" id="relatorio-cc-campo-pagamento" />
+                      <Label htmlFor="relatorio-cc-campo-pagamento" className="cursor-pointer">
+                        Data de pagamento
+                      </Label>
+                    </div>
+                  </RadioGroup>
                 </div>
+
+                <Separator />
+
+                <RelatorioPeriodoFinanceiro
+                  dataInicial={relatorioCentroCustoDataInicial}
+                  dataFinal={relatorioCentroCustoDataFinal}
+                  onDataInicial={setRelatorioCentroCustoDataInicial}
+                  onDataFinal={setRelatorioCentroCustoDataFinal}
+                />
 
                 <Separator />
 

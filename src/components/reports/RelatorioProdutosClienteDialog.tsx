@@ -58,6 +58,7 @@ export function RelatorioProdutosClienteDialog({
   const [dataFinal, setDataFinal] = useState(defFim);
   const [statusFiltro, setStatusFiltro] =
     useState<StatusFiltroProdutosCliente>("Todos");
+  const [campoData, setCampoData] = useState<"vencimento" | "emissao" | "pagamento">("vencimento");
   const [pdfLoading, setPdfLoading] = useState<"download" | "print" | null>(
     null,
   );
@@ -67,6 +68,7 @@ export function RelatorioProdutosClienteDialog({
     setDataInicial(defInicio);
     setDataFinal(defFim);
     setStatusFiltro("Todos");
+    setCampoData("vencimento");
     setClienteId(
       defaultClienteId != null && defaultClienteId > 0
         ? String(defaultClienteId)
@@ -85,6 +87,7 @@ export function RelatorioProdutosClienteDialog({
     data_inicial: dataInicial.trim(),
     data_final: dataFinal.trim(),
     status: statusFiltro,
+    campo_data: campoData,
   });
 
   const handleDownloadPdf = async () => {
@@ -149,6 +152,38 @@ export function RelatorioProdutosClienteDialog({
           </div>
 
           <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-4">
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
+              <RadioGroup
+                value={campoData}
+                onValueChange={(v) =>
+                  setCampoData(v as "vencimento" | "emissao" | "pagamento")
+                }
+                className="space-y-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="vencimento" id="relatorio-produtos-campo-vencimento" />
+                  <Label htmlFor="relatorio-produtos-campo-vencimento" className="cursor-pointer">
+                    Data de vencimento
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="emissao" id="relatorio-produtos-campo-emissao" />
+                  <Label htmlFor="relatorio-produtos-campo-emissao" className="cursor-pointer">
+                    Data de emissão
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="pagamento" id="relatorio-produtos-campo-pagamento" />
+                  <Label htmlFor="relatorio-produtos-campo-pagamento" className="cursor-pointer">
+                    Data de pagamento
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <Separator />
+
             <RelatorioPeriodoFinanceiro
               dataInicial={dataInicial}
               dataFinal={dataFinal}
