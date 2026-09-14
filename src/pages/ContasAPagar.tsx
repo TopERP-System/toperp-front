@@ -227,6 +227,7 @@ function ContasAPagar() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [dataInicialFilter, setDataInicialFilter] = useState<string>("");
   const [dataFinalFilter, setDataFinalFilter] = useState<string>("");
+  const [campoDataFilter, setCampoDataFilter] = useState<"vencimento" | "emissao" | "pagamento">("vencimento");
   /** Filtro por card clicável (como Contas a Receber): ao clicar no card, filtra a tabela */
   const [activeCardFilter, setActiveCardFilter] = useState<
     "todos" | "a_pagar" | "valor_pago" | "vencidas" | "vencendo_hoje" | "vencendo_este_mes"
@@ -251,7 +252,7 @@ function ContasAPagar() {
   const [relatorioGeralStatusFiltro, setRelatorioGeralStatusFiltro] =
     useState<string>("Todos");
   const [relatorioGeralCampoData, setRelatorioGeralCampoData] = useState<
-    "vencimento" | "emissao"
+    "vencimento" | "emissao" | "pagamento"
   >("vencimento");
   const [relatorioCentroCustoStatusFiltro, setRelatorioCentroCustoStatusFiltro] =
     useState<string>("Todos");
@@ -821,6 +822,7 @@ function ContasAPagar() {
             roca_id: rocaArg,
             data_inicial: dataInicialArg,
             data_final: dataFinalArg,
+            campo_data: campoDataFilter,
           });
           return {
             data: [] as ContaFinanceira[],
@@ -844,6 +846,7 @@ function ContasAPagar() {
           tipo_despesa_id: tipoDespesaArg,
           data_inicial: dataInicialArg,
           data_final: dataFinalArg,
+          campo_data: campoDataFilter,
           busca: searchTerm.trim() || undefined,
         });
 
@@ -906,24 +909,61 @@ function ContasAPagar() {
     [contasResponse],
   );
 
+  const matchDataRange = (
+    dataStr: string | null | undefined,
+    dataIni: string,
+    dataFin: string
+  ) => {
+    if (!dataIni && !dataFin) return true;
+    if (!dataStr) return false;
+    const d = dataStr.slice(0, 10);
+    if (dataIni && d < dataIni) return false;
+    if (dataFin && d > dataFin) return false;
+    return true;
+  };
+
   const contasExibir = useMemo(() => {
     let base = agruparContasPorPedido(contasFallback);
-    if (rocaFilterId == null || rocaFilterId <= 0) return base;
-    const nomeRoca = rocasLista
-      .find((r) => r.id === rocaFilterId)
-      ?.nome?.trim()
-      .toLowerCase();
-    return base.filter((c) => {
-      if (Number(c.roca_id) === rocaFilterId) return true;
-      if (
-        nomeRoca &&
-        (c.roca_nome ?? "").trim().toLowerCase() === nomeRoca
-      ) {
-        return true;
-      }
-      return false;
-    });
-  }, [contasFallback, rocaFilterId, rocasLista]);
+    if (rocaFilterId != null && rocaFilterId > 0) {
+      const nomeRoca = rocasLista
+        .find((r) => r.id === rocaFilterId)
+        ?.nome?.trim()
+        .toLowerCase();
+      base = base.filter((c) => {
+        if (Number(c.roca_id) === rocaFilterId) return true;
+        if (
+          nomeRoca &&
+          (c.roca_nome ?? "").trim().toLowerCase() === nomeRoca
+        ) {
+          return true;
+        }
+        return false;
+      });
+    }
+
+    if (dataInicialFilter || dataFinalFilter) {
+      base = base.filter((c: any) => {
+        let dateVal: string | null | undefined;
+        if (campoDataFilter === "emissao") {
+          dateVal = c.data_emissao || c.created_at;
+        } else if (campoDataFilter === "pagamento") {
+          dateVal = c.data_pagamento || c.pagamento?.data_pagamento || (c.pagamentos?.[0]?.data);
+        } else {
+          dateVal = c.data_vencimento;
+        }
+        return matchDataRange(dateVal, dataInicialFilter, dataFinalFilter);
+      });
+    }
+
+    return base;
+  }, [
+    contasFallback,
+    rocaFilterId,
+    rocasLista,
+    campoDataFilter,
+    dataInicialFilter,
+    dataFinalFilter,
+  ]);
 
   const temFiltrosAtivos =
     (fornecedorFilterId != null && fornecedorFilterId > 0) ||
@@ -932,13 +972,16 @@ function ContasAPagar() {
     !!statusFilter ||
     !!dataInicialFilter ||
     !!dataFinalFilter ||
+    campoDataFilter !== "vencimento" ||
     (activeTab !== "Todos");
+
   const handleAplicarFiltros = () => setFiltrosDialogOpen(false);
   const handleLimparFiltros = () => {
     setFornecedorFilterId(null);
     setRocaFilterId(null);
     setTipoDespesaFilterId(null);
     setStatusFilter("");
+    setCampoDataFilter("vencimento");
     setDataInicialFilter("");
     setDataFinalFilter("");
     setFiltrosDialogOpen(false);
@@ -1039,7 +1082,18 @@ function ContasAPagar() {
   // Resetar página quando tab, busca ou filtros mudarem
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchTerm, fornecedorFilterId, rocaFilterId, tipoDespesaFilterId, statusFilter, dataInicialFilter, dataFinalFilter, activeCardFilter]);
+  }, [
+    activeTab,
+    searchTerm,
+    fornecedorFilterId,
+    rocaFilterId,
+    tipoDespesaFilterId,
+    statusFilter,
+    campoDataFilter,
+    dataInicialFilter,
+    dataFinalFilter,
+    activeCardFilter,
+  ]);
 
   // Função auxiliar para verificar se uma conta está vencida
   const isContaVencida = (conta: any): boolean => {
@@ -2028,6 +2082,7 @@ function ContasAPagar() {
                     (rocaFilterId != null && rocaFilterId > 0 ? 1 : 0) +
                     (tipoDespesaFilterId != null && tipoDespesaFilterId > 0 ? 1 : 0) +
                     (statusFilter ? 1 : 0) +
+                    (campoDataFilter !== "vencimento" ? 1 : 0) +
                     (dataInicialFilter ? 1 : 0) +
                     (dataFinalFilter ? 1 : 0)}
                 </span>
@@ -2132,48 +2187,82 @@ function ContasAPagar() {
 
                   <Separator />
 
-                  {/* Período */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold">Período</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Data Inicial</Label>
-                        <div className="relative">
-                          <Input
-                            type="date"
-                            ref={dataInicialFiltroRef}
-                            className="pr-10 [color-scheme:light] [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:pointer-events-none"
-                            value={dataInicialFilter}
-                            onChange={(e) => setDataInicialFilter(e.target.value || "")}
-                          />
-                          <button
-                            type="button"
-                            aria-label="Abrir calendário da data inicial"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            onClick={() => abrirDatePicker(dataInicialFiltroRef.current)}
-                          >
-                            <Calendar className="w-4 h-4" />
-                          </button>
+                  {/* Filtrar período por + Período */}
+                  <div className="space-y-4 rounded-xl border border-border/80 bg-muted/30 p-4">
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
+                      <RadioGroup
+                        value={campoDataFilter}
+                        onValueChange={(v) =>
+                          setCampoDataFilter(v as "vencimento" | "emissao" | "pagamento")
+                        }
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="vencimento" id="filtro-avancado-pagar-campo-vencimento" />
+                          <Label htmlFor="filtro-avancado-pagar-campo-vencimento" className="cursor-pointer">
+                            Data de vencimento
+                          </Label>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Data Final</Label>
-                        <div className="relative">
-                          <Input
-                            type="date"
-                            ref={dataFinalFiltroRef}
-                            className="pr-10 [color-scheme:light] [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:pointer-events-none"
-                            value={dataFinalFilter}
-                            onChange={(e) => setDataFinalFilter(e.target.value || "")}
-                          />
-                          <button
-                            type="button"
-                            aria-label="Abrir calendário da data final"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            onClick={() => abrirDatePicker(dataFinalFiltroRef.current)}
-                          >
-                            <Calendar className="w-4 h-4" />
-                          </button>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="emissao" id="filtro-avancado-pagar-campo-emissao" />
+                          <Label htmlFor="filtro-avancado-pagar-campo-emissao" className="cursor-pointer">
+                            Data de emissão
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="pagamento" id="filtro-avancado-pagar-campo-pagamento" />
+                          <Label htmlFor="filtro-avancado-pagar-campo-pagamento" className="cursor-pointer">
+                            Data de pagamento
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold text-[#1A3B70]">Período</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Data Inicial</Label>
+                          <div className="relative">
+                            <Input
+                              type="date"
+                              ref={dataInicialFiltroRef}
+                              className="pr-10 [color-scheme:light] [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:pointer-events-none"
+                              value={dataInicialFilter}
+                              onChange={(e) => setDataInicialFilter(e.target.value || "")}
+                            />
+                            <button
+                              type="button"
+                              aria-label="Abrir calendário da data inicial"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              onClick={() => abrirDatePicker(dataInicialFiltroRef.current)}
+                            >
+                              <Calendar className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Data Final</Label>
+                          <div className="relative">
+                            <Input
+                              type="date"
+                              ref={dataFinalFiltroRef}
+                              className="pr-10 [color-scheme:light] [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:pointer-events-none"
+                              value={dataFinalFilter}
+                              onChange={(e) => setDataFinalFilter(e.target.value || "")}
+                            />
+                            <button
+                              type="button"
+                              aria-label="Abrir calendário da data final"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              onClick={() => abrirDatePicker(dataFinalFiltroRef.current)}
+                            >
+                              <Calendar className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2872,7 +2961,7 @@ function ContasAPagar() {
               <DialogTitle>Relatório geral</DialogTitle>
               <DialogDescription>
                 Inclui dados da empresa e todos os lançamentos de contas a pagar conforme os
-                filtros selecionados (período por data de vencimento ou emissão e status).
+                filtros selecionados (período por data de vencimento, emissão ou pagamento e status).
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
@@ -2882,7 +2971,7 @@ function ContasAPagar() {
                   <RadioGroup
                     value={relatorioGeralCampoData}
                     onValueChange={(v) =>
-                      setRelatorioGeralCampoData(v === "emissao" ? "emissao" : "vencimento")
+                      setRelatorioGeralCampoData(v as "vencimento" | "emissao" | "pagamento")
                     }
                     className="space-y-2"
                   >
@@ -2896,6 +2985,12 @@ function ContasAPagar() {
                       <RadioGroupItem value="emissao" id="relatorio-geral-pagar-campo-emissao" />
                       <Label htmlFor="relatorio-geral-pagar-campo-emissao" className="cursor-pointer">
                         Data de emissão
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="pagamento" id="relatorio-geral-pagar-campo-pagamento" />
+                      <Label htmlFor="relatorio-geral-pagar-campo-pagamento" className="cursor-pointer">
+                        Data de pagamento
                       </Label>
                     </div>
                   </RadioGroup>

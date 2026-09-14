@@ -127,6 +127,7 @@ const ContasAReceber = () => {
   /** Filtro por período: data_inicial e data_final (YYYY-MM-DD) */
   const [dataInicialFilter, setDataInicialFilter] = useState<string>("");
   const [dataFinalFilter, setDataFinalFilter] = useState<string>("");
+  const [campoDataFilter, setCampoDataFilter] = useState<"vencimento" | "emissao" | "pagamento">("vencimento");
   const [filtrosDialogOpen, setFiltrosDialogOpen] = useState(false);
   // Dialog do relatório geral (PDF / imprimir)
   const [relatorioDialogOpen, setRelatorioDialogOpen] = useState(false);
@@ -139,9 +140,9 @@ const ContasAReceber = () => {
   const [relatorioDataInicial, setRelatorioDataInicial] = useState<string>("");
   const [relatorioDataFinal, setRelatorioDataFinal] = useState<string>("");
   const [relatorioStatusFiltro, setRelatorioStatusFiltro] = useState<string>("Todos");
-  const [relatorioCampoData, setRelatorioCampoData] = useState<"vencimento" | "emissao">(
-    "vencimento",
-  );
+  const [relatorioCampoData, setRelatorioCampoData] = useState<
+    "vencimento" | "emissao" | "pagamento"
+  >("vencimento");
   const [relatorioPdfLoading, setRelatorioPdfLoading] = useState(false);
   const [relatorioProdutosClienteOpen, setRelatorioProdutosClienteOpen] =
     useState(false);
@@ -446,6 +447,7 @@ const ContasAReceber = () => {
           roca_id: rocaArg,
           data_inicial: dataInicialArg,
           data_final: dataFinalArg,
+          campo_data: campoDataFilter,
           busca: searchTerm.trim() || undefined,
         };
 
@@ -581,27 +583,66 @@ const ContasAReceber = () => {
   });
 
   const contas = contasResponse?.data || [];
+  const matchDataRange = (
+    dataStr: string | null | undefined,
+    dataIni: string,
+    dataFin: string
+  ) => {
+    if (!dataIni && !dataFin) return true;
+    if (!dataStr) return false;
+    const d = dataStr.slice(0, 10);
+    if (dataIni && d < dataIni) return false;
+    if (dataFin && d > dataFin) return false;
+    return true;
+  };
+
   const contasExibir = useMemo(() => {
-    if (rocaFilterId == null || rocaFilterId <= 0) return contas;
-    const nomeRoca = rocasLista
-      .find((r) => r.id === rocaFilterId)
-      ?.nome?.trim()
-      .toLowerCase();
-    const pedidoIdsRoca = new Set(
-      (pedidosContasReceber ?? []).map((p) => p.pedido_id).filter((id) => id != null),
-    );
-    return contas.filter((c) => {
-      if (Number(c.roca_id) === rocaFilterId) return true;
-      if (
-        nomeRoca &&
-        (c.roca_nome ?? "").trim().toLowerCase() === nomeRoca
-      ) {
-        return true;
-      }
-      if (c.pedido_id != null && pedidoIdsRoca.has(c.pedido_id)) return true;
-      return false;
-    });
-  }, [contas, rocaFilterId, rocasLista, pedidosContasReceber]);
+    let base = contas;
+    if (rocaFilterId != null && rocaFilterId > 0) {
+      const nomeRoca = rocasLista
+        .find((r) => r.id === rocaFilterId)
+        ?.nome?.trim()
+        .toLowerCase();
+      const pedidoIdsRoca = new Set(
+        (pedidosContasReceber ?? []).map((p) => p.pedido_id).filter((id) => id != null),
+      );
+      base = base.filter((c) => {
+        if (Number(c.roca_id) === rocaFilterId) return true;
+        if (
+          nomeRoca &&
+          (c.roca_nome ?? "").trim().toLowerCase() === nomeRoca
+        ) {
+          return true;
+        }
+        if (c.pedido_id != null && pedidoIdsRoca.has(c.pedido_id)) return true;
+        return false;
+      });
+    }
+
+    if (dataInicialFilter || dataFinalFilter) {
+      base = base.filter((c: any) => {
+        let dateVal: string | null | undefined;
+        if (campoDataFilter === "emissao") {
+          dateVal = c.data_emissao || c.created_at;
+        } else if (campoDataFilter === "pagamento") {
+          dateVal = c.data_pagamento || c.pagamento?.data_pagamento || (c.pagamentos?.[0]?.data);
+        } else {
+          dateVal = c.data_vencimento;
+        }
+        return matchDataRange(dateVal, dataInicialFilter, dataFinalFilter);
+      });
+    }
+
+    return base;
+  }, [
+    contas,
+    rocaFilterId,
+    rocasLista,
+    pedidosContasReceber,
+    campoDataFilter,
+    dataInicialFilter,
+    dataFinalFilter,
+  ]);
   const totalContas = contasResponse?.total || 0;
 
   const temFiltrosAtivos =
@@ -609,12 +650,15 @@ const ContasAReceber = () => {
     (rocaFilterId != null && rocaFilterId > 0) ||
     !!statusFilter ||
     !!dataInicialFilter ||
-    !!dataFinalFilter;
+    !!dataFinalFilter ||
+    campoDataFilter !== "vencimento";
+
   const handleAplicarFiltros = () => setFiltrosDialogOpen(false);
   const handleLimparFiltros = () => {
     setClienteFilterId(null);
     setRocaFilterId(null);
     setStatusFilter("");
+    setCampoDataFilter("vencimento");
     setDataInicialFilter("");
     setDataFinalFilter("");
     setFiltrosDialogOpen(false);
@@ -2117,6 +2161,7 @@ const ContasAReceber = () => {
                   {(clienteFilterId != null && clienteFilterId > 0 ? 1 : 0) +
                     (rocaFilterId != null && rocaFilterId > 0 ? 1 : 0) +
                     (statusFilter ? 1 : 0) +
+                    (campoDataFilter !== "vencimento" ? 1 : 0) +
                     (dataInicialFilter ? 1 : 0) +
                     (dataFinalFilter ? 1 : 0)}
                 </span>
@@ -2188,25 +2233,61 @@ const ContasAReceber = () => {
 
                   <Separator />
 
-                  {/* Período */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold">Período</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Data Inicial</Label>
-                        <Input
-                          type="date"
-                          value={dataInicialFilter}
-                          onChange={(e) => setDataInicialFilter(e.target.value || "")}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Data Final</Label>
-                        <Input
-                          type="date"
-                          value={dataFinalFilter}
-                          onChange={(e) => setDataFinalFilter(e.target.value || "")}
-                        />
+                  {/* Filtrar período por + Período */}
+                  <div className="space-y-4 rounded-xl border border-border/80 bg-muted/30 p-4">
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
+                      <RadioGroup
+                        value={campoDataFilter}
+                        onValueChange={(v) =>
+                          setCampoDataFilter(v as "vencimento" | "emissao" | "pagamento")
+                        }
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="vencimento" id="filtro-avancado-receber-campo-vencimento" />
+                          <Label htmlFor="filtro-avancado-receber-campo-vencimento" className="cursor-pointer">
+                            Data de vencimento
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="emissao" id="filtro-avancado-receber-campo-emissao" />
+                          <Label htmlFor="filtro-avancado-receber-campo-emissao" className="cursor-pointer">
+                            Data de emissão
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="pagamento" id="filtro-avancado-receber-campo-pagamento" />
+                          <Label htmlFor="filtro-avancado-receber-campo-pagamento" className="cursor-pointer">
+                            Data de pagamento
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold text-[#1A3B70]">Período</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Data Inicial</Label>
+                          <Input
+                            type="date"
+                            className="[color-scheme:light]"
+                            value={dataInicialFilter}
+                            onChange={(e) => setDataInicialFilter(e.target.value || "")}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Data Final</Label>
+                          <Input
+                            type="date"
+                            className="[color-scheme:light]"
+                            value={dataFinalFilter}
+                            onChange={(e) => setDataFinalFilter(e.target.value || "")}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2324,7 +2405,7 @@ const ContasAReceber = () => {
               <DialogTitle>Relatório geral</DialogTitle>
               <DialogDescription>
                 Inclui dados da empresa e todos os lançamentos de contas a receber conforme os
-                filtros selecionados (período por data de vencimento ou emissão e status).
+                filtros selecionados (período por data de vencimento, emissão ou pagamento e status).
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
@@ -2334,7 +2415,7 @@ const ContasAReceber = () => {
                   <RadioGroup
                     value={relatorioCampoData}
                     onValueChange={(v) =>
-                      setRelatorioCampoData(v === "emissao" ? "emissao" : "vencimento")
+                      setRelatorioCampoData(v as "vencimento" | "emissao" | "pagamento")
                     }
                     className="space-y-2"
                   >
@@ -2348,6 +2429,12 @@ const ContasAReceber = () => {
                       <RadioGroupItem value="emissao" id="relatorio-geral-receber-campo-emissao" />
                       <Label htmlFor="relatorio-geral-receber-campo-emissao" className="cursor-pointer">
                         Data de emissão
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="pagamento" id="relatorio-geral-receber-campo-pagamento" />
+                      <Label htmlFor="relatorio-geral-receber-campo-pagamento" className="cursor-pointer">
+                        Data de pagamento
                       </Label>
                     </div>
                   </RadioGroup>

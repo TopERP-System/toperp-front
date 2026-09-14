@@ -311,6 +311,7 @@ class FinanceiroService {
     roca_id?: number;
     data_inicial?: string;
     data_final?: string;
+    campo_data?: 'vencimento' | 'emissao' | 'pagamento';
     busca?: string;
   }): Promise<ContasAgrupadasResponse> {
     const queryParams = new URLSearchParams();
@@ -325,6 +326,7 @@ class FinanceiroService {
     }
     if (params?.data_inicial) queryParams.append('data_inicial', params.data_inicial);
     if (params?.data_final) queryParams.append('data_final', params.data_final);
+    if (params?.campo_data) queryParams.append('campo_data', params.campo_data);
     if (params?.busca?.trim()) queryParams.append('busca', params.busca.trim());
 
     const query = queryParams.toString();
@@ -345,7 +347,7 @@ class FinanceiroService {
     dias_maximos?: number;
     data_inicial?: string;
     data_final?: string;
-    campo_data?: 'vencimento' | 'emissao';
+    campo_data?: 'vencimento' | 'emissao' | 'pagamento';
     busca?: string;
   }): Promise<ContasFinanceirasResponse> {
     const queryParams = new URLSearchParams();
@@ -367,7 +369,7 @@ class FinanceiroService {
     if (params?.data_inicial) queryParams.append('data_inicial', params.data_inicial);
     if (params?.data_final) queryParams.append('data_final', params.data_final);
     if (params?.busca?.trim()) queryParams.append('busca', params.busca.trim());
-    if (params?.campo_data === 'emissao' || params?.campo_data === 'vencimento') {
+    if (params?.campo_data) {
       queryParams.append('campo_data', params.campo_data);
     }
 
