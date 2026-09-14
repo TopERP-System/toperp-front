@@ -108,6 +108,9 @@ import {
     Trash2,
     Truck,
     XCircle,
+    ArrowUp,
+    ArrowDown,
+    ArrowUpDown,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -328,6 +331,23 @@ function ContasAPagar() {
   const [relatorioCentroCustoCampoData, setRelatorioCentroCustoCampoData] = useState<
     "vencimento" | "emissao" | "pagamento"
   >("vencimento");
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else {
+        setSortColumn(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedContaId, setSelectedContaId] = useState<number | null>(null);
@@ -1858,8 +1878,82 @@ function ContasAPagar() {
       });
     }
 
+    // Aplicar ordenação por coluna
+    if (sortColumn) {
+      const parseCurrencyOrNum = (val: any): number => {
+        if (typeof val === "number") return val;
+        if (!val) return 0;
+        const cleaned = String(val)
+          .replace(/[^\d,-]/g, "")
+          .replace(/\./g, "")
+          .replace(",", ".");
+        const n = parseFloat(cleaned);
+        return isNaN(n) ? 0 : n;
+      };
+
+      const parseDateBR = (val: any): number => {
+        if (!val || val === "—" || val === "N/A") return 0;
+        const str = String(val).trim();
+        const parts = str.split("/");
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          return new Date(year, month, day).getTime();
+        }
+        const t = new Date(str).getTime();
+        return isNaN(t) ? 0 : t;
+      };
+
+      filtered = [...filtered].sort((a, b) => {
+        let valA: any = "";
+        let valB: any = "";
+
+        switch (sortColumn) {
+          case "id":
+            valA = a.id ?? "";
+            valB = b.id ?? "";
+            break;
+          case "tipo":
+            valA = (a as { origemConta?: string }).origemConta ?? "";
+            valB = (b as { origemConta?: string }).origemConta ?? "";
+            break;
+          case "fornecedor":
+            valA = (a.fornecedor ?? "").toLowerCase();
+            valB = (b.fornecedor ?? "").toLowerCase();
+            break;
+          case "empresa":
+            valA = ((a as { roca_nome?: string | null }).roca_nome ?? "").toLowerCase();
+            valB = ((b as { roca_nome?: string | null }).roca_nome ?? "").toLowerCase();
+            break;
+          case "valor":
+            valA = parseCurrencyOrNum(a.valor);
+            valB = parseCurrencyOrNum(b.valor);
+            break;
+          case "valorPago":
+            valA = parseCurrencyOrNum(a.valorPago);
+            valB = parseCurrencyOrNum(b.valorPago);
+            break;
+          case "dataVencimento":
+            valA = parseDateBR((a as { data?: string }).data);
+            valB = parseDateBR((b as { data?: string }).data);
+            break;
+          case "status":
+            valA = (a.status ?? "").toLowerCase();
+            valB = (b.status ?? "").toLowerCase();
+            break;
+          default:
+            break;
+        }
+
+        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
     return filtered;
-  }, [transacoesDisplay, searchTerm, contasExibir, contasFallback, fornecedores, activeTab]);
+  }, [transacoesDisplay, searchTerm, contasExibir, contasFallback, fornecedores, activeTab, sortColumn, sortDirection]);
 
   const handleCreate = () => {
     if (!newTransacao.descricao || !newTransacao.valor_original || !newTransacao.data_vencimento) {
@@ -2478,14 +2572,142 @@ function ContasAPagar() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead className="w-[120px] min-w-[120px]">Tipo</TableHead>
-                <TableHead>Fornecedor</TableHead>
-                <TableHead>{rotulo.singular}</TableHead>
-                <TableHead>Valor</TableHead>
-                <TableHead>Valor Pago</TableHead>
-                <TableHead>Data Vencimento</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("id")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>ID</span>
+                    {sortColumn === "id" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="w-[120px] min-w-[120px] cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("tipo")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Tipo</span>
+                    {sortColumn === "tipo" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("fornecedor")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Fornecedor</span>
+                    {sortColumn === "fornecedor" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("empresa")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>{rotulo.singular}</span>
+                    {sortColumn === "empresa" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("valor")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Valor</span>
+                    {sortColumn === "valor" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("valorPago")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Valor Pago</span>
+                    {sortColumn === "valorPago" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("dataVencimento")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Data Vencimento</span>
+                    {sortColumn === "dataVencimento" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Status</span>
+                    {sortColumn === "status" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
