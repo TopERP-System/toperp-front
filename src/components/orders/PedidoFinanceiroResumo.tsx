@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
 import { pedidosService } from '@/services/pedidos.service';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DollarSign, Loader2, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { HistoricoPagamentosPedido } from './HistoricoPagamentosPedido';
@@ -14,6 +14,7 @@ interface PedidoFinanceiroResumoProps {
 
 export function PedidoFinanceiroResumo({ pedidoId }: PedidoFinanceiroResumoProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: resumo, isLoading: loadingResumo, error: errorResumo } = useQuery({
     queryKey: ['pedidos', pedidoId, 'resumo-financeiro'],
@@ -27,6 +28,14 @@ export function PedidoFinanceiroResumo({ pedidoId }: PedidoFinanceiroResumoProps
     queryFn: () => pedidosService.buscarPorIdComFinanceiro(pedidoId!),
     enabled: !!pedidoId && !!errorResumo,
   });
+
+  const handleEstornoSucesso = () => {
+    if (pedidoId) {
+      queryClient.invalidateQueries({ queryKey: ['pedidos', pedidoId] });
+      queryClient.invalidateQueries({ queryKey: ['pedidos', pedidoId, 'resumo-financeiro'] });
+      queryClient.invalidateQueries({ queryKey: ['pedidos', pedidoId, 'financeiro'] });
+    }
+  };
 
   const valorEmAberto = resumo?.valor_em_aberto ?? financeiroLegado?.resumo_financeiro?.valor_em_aberto ?? 0;
   const valorPago = resumo?.valor_pago ?? financeiroLegado?.resumo_financeiro?.valor_pago ?? 0;
@@ -90,8 +99,9 @@ export function PedidoFinanceiroResumo({ pedidoId }: PedidoFinanceiroResumoProps
             <p className="font-semibold text-amber-600">{formatCurrency(valorEmAberto)}</p>
           </div>
         </div>
-        <HistoricoPagamentosPedido pedidoId={pedidoId} />
+        <HistoricoPagamentosPedido pedidoId={pedidoId} onEstornoSucesso={handleEstornoSucesso} />
       </CardContent>
     </Card>
   );
 }
+

@@ -47,6 +47,10 @@ export interface ItemHistoricoPagamento {
   conta_bancaria_nome?: string | null;
   banco?: string | null;
   cheque?: DadosCheque;
+  status?: string;
+  estornado?: boolean;
+  motivo_estorno?: string | null;
+  data_estorno?: string | null;
 }
 
 /** Dados do cheque ao registrar pagamento (quando forma = CHEQUE) */

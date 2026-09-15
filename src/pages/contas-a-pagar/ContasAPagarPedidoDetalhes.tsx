@@ -13,6 +13,7 @@ import { financeiroService } from '@/services/financeiro.service';
 import { contasBancariasService } from '@/services/contas-bancarias.service';
 import { pedidosService } from '@/services/pedidos.service';
 import type { ItemHistoricoPagamento } from '@/types/pedido-financeiro.types';
+import { HistoricoPagamentosPedido } from '@/components/orders/HistoricoPagamentosPedido';
 import { useQueries } from '@tanstack/react-query';
 import { ArrowLeft, DollarSign, FileText, Loader2, Truck } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -392,86 +393,7 @@ const ContasAPagarPedidoDetalhes = () => {
 
         <div className="bg-card border rounded-lg p-6 space-y-4">
           <h2 className="text-lg font-semibold border-b pb-2">Histórico de Pagamentos</h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Valor</TableHead>
-                <TableHead>Forma</TableHead>
-                <TableHead>Banco / Conta</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {historicoPagamentos.length > 0 ? (
-                [...historicoPagamentos]
-                  .sort((a, b) => new Date(b.data_pagamento).getTime() - new Date(a.data_pagamento).getTime())
-                  .flatMap((item) => {
-                    const rows = [
-                      <TableRow key={item.id}>
-                        <TableCell>{formatarDataBR(item.data_pagamento)}</TableCell>
-                        <TableCell className="font-medium">{formatCurrency(item.valor)}</TableCell>
-                        <TableCell>{formatarFormaPagamento(item.forma_pagamento)}</TableCell>
-                        <TableCell>{getBancoLabel(item)}</TableCell>
-                      </TableRow>,
-                    ];
-                    if (item.forma_pagamento === 'CHEQUE' && item.cheque) {
-                      const c = item.cheque;
-                      const temAlgum = c.banco || c.numero_cheque || c.agencia || c.conta || c.titular;
-                      if (temAlgum) {
-                        rows.push(
-                          <TableRow key={`${item.id}-cheque`} className="bg-muted/20 hover:bg-muted/20">
-                            <TableCell colSpan={4} className="py-3 align-top">
-                              <div className="rounded-lg border bg-card p-4 shadow-sm">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Detalhes do cheque</p>
-                                <dl className="grid grid-cols-2 md:grid-cols-5 gap-x-4 gap-y-2 text-sm">
-                                  {c.banco && (
-                                    <div>
-                                      <dt className="text-muted-foreground">Banco</dt>
-                                      <dd className="font-medium text-foreground">{c.banco}</dd>
-                                    </div>
-                                  )}
-                                  {c.numero_cheque && (
-                                    <div>
-                                      <dt className="text-muted-foreground">Nº do cheque</dt>
-                                      <dd className="font-medium text-foreground">{c.numero_cheque}</dd>
-                                    </div>
-                                  )}
-                                  {c.agencia && (
-                                    <div>
-                                      <dt className="text-muted-foreground">Agência</dt>
-                                      <dd className="font-medium text-foreground">{c.agencia}</dd>
-                                    </div>
-                                  )}
-                                  {c.conta && (
-                                    <div>
-                                      <dt className="text-muted-foreground">Conta</dt>
-                                      <dd className="font-medium text-foreground">{c.conta}</dd>
-                                    </div>
-                                  )}
-                                  {c.titular && (
-                                    <div>
-                                      <dt className="text-muted-foreground">Titular</dt>
-                                      <dd className="font-medium text-foreground">{c.titular}</dd>
-                                    </div>
-                                  )}
-                                </dl>
-                              </div>
-                            </TableCell>
-                          </TableRow>,
-                        );
-                      }
-                    }
-                    return rows;
-                  })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    Nenhum pagamento registrado
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+          <HistoricoPagamentosPedido pedidoId={id} defaultOpen={true} />
         </div>
       </div>
     </AppLayout>
