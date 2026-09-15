@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -75,6 +76,11 @@ export function DespesaDetalheConteudo({
         ? formatarFormaPagamento((conta as any).forma_pagamento)
         : "—";
 
+  const temHistoricoApi =
+    detalhe?.historico_pagamentos &&
+    Array.isArray(detalhe.historico_pagamentos) &&
+    detalhe.historico_pagamentos.length > 0;
+
   return (
     <div className="space-y-6">
       <div className="bg-card space-y-6 rounded-lg border p-6">
@@ -147,7 +153,7 @@ export function DespesaDetalheConteudo({
 
       <div className="bg-card space-y-4 rounded-lg border p-6">
         <h2 className="border-b pb-2 text-lg font-semibold">
-          Histórico de Pagamentos
+          Histórico de Pagamentos / Estornos
         </h2>
         <Table>
           <TableHeader>
@@ -156,10 +162,73 @@ export function DespesaDetalheConteudo({
               <TableHead>Valor</TableHead>
               <TableHead>Forma</TableHead>
               <TableHead>Banco / Conta</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Detalhes do Estorno</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {historico.length > 0 ? (
+            {temHistoricoApi ? (
+              detalhe!.historico_pagamentos!.map((item) => {
+                const isEstornado = item.estornado || !!item.data_estorno;
+                return (
+                  <TableRow key={`hp-${item.id}`}>
+                    <TableCell>{formatarDataBR(item.data_lancamento)}</TableCell>
+                    <TableCell className="font-medium">
+                      {formatCurrency(Number(item.valor_pago))}
+                    </TableCell>
+                    <TableCell>
+                      {item.forma_pagamento
+                        ? formatarFormaPagamento(item.forma_pagamento)
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {item.conta_bancaria_nome || "—"}
+                    </TableCell>
+                    <TableCell>
+                      {isEstornado ? (
+                        <Badge
+                          variant="destructive"
+                          className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200 dark:bg-red-900/30 dark:text-red-400"
+                        >
+                          Estornado / Cancelado
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400"
+                        >
+                          Pago
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {isEstornado ? (
+                        <div className="space-y-1">
+                          {item.data_estorno && (
+                            <div>
+                              <span className="font-medium text-foreground">
+                                Data Estorno:
+                              </span>{" "}
+                              {formatarDataBR(item.data_estorno)}
+                            </div>
+                          )}
+                          {(item.motivo_estorno || item.observacoes) && (
+                            <div>
+                              <span className="font-medium text-foreground">
+                                Motivo:
+                              </span>{" "}
+                              {item.motivo_estorno || item.observacoes}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        item.observacoes || "—"
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            ) : historico.length > 0 ? (
               historico.map((row) => (
                 <TableRow key={row.key}>
                   <TableCell>{formatarDataBR(row.data)}</TableCell>
@@ -168,12 +237,21 @@ export function DespesaDetalheConteudo({
                   </TableCell>
                   <TableCell>{row.formaLabel}</TableCell>
                   <TableCell>{row.bancoLabel || "—"}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400"
+                    >
+                      Pago
+                    </Badge>
+                  </TableCell>
+                  <TableCell>—</TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={4}
+                  colSpan={6}
                   className="text-muted-foreground py-8 text-center"
                 >
                   Nenhum pagamento registrado

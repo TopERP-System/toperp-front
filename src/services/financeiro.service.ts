@@ -60,6 +60,20 @@ export interface ContasFinanceirasResponse {
   limit: number;
 }
 
+export interface HistoricoPagamentoItem {
+  id: number;
+  valor_pago: number;
+  data_lancamento: string;
+  forma_pagamento?: string | null;
+  estornado?: boolean;
+  data_estorno?: string | null;
+  motivo_estorno?: string | null;
+  usuario_estorno_id?: string | null;
+  observacoes?: string | null;
+  conta_bancaria_id?: number | null;
+  conta_bancaria_nome?: string | null;
+}
+
 /** Resposta do endpoint GET /contas-financeiras/:id/detalhe (modal Visualizar) */
 export interface ContaFinanceiraDetalhe {
   id: number;
@@ -98,6 +112,7 @@ export interface ContaFinanceiraDetalhe {
     total_parcelas: number | null;
     texto_parcelas_quitadas: string | null;
   };
+  historico_pagamentos?: HistoricoPagamentoItem[];
   dias_ate_vencimento?: number;
   status_vencimento?: string;
   proximidade_vencimento?: string;
@@ -572,6 +587,26 @@ class FinanceiroService {
 
   async cancelar(id: number): Promise<ContaFinanceira> {
     return apiClient.patch<ContaFinanceira>(`/contas-financeiras/${id}/cancelar`, {});
+  }
+
+  async estornarPagamento(
+    id: number,
+    data?: { motivo_estorno?: string; data_estorno?: string },
+  ): Promise<ContaFinanceira> {
+    try {
+      return await apiClient.patch<ContaFinanceira>(
+        `/contas-financeiras/${id}/estornar-pagamento`,
+        data || {},
+      );
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        return await apiClient.patch<ContaFinanceira>(
+          `/contas-financeiras/${id}/cancelar-pagamento`,
+          data || {},
+        );
+      }
+      throw err;
+    }
   }
 
   async getDashboardReceber(params?: {

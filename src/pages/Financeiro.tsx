@@ -8,6 +8,7 @@ import {
   type ModuleStatCardItem,
 } from "@/components/layout/ModuleStatCards";
 import { saldoStatTheme, statTheme } from "@/components/layout/module-stat-themes";
+import { Badge } from "@/components/ui/badge";
 import { TableRowActionsMenu } from "@/components/TableRowActionsMenu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -54,7 +55,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useRotuloRoca } from "@/hooks/useRotuloRoca";
-import { cn, compareRocaPorCodigo, formatDate } from "@/lib/utils";
+import { cn, compareRocaPorCodigo, formatDate, formatarDataBR, formatarFormaPagamento } from "@/lib/utils";
 import {
   calcularStatsFinanceiroFiltrado,
   fimDoMesYMD,
@@ -87,6 +88,7 @@ import {
     Eye,
     FileText,
     Filter,
+    History,
     Info,
     Loader2,
     Plus,
@@ -1720,6 +1722,80 @@ const Financeiro = () => {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Histórico de Pagamentos / Estornos */}
+                <div className="bg-card border rounded-lg p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                      <History className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground">Histórico de Pagamentos / Estornos</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Lançamentos de pagamento e registros de estorno
+                      </p>
+                    </div>
+                  </div>
+
+                  {contaDetalhe.historico_pagamentos && contaDetalhe.historico_pagamentos.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Valor</TableHead>
+                          <TableHead>Forma de Pagamento</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Detalhes do Estorno / Obs</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {contaDetalhe.historico_pagamentos.map((item) => {
+                          const isEstornado = item.estornado || !!item.data_estorno;
+                          return (
+                            <TableRow key={`detalhe-hp-${item.id}`}>
+                              <TableCell>{formatarDataBR(item.data_lancamento)}</TableCell>
+                              <TableCell className="font-medium">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(item.valor_pago))}
+                              </TableCell>
+                              <TableCell>
+                                {item.forma_pagamento ? formatarFormaPagamento(item.forma_pagamento) : '—'}
+                              </TableCell>
+                              <TableCell>
+                                {isEstornado ? (
+                                  <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200 dark:bg-red-900/30 dark:text-red-400">
+                                    Estornado / Cancelado
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400">
+                                    Pago
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {isEstornado ? (
+                                  <div className="space-y-1">
+                                    {item.data_estorno && (
+                                      <div><span className="font-medium text-foreground">Data Estorno:</span> {formatarDataBR(item.data_estorno)}</div>
+                                    )}
+                                    {(item.motivo_estorno || item.observacoes) && (
+                                      <div><span className="font-medium text-foreground">Motivo:</span> {item.motivo_estorno || item.observacoes}</div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  item.observacoes || '—'
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">
+                      Nenhum histórico de pagamento registrado.
+                    </p>
+                  )}
                 </div>
 
                 {(contaDetalhe.status_original === 'PREVISAO' ||

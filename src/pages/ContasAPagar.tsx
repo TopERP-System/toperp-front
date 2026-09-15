@@ -103,6 +103,7 @@ import {
     Info,
     Loader2,
     Printer,
+    RotateCcw,
     Search,
     ShoppingCart,
     Trash2,
@@ -360,6 +361,11 @@ function ContasAPagar() {
     id: number;
     label: string;
   } | null>(null);
+  const [contaEstornar, setContaEstornar] = useState<{
+    id: number;
+    label: string;
+  } | null>(null);
+  const [motivoEstorno, setMotivoEstorno] = useState<string>("");
   const [editingStatusId, setEditingStatusId] = useState<number | null>(null);
   const [newTransacao, setNewTransacao] = useState<CreateContaFinanceiraDto & { 
     data_emissao: string;
@@ -1496,6 +1502,36 @@ function ContasAPagar() {
         error?.response?.data?.message ||
           error?.message ||
           "Erro ao apagar.",
+      );
+    },
+  });
+
+  const estornarMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const hojeYMD = new Date().toISOString().split("T")[0];
+      return await financeiroService.estornarPagamento(id, {
+        motivo_estorno: motivoEstorno.trim() || undefined,
+        data_estorno: hojeYMD,
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["contas-financeiras"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-pagar"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-resumo-financeiro"] }),
+        queryClient.invalidateQueries({ queryKey: ["centro-custo"] }),
+      ]);
+      toast.success(
+        "Pagamento estornado com sucesso! O título retornou ao status Pendente.",
+      );
+      setContaEstornar(null);
+      setMotivoEstorno("");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Erro ao estornar pagamento.",
       );
     },
   });
@@ -2905,6 +2941,45 @@ function ContasAPagar() {
                             <FileText className="w-4 h-4 mr-2" />
                             Recibo de pagamento
                           </DropdownMenuItem>
+                          {(() => {
+                            const eOrigemManual = !(transacao as any).pedidoId && transacao.contaId != null;
+                            const st = String(
+                              (transacao as any).statusOriginal ||
+                                transacao.status ||
+                                "",
+                            ).toUpperCase();
+                            const stLabel = String(transacao.status || "").toLowerCase();
+                            const isPagoTotalOuParcial =
+                              st === "PAGO_TOTAL" ||
+                              st === "QUITADO" ||
+                              st === "PAGO_PARCIAL" ||
+                              st === "PARCIAL" ||
+                              stLabel === "pago total" ||
+                              stLabel === "quitado" ||
+                              stLabel === "pago parcial" ||
+                              stLabel === "parcial";
+
+                            if (eOrigemManual && isPagoTotalOuParcial) {
+                              return (
+                                <DropdownMenuItem
+                                  className="text-amber-600 focus:text-amber-600"
+                                  onClick={() => {
+                                    setContaEstornar({
+                                      id: Number(transacao.contaId),
+                                      label: String(
+                                        transacao.id || `Conta #${transacao.contaId}`,
+                                      ),
+                                    });
+                                    setMotivoEstorno("");
+                                  }}
+                                >
+                                  <RotateCcw className="w-4 h-4 mr-2" />
+                                  Cancelar Pagamento
+                                </DropdownMenuItem>
+                              );
+                            }
+                            return null;
+                          })()}
                           {(transacao as any).pedidoId &&
                             (() => {
                               const st = String(
@@ -2939,6 +3014,7 @@ function ContasAPagar() {
                             </DropdownMenuItem>
                           )}
                           {(() => {
+                            const pedidoId = (transacao as any).pedidoId;
                             const st = String(
                               (transacao as any).statusOriginal ||
                                 transacao.status ||
@@ -2950,9 +3026,9 @@ function ContasAPagar() {
                               st === "PAGO_TOTAL" ||
                               stLabel === "quitado" ||
                               stLabel === "pago total";
-                            if (quitado) return null;
-                            const pedidoId = (transacao as any).pedidoId;
+
                             if (pedidoId != null) {
+                              if (quitado) return null;
                               return (
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
@@ -2971,6 +3047,7 @@ function ContasAPagar() {
                                 </DropdownMenuItem>
                               );
                             }
+
                             if (transacao.contaId != null) {
                               return (
                                 <DropdownMenuItem
@@ -3755,6 +3832,77 @@ function ContasAPagar() {
                   <>
                     <Trash2 className="w-4 h-4 mr-2" />
                     Excluir
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={contaEstornar != null}
+          onOpenChange={(open) => {
+            if (!open && !estornarMutation.isPending) {
+              setContaEstornar(null);
+              setMotivoEstorno("");
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+                <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-500" />
+                Cancelar Pagamento (Estorno)
+              </DialogTitle>
+              <DialogDescription>
+                Deseja estornar o pagamento deste título? O valor pago será revertido e o status retornará para 'Pendente'.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2 space-y-4">
+              {contaEstornar ? (
+                <p className="text-sm font-medium">{contaEstornar.label}</p>
+              ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="motivo_estorno">Motivo do Estorno (Opcional)</Label>
+                <Textarea
+                  id="motivo_estorno"
+                  placeholder="Ex: Pagamento em duplicidade, Erro no valor inserido"
+                  value={motivoEstorno}
+                  onChange={(e) => setMotivoEstorno(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={estornarMutation.isPending}
+                onClick={() => {
+                  setContaEstornar(null);
+                  setMotivoEstorno("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                disabled={estornarMutation.isPending || !contaEstornar}
+                onClick={() => {
+                  if (contaEstornar) {
+                    estornarMutation.mutate(contaEstornar.id);
+                  }
+                }}
+              >
+                {estornarMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Estornando...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Confirmar Estorno
                   </>
                 )}
               </Button>
