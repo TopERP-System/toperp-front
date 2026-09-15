@@ -9,6 +9,7 @@ import {
   type ModuleStatCardItem,
 } from "@/components/layout/ModuleStatCards";
 import { statTheme } from "@/components/layout/module-stat-themes";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -72,7 +73,7 @@ import {
   valorPagoConta,
   valorPrincipalConta,
 } from "@/lib/contas-financeiras-listagem";
-import { cn, formatDate, formatarStatus, parseDateOnlyLocal } from "@/lib/utils";
+import { cn, formatDate, formatarDataBR, formatarFormaPagamento, formatarStatus, parseDateOnlyLocal } from "@/lib/utils";
 import ContasAReceberListaClientes from "@/pages/contas-a-receber/ContasAReceberListaClientes";
 import { Cliente, clientesService } from "@/services/clientes.service";
 import { controleRocaService } from "@/services/controle-roca.service";
@@ -96,9 +97,11 @@ import {
     Eye,
     FileText,
     Filter,
+    History,
     Info,
     Loader2,
     Printer,
+    RotateCcw,
     Search,
     ShoppingCart,
     Trash2,
@@ -242,6 +245,11 @@ const ContasAReceber = () => {
     id: number;
     label: string;
   } | null>(null);
+  const [contaEstornar, setContaEstornar] = useState<{
+    id: number;
+    label: string;
+  } | null>(null);
+  const [motivoEstorno, setMotivoEstorno] = useState<string>("");
   const [editingStatusId, setEditingStatusId] = useState<number | null>(null);
   const [newTransacao, setNewTransacao] = useState<CreateContaFinanceiraDto & { 
     data_emissao: string;
@@ -1108,6 +1116,17 @@ const ContasAReceber = () => {
     retry: false,
   });
 
+  // Query para buscar detalhe da conta financeira (com histórico de pagamentos/estornos)
+  const { data: contaDetalhe, isLoading: isLoadingDetalhe } = useQuery({
+    queryKey: ["conta-financeira-detalhe", selectedContaId],
+    queryFn: async () => {
+      if (!selectedContaId) return null;
+      return await financeiroService.buscarDetalhePorId(selectedContaId);
+    },
+    enabled: !!selectedContaId && viewDialogOpen,
+    retry: false,
+  });
+
   // Query para buscar todas as parcelas do pedido (para contar parcelas pagas)
   const { data: parcelasDoPedido } = useQuery({
     queryKey: ["parcelas-pedido", contaSelecionada?.pedido_id],
@@ -1258,6 +1277,38 @@ const ContasAReceber = () => {
         error?.response?.data?.message ||
           error?.message ||
           "Erro ao apagar.",
+      );
+    },
+  });
+
+  const estornarMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const hojeYMD = new Date().toISOString().split("T")[0];
+      return await financeiroService.estornarPagamento(id, {
+        motivo_estorno: motivoEstorno.trim() || undefined,
+        data_estorno: hojeYMD,
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["contas-financeiras"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-receber"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-resumo-financeiro"] }),
+        queryClient.invalidateQueries({ queryKey: ["pedidos"] }),
+        queryClient.invalidateQueries({ queryKey: ["pedidos", "contas-receber"] }),
+        queryClient.invalidateQueries({ queryKey: ["contas-receber"] }),
+      ]);
+      toast.success(
+        "Recebimento estornado com sucesso! O título retornou ao status Pendente.",
+      );
+      setContaEstornar(null);
+      setMotivoEstorno("");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Erro ao estornar recebimento.",
       );
     },
   });
@@ -3371,6 +3422,42 @@ const ContasAReceber = () => {
                                 Recibo de pagamento
                               </DropdownMenuItem>
                             )}
+                            {(() => {
+                              const eOrigemManual = grupo?.pedido_id == null && (grupo?.parcelas?.[0]?.id != null || (transacao as any)?.contaId != null);
+                              const contaIdEstorno = grupo?.parcelas?.[0]?.id ?? (transacao as any)?.contaId;
+                              const st = String(transacao.status || grupo?.statusConsolidado || "").toUpperCase();
+                              const stLabel = String(transacao.status || grupo?.statusConsolidado || "").toLowerCase();
+                              const isPagoTotalOuParcial =
+                                st === "PAGO_TOTAL" ||
+                                st === "QUITADO" ||
+                                st === "PAGO_PARCIAL" ||
+                                st === "PARCIAL" ||
+                                stLabel === "pago total" ||
+                                stLabel === "quitado" ||
+                                stLabel === "pago parcial" ||
+                                stLabel === "parcial";
+
+                              if (eOrigemManual && isPagoTotalOuParcial && contaIdEstorno != null) {
+                                return (
+                                  <DropdownMenuItem
+                                    className="text-amber-600 focus:text-amber-600"
+                                    onClick={() => {
+                                      setContaEstornar({
+                                        id: Number(contaIdEstorno),
+                                        label: String(
+                                          grupo?.parcelas?.[0]?.numero_conta || transacao.id || `Conta #${contaIdEstorno}`,
+                                        ),
+                                      });
+                                      setMotivoEstorno("");
+                                    }}
+                                  >
+                                    <RotateCcw className="w-4 h-4 mr-2" />
+                                    Cancelar Recebimento
+                                  </DropdownMenuItem>
+                                );
+                              }
+                              return null;
+                            })()}
                             {grupo?.pedido_id != null &&
                               grupo?.statusConsolidado !== "Cancelado" &&
                               grupo?.statusConsolidado !== "Pago Total" && (
@@ -3389,38 +3476,59 @@ const ContasAReceber = () => {
                                 Cancelar pedido
                               </DropdownMenuItem>
                             )}
-                            {grupo?.statusConsolidado !== "Pago Total" &&
-                              (grupo?.pedido_id != null ||
-                                grupo?.parcelas?.[0]?.id != null) && (
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onClick={() => {
-                                  if (grupo?.pedido_id != null) {
-                                    setItemApagar({
-                                      tipo: "pedido",
-                                      id: grupo.pedido_id,
-                                      label:
-                                        grupo.parcelas?.[0]?.numero_conta ||
-                                        `Pedido #${grupo.pedido_id}`,
-                                    });
-                                    return;
-                                  }
-                                  const contaId = grupo?.parcelas?.[0]?.id;
-                                  if (contaId != null) {
-                                    setItemApagar({
-                                      tipo: "conta",
-                                      id: contaId,
-                                      label:
-                                        grupo.parcelas?.[0]?.numero_conta ||
-                                        `Conta #${contaId}`,
-                                    });
-                                  }
-                                }}
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Excluir
-                              </DropdownMenuItem>
-                            )}
+                            {(() => {
+                              const pedidoId = grupo?.pedido_id;
+                              const contaId = grupo?.parcelas?.[0]?.id ?? (transacao as any)?.contaId;
+                              const st = String(transacao.status || grupo?.statusConsolidado || "").toUpperCase();
+                              const stLabel = String(transacao.status || grupo?.statusConsolidado || "").toLowerCase();
+                              const quitado =
+                                st === "QUITADO" ||
+                                st === "PAGO_TOTAL" ||
+                                stLabel === "quitado" ||
+                                stLabel === "pago total";
+
+                              if (pedidoId != null) {
+                                if (quitado) return null;
+                                return (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() =>
+                                      setItemApagar({
+                                        tipo: "pedido",
+                                        id: Number(pedidoId),
+                                        label:
+                                          grupo?.parcelas?.[0]?.numero_conta ||
+                                          `Pedido #${pedidoId}`,
+                                      })
+                                    }
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                );
+                              }
+
+                              if (contaId != null) {
+                                return (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() =>
+                                      setItemApagar({
+                                        tipo: "conta",
+                                        id: Number(contaId),
+                                        label:
+                                          grupo?.parcelas?.[0]?.numero_conta ||
+                                          `Conta #${contaId}`,
+                                      })
+                                    }
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                );
+                              }
+                              return null;
+                            })()}
                         </TableRowActionsMenu>
                       </TableCell>
                     </TableRow>
@@ -3542,6 +3650,40 @@ const ContasAReceber = () => {
                             <FileText className="w-4 h-4 mr-2" />
                             Recibo de pagamento
                           </DropdownMenuItem>
+                          {(() => {
+                            const contaIdEstorno = (transacao as any).contaId;
+                            const eOrigemManual = !transacao.pedidoId && contaIdEstorno != null;
+                            const st = String(transacao.status || "").toUpperCase();
+                            const stLabel = String(transacao.status || "").toLowerCase();
+                            const isPagoTotalOuParcial =
+                              st === "PAGO_TOTAL" ||
+                              st === "QUITADO" ||
+                              st === "PAGO_PARCIAL" ||
+                              st === "PARCIAL" ||
+                              stLabel === "pago total" ||
+                              stLabel === "quitado" ||
+                              stLabel === "pago parcial" ||
+                              stLabel === "parcial";
+
+                            if (eOrigemManual && isPagoTotalOuParcial && contaIdEstorno != null) {
+                              return (
+                                <DropdownMenuItem
+                                  className="text-amber-600 focus:text-amber-600"
+                                  onClick={() => {
+                                    setContaEstornar({
+                                      id: Number(contaIdEstorno),
+                                      label: String(transacao.id || `Conta #${contaIdEstorno}`),
+                                    });
+                                    setMotivoEstorno("");
+                                  }}
+                                >
+                                  <RotateCcw className="w-4 h-4 mr-2" />
+                                  Cancelar Recebimento
+                                </DropdownMenuItem>
+                              );
+                            }
+                            return null;
+                          })()}
                           {transacao.pedidoId &&
                             (() => {
                               const st = (transacao.status || "").toLowerCase();
@@ -3564,27 +3706,55 @@ const ContasAReceber = () => {
                               Cancelar pedido
                             </DropdownMenuItem>
                           )}
-                          {transacao.pedidoId &&
-                            (() => {
-                              const st = (transacao.status || "").toLowerCase();
-                              return st !== "quitado" && st !== "pago total";
-                            })() && (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() =>
-                                setItemApagar({
-                                  tipo: "pedido",
-                                  id: transacao.pedidoId!,
-                                  label: String(
-                                    transacao.id || `Pedido #${transacao.pedidoId}`,
-                                  ),
-                                })
-                              }
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Excluir
-                            </DropdownMenuItem>
-                          )}
+                          {(() => {
+                            const pedidoId = transacao.pedidoId;
+                            const contaId = (transacao as any).contaId;
+                            const st = String(transacao.status || "").toUpperCase();
+                            const stLabel = String(transacao.status || "").toLowerCase();
+                            const quitado =
+                              st === "QUITADO" ||
+                              st === "PAGO_TOTAL" ||
+                              stLabel === "quitado" ||
+                              stLabel === "pago total";
+
+                            if (pedidoId != null) {
+                              if (quitado) return null;
+                              return (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() =>
+                                    setItemApagar({
+                                      tipo: "pedido",
+                                      id: Number(pedidoId),
+                                      label: String(transacao.id || `Pedido #${pedidoId}`),
+                                    })
+                                  }
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              );
+                            }
+
+                            if (contaId != null) {
+                              return (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() =>
+                                    setItemApagar({
+                                      tipo: "conta",
+                                      id: Number(contaId),
+                                      label: String(transacao.id || `Conta #${contaId}`),
+                                    })
+                                  }
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              );
+                            }
+                            return null;
+                          })()}
                       </TableRowActionsMenu>
                     </TableCell>
                   </TableRow>
@@ -3670,6 +3840,80 @@ const ContasAReceber = () => {
                     <p className="text-sm font-medium">{formatarMetodoPagamento(contaSelecionada.forma_pagamento)}</p>
                   </div>
                   {/* Modelo sem parcelas: não exibir bloco de parcelas */}
+                </div>
+
+                {/* Histórico de Recebimentos / Estornos */}
+                <div className="bg-card border rounded-lg p-6 space-y-4">
+                  <div className="flex items-center gap-3 border-b pb-2">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                      <History className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground">Histórico de Recebimentos / Estornos</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Lançamentos de recebimento e registros de estorno
+                      </p>
+                    </div>
+                  </div>
+
+                  {contaDetalhe?.historico_pagamentos && contaDetalhe.historico_pagamentos.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Valor</TableHead>
+                          <TableHead>Forma de Pagamento</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Detalhes do Estorno / Obs</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {contaDetalhe.historico_pagamentos.map((item) => {
+                          const isEstornado = item.estornado || !!item.data_estorno;
+                          return (
+                            <TableRow key={`detalhe-rec-${item.id}`}>
+                              <TableCell>{formatarDataBR(item.data_lancamento)}</TableCell>
+                              <TableCell className="font-medium">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(item.valor_pago))}
+                              </TableCell>
+                              <TableCell>
+                                {item.forma_pagamento ? formatarFormaPagamento(item.forma_pagamento) : '—'}
+                              </TableCell>
+                              <TableCell>
+                                {isEstornado ? (
+                                  <Badge variant="destructive" className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200 dark:bg-red-900/30 dark:text-red-400">
+                                    Estornado / Cancelado
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400">
+                                    Recebido
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {isEstornado ? (
+                                  <div className="space-y-1">
+                                    {item.data_estorno && (
+                                      <div><span className="font-medium text-foreground">Data Estorno:</span> {formatarDataBR(item.data_estorno)}</div>
+                                    )}
+                                    {(item.motivo_estorno || item.observacoes) && (
+                                      <div><span className="font-medium text-foreground">Motivo:</span> {item.motivo_estorno || item.observacoes}</div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  item.observacoes || '—'
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">
+                      Nenhum histórico de recebimento registrado.
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -3821,6 +4065,76 @@ const ContasAReceber = () => {
                   <>
                     <Trash2 className="w-4 h-4 mr-2" />
                     Excluir
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={contaEstornar != null}
+          onOpenChange={(open) => {
+            if (!open && !estornarMutation.isPending) {
+              setContaEstornar(null);
+              setMotivoEstorno("");
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+                <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-500" />
+                Cancelar Recebimento (Estorno)
+              </DialogTitle>
+              <DialogDescription>
+                Deseja estornar o recebimento deste título? O valor pago será revertido e o status retornará para 'Pendente'.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2 space-y-4">
+              {contaEstornar ? (
+                <p className="text-sm font-medium">{contaEstornar.label}</p>
+              ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="motivo_estorno_rec">Motivo do Estorno (Opcional)</Label>
+                <Textarea
+                  id="motivo_estorno_rec"
+                  placeholder="Ex: Recebimento efetuado em duplicidade, Erro no valor inserido"
+                  value={motivoEstorno}
+                  onChange={(e) => setMotivoEstorno(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={estornarMutation.isPending}
+                onClick={() => {
+                  setContaEstornar(null);
+                  setMotivoEstorno("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                disabled={estornarMutation.isPending || !contaEstornar}
+                onClick={() => {
+                  if (contaEstornar) {
+                    estornarMutation.mutate(contaEstornar.id);
+                  }
+                }}
+              >
+                {estornarMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Estornando...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Confirmar Estorno
                   </>
                 )}
               </Button>
