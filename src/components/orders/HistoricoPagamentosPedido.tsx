@@ -23,6 +23,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/utils';
 import { pagamentosService } from '@/services/pagamentos.service';
@@ -31,7 +32,7 @@ import type { ItemHistoricoPagamento } from '@/types/pedido-financeiro.types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChevronDown, ChevronUp, History, Loader2, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, History, Info, Loader2, RotateCcw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 
 const FORMAS_LABEL: Record<string, string> = {
@@ -62,7 +63,7 @@ export function HistoricoPagamentosPedido({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: pagamentosNovo, isLoading: loadingNovo, isError: erroNovo } = useQuery({
+  const { data: pagamentosNovo, isLoading: loadingNovo } = useQuery({
     queryKey: ['pedidos', pedidoId, 'pagamentos'],
     queryFn: () => pedidosService.listarPagamentosPedido(pedidoId),
     enabled: aberto && !!pedidoId,
@@ -72,7 +73,8 @@ export function HistoricoPagamentosPedido({
   const { data: pagamentosLegado, isLoading: loadingLegado } = useQuery({
     queryKey: ['pagamentos', 'pedido', pedidoId],
     queryFn: () => pagamentosService.listarPorPedido(pedidoId),
-    enabled: aberto && !!pedidoId && !!erroNovo,
+    enabled: aberto && !!pedidoId,
+    retry: false,
   });
 
   const estornarMutation = useMutation({
@@ -110,23 +112,80 @@ export function HistoricoPagamentosPedido({
   });
 
   const listaNormalizada = useMemo((): ItemHistoricoPagamento[] => {
-    if (Array.isArray(pagamentosNovo) && pagamentosNovo.length > 0) {
-      return pagamentosNovo;
+    const mapa = new Map<number, ItemHistoricoPagamento>();
+
+    // 1. Carregar pagamentos do serviço principal de pagamentos (com a coluna estornado)
+    if (Array.isArray(pagamentosLegado)) {
+      for (const p of pagamentosLegado) {
+        const est = Boolean(
+          p.estornado === true ||
+          p.estornado === 1 ||
+          String(p.estornado).toLowerCase() === 'true' ||
+          (p as any).is_estornado === true ||
+          (p as any).is_estornado === 1 ||
+          (p as any).estornado_em != null ||
+          (p as any).data_estorno != null ||
+          (p as any).motivo_estorno != null ||
+          String(p.status).toUpperCase() === 'ESTORNADO' ||
+          String(p.status).toUpperCase() === 'CANCELADO'
+        );
+        mapa.set(p.id, {
+          id: p.id,
+          valor: p.valor_pago,
+          forma_pagamento: p.forma_pagamento,
+          data_pagamento: p.data_lancamento ?? (p as any).data_pagamento ?? '',
+          status: p.status ?? (est ? 'ESTORNADO' : 'PAGO'),
+          estornado: est,
+          motivo_estorno: (p as any).motivo_estorno ?? null,
+          data_estorno: (p as any).data_estorno ?? null,
+          cheque: (p as any).cheque,
+          cheques: p.cheques,
+        } as any);
+      }
     }
-    if (Array.isArray(pagamentosLegado) && pagamentosLegado.length > 0) {
-      return pagamentosLegado.map((p) => ({
-        id: p.id,
-        valor: p.valor_pago,
-        forma_pagamento: p.forma_pagamento,
-        data_pagamento: p.data_lancamento ?? (p as any).data_pagamento ?? '',
-        status: p.status,
-        estornado: p.estornado,
-      }));
+
+    // 2. Mesclar com pagamentos do endpoint de pedido, preservando sinalizações de estorno
+    if (Array.isArray(pagamentosNovo)) {
+      for (const p of pagamentosNovo) {
+        const existente = mapa.get(p.id);
+        const pEstornado = Boolean(
+          p.estornado === true ||
+          p.estornado === 1 ||
+          String(p.estornado).toLowerCase() === 'true' ||
+          (p as any).is_estornado === true ||
+          (p as any).is_estornado === 1 ||
+          (p as any).estornado_em != null ||
+          (p as any).data_estorno != null ||
+          (p as any).motivo_estorno != null ||
+          String(p.status).toUpperCase() === 'ESTORNADO' ||
+          String(p.status).toUpperCase() === 'CANCELADO' ||
+          existente?.estornado ||
+          false
+        );
+
+        if (existente) {
+          mapa.set(p.id, {
+            ...existente,
+            ...p,
+            estornado: pEstornado,
+            status: p.status ?? (pEstornado ? 'ESTORNADO' : existente.status),
+            motivo_estorno: p.motivo_estorno ?? (p as any).motivo_estorno ?? existente.motivo_estorno,
+            data_estorno: p.data_estorno ?? (p as any).data_estorno ?? existente.data_estorno,
+          });
+        } else {
+          mapa.set(p.id, {
+            ...p,
+            estornado: pEstornado,
+            status: p.status ?? (pEstornado ? 'ESTORNADO' : 'PAGO'),
+          });
+        }
+      }
     }
-    return [];
+
+    return Array.from(mapa.values());
   }, [pagamentosNovo, pagamentosLegado]);
 
-  const isLoading = loadingNovo || (listaNormalizada.length === 0 && loadingLegado);
+  const isLoading = loadingNovo && loadingLegado;
 
   const listaOrdenada = useMemo(() => {
     if (!listaNormalizada.length) return [];
@@ -143,6 +202,17 @@ export function HistoricoPagamentosPedido({
     }
   };
   const formatarData = formatarDataPagamento;
+
+  const formatarDataHoraEstorno = (dataString?: string | null) => {
+    if (!dataString) return null;
+    try {
+      const d = new Date(dataString);
+      if (isNaN(d.getTime())) return dataString;
+      return format(d, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+    } catch {
+      return dataString;
+    }
+  };
 
   const handleConfirmarEstorno = () => {
     if (!pagamentoParaEstornar) return;
@@ -186,10 +256,19 @@ export function HistoricoPagamentosPedido({
                 <TableBody>
                   {listaOrdenada.map((p) => {
                     const ehEstornado = Boolean(
-                      p.estornado ||
+                      p.estornado === true ||
+                      p.estornado === 1 ||
+                      String(p.estornado).toLowerCase() === 'true' ||
+                      (p as any).is_estornado === true ||
+                      (p as any).is_estornado === 1 ||
+                      (p as any).estornado_em != null ||
+                      (p as any).data_estorno != null ||
+                      (p as any).motivo_estorno != null ||
                       String(p.status).toUpperCase() === 'ESTORNADO' ||
                       String(p.status).toUpperCase() === 'CANCELADO'
                     );
+
+                    const dataHoraEstorno = formatarDataHoraEstorno(p.data_estorno ?? (p as any).estornado_em);
 
                     return (
                       <React.Fragment key={p.id}>
@@ -201,9 +280,36 @@ export function HistoricoPagamentosPedido({
                           <TableCell className="text-sm font-medium">{formatCurrency(p.valor)}</TableCell>
                           <TableCell>
                             {ehEstornado ? (
-                              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-300 dark:border-amber-800">
-                                Estornado
-                              </Badge>
+                              <div className="space-y-0.5">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="inline-flex items-center gap-1 cursor-pointer">
+                                        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-300 dark:border-amber-800">
+                                          Estornado
+                                        </Badge>
+                                        <Info className="w-3.5 h-3.5 text-amber-600/70" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs space-y-1 text-xs">
+                                      {dataHoraEstorno && (
+                                        <p><strong>Data do estorno:</strong> {dataHoraEstorno}</p>
+                                      )}
+                                      {p.motivo_estorno ? (
+                                        <p><strong>Motivo:</strong> {p.motivo_estorno}</p>
+                                      ) : (
+                                        <p className="italic text-muted-foreground">Sem motivo informado</p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+
+                                {p.motivo_estorno && (
+                                  <p className="text-[11px] text-muted-foreground italic truncate max-w-[180px]" title={p.motivo_estorno}>
+                                    {p.motivo_estorno}
+                                  </p>
+                                )}
+                              </div>
                             ) : (
                               <Badge className="bg-green-500/10 text-green-600">Pago</Badge>
                             )}
