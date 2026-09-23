@@ -197,6 +197,12 @@ class CentroCustoService {
     descricao: string;
     valor: number;
     data: string;
+    dataVencimento?: string;
+    data_vencimento?: string;
+    dataPagamento?: string;
+    data_pagamento?: string;
+    formaPagamento?: string;
+    forma_pagamento?: string;
     observacoes?: string;
     fornecedorId?: number;
   }): Promise<ApiCentroCustoDespesa> {

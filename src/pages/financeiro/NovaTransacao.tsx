@@ -462,8 +462,8 @@ const NovaTransacao = () => {
 
   const handleSubmit = async () => {
     if (temCentroCusto) {
-      if (!form.descricao || !form.valor_original || !form.data_emissao) {
-        toast.error("Preencha os campos obrigatórios (Descrição, Valor e Data de Emissão)");
+      if (!form.descricao || !form.valor_original || !form.data_vencimento) {
+        toast.error("Preencha os campos obrigatórios (Descrição, Valor e Data de Vencimento)");
         return;
       }
       if (!form.centro_custo_tipo_id) {
@@ -476,15 +476,36 @@ const NovaTransacao = () => {
       }
       setSalvandoDespesaCc(true);
       try {
-        await centroCustoService.criarDespesa({
+        const despesaCriada = await centroCustoService.criarDespesa({
           tipoId: form.centro_custo_tipo_id!,
           rocaId: form.roca_id,
           descricao: form.descricao.trim(),
           valor: Number(form.valor_original),
-          data: form.data_emissao,
+          data: form.data_emissao || form.data_vencimento,
+          dataVencimento: form.data_vencimento,
+          data_vencimento: form.data_vencimento,
+          dataPagamento: form.data_pagamento || undefined,
+          data_pagamento: form.data_pagamento || undefined,
+          formaPagamento: form.forma_pagamento || undefined,
+          forma_pagamento: form.forma_pagamento || undefined,
           observacoes: form.observacoes?.trim() || undefined,
           fornecedorId: form.fornecedor_id || undefined,
         });
+
+        // Garantir que a conta financeira espelhada no Contas a Pagar receba a data de vencimento, pagamento e forma de pagamento corretas
+        if (despesaCriada?.contaFinanceiraId) {
+          try {
+            await financeiroService.atualizar(despesaCriada.contaFinanceiraId, {
+              data_emissao: form.data_emissao || undefined,
+              data_vencimento: form.data_vencimento || undefined,
+              data_pagamento: form.data_pagamento || undefined,
+              forma_pagamento: form.forma_pagamento || undefined,
+            });
+          } catch (errAtualizar) {
+            console.warn("Aviso ao sincronizar data de vencimento da conta espelhada:", errAtualizar);
+          }
+        }
+
         queryClient.invalidateQueries({ queryKey: ["contas-financeiras"] });
         queryClient.invalidateQueries({ queryKey: ["centro-custo"] });
         queryClient.invalidateQueries({ queryKey: ["dashboard-receber"] });
@@ -946,21 +967,17 @@ const NovaTransacao = () => {
                   icon={Calendar}
                   title="Datas"
                   description={
-                    temCentroCusto
-                      ? "Data em que a despesa foi registrada."
-                      : previsao
-                        ? "Data prevista e, se quiser, emissão, vencimento ou pagamento."
-                        : "Emissão, vencimento e pagamento do lançamento."
+                    previsao
+                      ? "Data prevista e, se quiser, emissão, vencimento ou pagamento."
+                      : "Emissão, vencimento e pagamento do lançamento."
                   }
                 >
                   <div
                     className={cn(
                       "grid grid-cols-1 gap-4",
-                      temCentroCusto
-                        ? "sm:grid-cols-1"
-                        : previsao
-                          ? "sm:grid-cols-2 lg:grid-cols-4"
-                          : "sm:grid-cols-3",
+                      previsao
+                        ? "sm:grid-cols-2 lg:grid-cols-4"
+                        : "sm:grid-cols-3",
                     )}
                   >
                     {!temCentroCusto && previsao ? (
@@ -982,7 +999,7 @@ const NovaTransacao = () => {
                     ) : null}
                     <div className="space-y-2">
                       <Label htmlFor="data-emissao">
-                        Data de emissão{!previsao || temCentroCusto ? " *" : ""}
+                        Data de emissão{!previsao ? " *" : ""}
                       </Label>
                       <Input
                         id="data-emissao"
@@ -994,43 +1011,38 @@ const NovaTransacao = () => {
                         }
                       />
                     </div>
-                    {!temCentroCusto ? (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="data-vencimento">
-                            Data de vencimento{!previsao ? " *" : ""}
-                          </Label>
-                          <Input
-                            id="data-vencimento"
-                            type="date"
-                            className="h-11 rounded-xl"
-                            value={form.data_vencimento}
-                            onChange={(e) =>
-                              setForm((prev) => ({ ...prev, data_vencimento: e.target.value }))
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="data-pagamento">Data de pagamento</Label>
-                          <Input
-                            id="data-pagamento"
-                            type="date"
-                            className="h-11 rounded-xl"
-                            value={form.data_pagamento || ""}
-                            onChange={(e) =>
-                              setForm((prev) => ({
-                                ...prev,
-                                data_pagamento: e.target.value || undefined,
-                              }))
-                            }
-                          />
-                        </div>
-                      </>
-                    ) : null}
+                    <div className="space-y-2">
+                      <Label htmlFor="data-vencimento">
+                        Data de vencimento{!previsao ? " *" : ""}
+                      </Label>
+                      <Input
+                        id="data-vencimento"
+                        type="date"
+                        className="h-11 rounded-xl"
+                        value={form.data_vencimento}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, data_vencimento: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="data-pagamento">Data de pagamento</Label>
+                      <Input
+                        id="data-pagamento"
+                        type="date"
+                        className="h-11 rounded-xl"
+                        value={form.data_pagamento || ""}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            data_pagamento: e.target.value || undefined,
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                 </FormSection>
 
-                {!temCentroCusto ? (
                 <FormSection
                   icon={CreditCard}
                   title="Pagamento"
@@ -1064,7 +1076,6 @@ const NovaTransacao = () => {
                     </Select>
                   </div>
                 </FormSection>
-                ) : null}
 
                 <FormSection
                   icon={Info}
@@ -1129,23 +1140,21 @@ const NovaTransacao = () => {
                       </div>
                       <div className="flex justify-between gap-2 border-b border-border/40 pb-2">
                         <span className="text-muted-foreground">
-                          {temCentroCusto ? "Emissão" : previsao ? "Data prevista" : "Vencimento"}
+                          {previsao ? "Data prevista" : "Vencimento"}
                         </span>
                         <span className="font-medium">
-                          {temCentroCusto
-                            ? form.data_emissao
-                              ? new Date(form.data_emissao + "T12:00:00").toLocaleDateString(
+                          {previsao
+                            ? form.data_prevista
+                              ? new Date(form.data_prevista + "T12:00:00").toLocaleDateString(
                                   "pt-BR",
                                 )
                               : "—"
-                            : previsao
-                              ? form.data_prevista
-                                ? new Date(form.data_prevista + "T12:00:00").toLocaleDateString(
-                                    "pt-BR",
-                                  )
-                                : "—"
-                              : form.data_vencimento
-                                ? new Date(form.data_vencimento + "T12:00:00").toLocaleDateString(
+                            : form.data_vencimento
+                              ? new Date(form.data_vencimento + "T12:00:00").toLocaleDateString(
+                                  "pt-BR",
+                                )
+                              : form.data_emissao
+                                ? new Date(form.data_emissao + "T12:00:00").toLocaleDateString(
                                     "pt-BR",
                                   )
                                 : "—"}
