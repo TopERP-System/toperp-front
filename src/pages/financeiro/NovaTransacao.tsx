@@ -209,14 +209,20 @@ function ResumoScrollFollower({
   );
 }
 
-const initialForm = (): NovaTransacaoForm => ({
-  tipo: "RECEBER",
+const initialForm = (tipo: ModoLancamento = "RECEBER"): NovaTransacaoForm => ({
+  tipo,
   descricao: "",
   valor_original: 0,
   data_emissao: toYMD(new Date()),
   data_vencimento: "",
   roca_id: undefined,
   centro_custo_tipo_id: undefined,
+  cliente_id: undefined,
+  fornecedor_id: undefined,
+  pedido_id: undefined,
+  forma_pagamento: undefined,
+  data_pagamento: undefined,
+  observacoes: undefined,
 });
 
 const NovaTransacao = () => {
@@ -229,9 +235,16 @@ const NovaTransacao = () => {
   const [quickTipoOpen, setQuickTipoOpen] = useState(false);
   const [quickTipoNome, setQuickTipoNome] = useState("");
   const [salvandoQuickTipo, setSalvandoQuickTipo] = useState(false);
-  const [form, setForm] = useState<NovaTransacaoForm>(initialForm);
+  const [form, setForm] = useState<NovaTransacaoForm>(() => initialForm("RECEBER"));
   const [valorOriginalInput, setValorOriginalInput] = useState("");
   const [salvandoDespesaCc, setSalvandoDespesaCc] = useState(false);
+
+  const resetForm = () => {
+    setForm(initialForm(modo));
+    setValorOriginalInput("");
+    setPrevisao(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleValorOriginalChange = (raw: string) => {
     const apenasNumeros = raw.replace(/\D/g, "");
@@ -364,13 +377,7 @@ const NovaTransacao = () => {
           ? "Previsão registrada com sucesso!"
           : "Transação registrada com sucesso!",
       );
-      navigate(
-        variables.previsao
-          ? "/financeiro"
-          : variables.tipo === "PAGAR"
-            ? "/contas-a-pagar"
-            : "/contas-a-receber",
-      );
+      resetForm();
     },
     onError: (error: { response?: { data?: { message?: string } } }) => {
       toast.error(error?.response?.data?.message || "Erro ao registrar transação");
@@ -485,7 +492,7 @@ const NovaTransacao = () => {
         queryClient.invalidateQueries({ queryKey: ["dashboard-resumo"] });
         queryClient.invalidateQueries({ queryKey: ["dashboard-unificado-financeiro"] });
         toast.success("Despesa de centro de custo registrada com sucesso!");
-        navigate("/contas-a-pagar");
+        resetForm();
       } catch (error: unknown) {
         const msg =
           (error as { response?: { data?: { message?: string } } })?.response?.data
