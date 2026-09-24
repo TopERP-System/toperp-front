@@ -635,6 +635,9 @@ const Financeiro = () => {
           roca_id: rocaFilterId,
           data_inicial: dataInicialFilter || undefined,
           data_final: dataFinalFilter || undefined,
+          // Card Receita/Despesas do Mês ativo: mesmas contas que compõem o valor
+          // do card (competência = data de emissão).
+          campo_data: cardTipoFilter !== "todos" ? "emissao" : undefined,
           busca: searchTerm.trim() || undefined,
         });
         
