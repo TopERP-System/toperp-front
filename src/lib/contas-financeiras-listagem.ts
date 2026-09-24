@@ -154,9 +154,11 @@ export function contaVenceEsteMesLocal(c: ContaFinanceira, ref: Date = new Date(
   if (!contaTemSaldoAberto(c)) return false;
   const vencimento = parseDateOnlyLocal(c.data_vencimento);
   if (!vencimento) return false;
+  // Protege contra `array.filter(contaVenceEsteMesLocal)`, que passaria o índice como `ref`.
+  const base = ref instanceof Date ? ref : new Date();
   return (
-    vencimento.getMonth() === ref.getMonth() &&
-    vencimento.getFullYear() === ref.getFullYear()
+    vencimento.getMonth() === base.getMonth() &&
+    vencimento.getFullYear() === base.getFullYear()
   );
 }
 

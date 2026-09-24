@@ -873,7 +873,8 @@ function ContasAPagar() {
               data_inicial: inicioDoMesYMD(),
               data_final: fimDoMesYMD(),
             });
-            return paginateLocal(merged.filter(contaVenceEsteMesLocal));
+            // Não passar a função direto ao filter: o índice viraria o parâmetro `ref` (data).
+            return paginateLocal(merged.filter((c) => contaVenceEsteMesLocal(c)));
           }
         }
 
