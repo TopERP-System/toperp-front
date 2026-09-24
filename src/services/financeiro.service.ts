@@ -69,7 +69,8 @@ export interface ContasFinanceirasResponse {
 }
 
 export interface HistoricoPagamentoItem {
-  id: number;
+  /** null na linha `legado` (valor pago antes do histórico detalhado, sem lançamento próprio). */
+  id: number | null;
   valor_pago: number;
   data_lancamento: string;
   forma_pagamento?: string | null;
@@ -80,6 +81,16 @@ export interface HistoricoPagamentoItem {
   observacoes?: string | null;
   conta_bancaria_id?: number | null;
   conta_bancaria_nome?: string | null;
+  /** Pagamento anterior ao histórico detalhado — não pode ser estornado individualmente. */
+  legado?: boolean;
+}
+
+export interface RegistrarPagamentoContaDto {
+  valor: number;
+  data_pagamento: string;
+  forma_pagamento: NonNullable<CreateContaFinanceiraDto['forma_pagamento']>;
+  conta_bancaria_id?: number;
+  observacoes?: string;
 }
 
 /** Resposta do endpoint GET /contas-financeiras/:id/detalhe (modal Visualizar) */
@@ -431,6 +442,26 @@ class FinanceiroService {
 
   async criar(data: CreateContaFinanceiraDto): Promise<ContaFinanceira> {
     return apiClient.post<ContaFinanceira>('/contas-financeiras', data);
+  }
+
+  /** Registra um pagamento/recebimento individual (conta sem pedido) — fica no histórico. */
+  async registrarPagamento(
+    contaId: number,
+    data: RegistrarPagamentoContaDto,
+  ): Promise<ContaFinanceira> {
+    return apiClient.post<ContaFinanceira>(`/contas-financeiras/${contaId}/pagamentos`, data);
+  }
+
+  /** Estorna um único pagamento; ele permanece no histórico marcado como estornado. */
+  async estornarLancamento(
+    contaId: number,
+    pagamentoId: number,
+    data: { motivo_estorno?: string; data_estorno?: string } = {},
+  ): Promise<ContaFinanceira> {
+    return apiClient.patch<ContaFinanceira>(
+      `/contas-financeiras/${contaId}/pagamentos/${pagamentoId}/estornar`,
+      data,
+    );
   }
 
   async atualizar(
