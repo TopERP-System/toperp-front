@@ -507,7 +507,37 @@ const Financeiro = () => {
     cardTipoFilter !== "todos" ||
     activeTab !== "Todos";
 
-  const handleAplicarFiltros = () => setFiltrosDialogOpen(false);
+  // Rascunho do painel de filtros: só vale ao clicar em "Aplicar Filtros"
+  // (mesmo comportamento do Contas a Pagar / Contas a Receber).
+  const filtrosAtuais = () => ({
+    secao: secaoTipoFilter,
+    clienteId: clienteFilterId,
+    fornecedorId: fornecedorFilterId,
+    rocaId: rocaFilterId,
+    dataInicial: dataInicialFilter,
+    dataFinal: dataFinalFilter,
+    status: activeTab,
+  });
+  const [draftFiltros, setDraftFiltros] = useState(filtrosAtuais);
+  const editarDraft = (parcial: Partial<ReturnType<typeof filtrosAtuais>>) =>
+    setDraftFiltros((prev) => ({ ...prev, ...parcial }));
+
+  const handleOpenFiltros = (open: boolean) => {
+    if (open) setDraftFiltros(filtrosAtuais());
+    setFiltrosDialogOpen(open);
+  };
+
+  const handleAplicarFiltros = () => {
+    setSecaoTipoFilter(draftFiltros.secao);
+    setClienteFilterId(draftFiltros.clienteId);
+    setFornecedorFilterId(draftFiltros.fornecedorId);
+    setRocaFilterId(draftFiltros.rocaId);
+    setDataInicialFilter(draftFiltros.dataInicial);
+    setDataFinalFilter(draftFiltros.dataFinal);
+    setActiveTab(draftFiltros.status);
+    setPage(1);
+    setFiltrosDialogOpen(false);
+  };
   const handleLimparFiltros = () => {
     setCardTipoFilter("todos");
     setSecaoTipoFilter("todos");
@@ -1061,7 +1091,7 @@ const Financeiro = () => {
             <Button
               variant="secondary"
               className="h-10 w-full shrink-0 gap-2 rounded-xl shadow-sm sm:w-auto"
-              onClick={() => setFiltrosDialogOpen(true)}
+              onClick={() => handleOpenFiltros(true)}
               style={
                 temFiltrosAtivos
                   ? { borderColor: "var(--primary)", borderWidth: "2px" }
@@ -1128,7 +1158,7 @@ const Financeiro = () => {
           </div>
         </div>
 
-        <Sheet open={filtrosDialogOpen} onOpenChange={setFiltrosDialogOpen}>
+        <Sheet open={filtrosDialogOpen} onOpenChange={handleOpenFiltros}>
               <SheetContent
                 side="right"
                 className="w-[400px] sm:w-[540px] overflow-y-auto"
@@ -1150,17 +1180,16 @@ const Financeiro = () => {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">Seção</Label>
                     <Select
-                      value={secaoTipoFilter}
-                      onValueChange={(v) => {
-                        setSecaoTipoFilter(
-                          v as
+                      value={draftFiltros.secao}
+                      onValueChange={(v) =>
+                        editarDraft({
+                          secao: v as
                             | "todos"
                             | "despesas"
                             | "contas_pagar"
                             | "contas_receber",
-                        );
-                        setPage(1);
-                      }}
+                        })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Todas as seções" />
@@ -1180,11 +1209,10 @@ const Financeiro = () => {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">Cliente</Label>
                     <Select
-                      value={clienteFilterId == null ? "todos" : String(clienteFilterId)}
-                      onValueChange={(v) => {
-                        setClienteFilterId(v === "todos" ? undefined : parseInt(v, 10));
-                        setPage(1);
-                      }}
+                      value={draftFiltros.clienteId == null ? "todos" : String(draftFiltros.clienteId)}
+                      onValueChange={(v) =>
+                        editarDraft({ clienteId: v === "todos" ? undefined : parseInt(v, 10) })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Todos os clientes" />
@@ -1204,11 +1232,10 @@ const Financeiro = () => {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">Fornecedor</Label>
                     <Select
-                      value={fornecedorFilterId == null ? "todos" : String(fornecedorFilterId)}
-                      onValueChange={(v) => {
-                        setFornecedorFilterId(v === "todos" ? undefined : parseInt(v, 10));
-                        setPage(1);
-                      }}
+                      value={draftFiltros.fornecedorId == null ? "todos" : String(draftFiltros.fornecedorId)}
+                      onValueChange={(v) =>
+                        editarDraft({ fornecedorId: v === "todos" ? undefined : parseInt(v, 10) })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Todos os fornecedores" />
@@ -1228,11 +1255,10 @@ const Financeiro = () => {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">{rotulo.singular}</Label>
                     <Select
-                      value={rocaFilterId == null ? "todos" : String(rocaFilterId)}
-                      onValueChange={(v) => {
-                        setRocaFilterId(v === "todos" ? undefined : parseInt(v, 10));
-                        setPage(1);
-                      }}
+                      value={draftFiltros.rocaId == null ? "todos" : String(draftFiltros.rocaId)}
+                      onValueChange={(v) =>
+                        editarDraft({ rocaId: v === "todos" ? undefined : parseInt(v, 10) })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder={rotulo.todas} />
@@ -1261,11 +1287,8 @@ const Financeiro = () => {
                             type="date"
                             ref={dataInicialFiltroRef}
                             className="pr-10 [color-scheme:light] [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:pointer-events-none"
-                            value={dataInicialFilter}
-                            onChange={(e) => {
-                              setDataInicialFilter(e.target.value || "");
-                              setPage(1);
-                            }}
+                            value={draftFiltros.dataInicial}
+                            onChange={(e) => editarDraft({ dataInicial: e.target.value || "" })}
                           />
                           <button
                             type="button"
@@ -1284,11 +1307,8 @@ const Financeiro = () => {
                             type="date"
                             ref={dataFinalFiltroRef}
                             className="pr-10 [color-scheme:light] [appearance:textfield] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:pointer-events-none"
-                            value={dataFinalFilter}
-                            onChange={(e) => {
-                              setDataFinalFilter(e.target.value || "");
-                              setPage(1);
-                            }}
+                            value={draftFiltros.dataFinal}
+                            onChange={(e) => editarDraft({ dataFinal: e.target.value || "" })}
                           />
                           <button
                             type="button"
@@ -1309,11 +1329,8 @@ const Financeiro = () => {
                   <div className="space-y-3">
                     <Label className="text-sm font-semibold">Status</Label>
                     <RadioGroup
-                      value={["Todos", "PENDENTE", "PREVISAO", "PAGO_PARCIAL", "PAGO_TOTAL", "VENCIDO", "CANCELADO"].includes(activeTab) ? activeTab : "Todos"}
-                      onValueChange={(v) => {
-                        setActiveTab(v);
-                        setPage(1);
-                      }}
+                      value={["Todos", "PENDENTE", "PREVISAO", "PAGO_PARCIAL", "PAGO_TOTAL", "VENCIDO", "CANCELADO"].includes(draftFiltros.status) ? draftFiltros.status : "Todos"}
+                      onValueChange={(v) => editarDraft({ status: v })}
                       className="space-y-2"
                     >
                       <div className="flex items-center space-x-2">
