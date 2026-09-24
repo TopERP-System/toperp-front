@@ -91,6 +91,9 @@ export interface RegistrarPagamentoContaDto {
   forma_pagamento: NonNullable<CreateContaFinanceiraDto['forma_pagamento']>;
   conta_bancaria_id?: number;
   observacoes?: string;
+  /** Juros/desconto finais da conta (substituem os atuais) — só contas sem pedido. */
+  juros?: number;
+  desconto?: number;
 }
 
 /** Resposta do endpoint GET /contas-financeiras/:id/detalhe (modal Visualizar) */

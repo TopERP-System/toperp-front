@@ -1,4 +1,6 @@
 import AppLayout from '@/components/layout/AppLayout';
+import { AjusteJurosDescontoPagamento } from '@/components/financeiro/AjusteJurosDescontoPagamento';
+import { calcularValorTotalConta } from '@/lib/conta-financeira-edicao';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -75,6 +77,30 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
   const valorEmAberto = Number(detalhe?.valor_em_aberto ?? 0);
   const valorTotal = Number(detalhe?.valor_total_pedido ?? 0);
   const valorPagoAtual = Number(detalhe?.valor_pago ?? 0);
+
+  // Juros/desconto editáveis na hora do pagamento (só contas sem pedido):
+  // começam com os valores atuais da conta e, se alterados, substituem os da conta.
+  const permiteAjusteJurosDesconto = !!detalhe && !detalhe.relacionamentos?.pedido_numero;
+  const jurosAtual = Number(detalhe?.juros ?? 0) || 0;
+  const descontoAtual = Number(detalhe?.desconto ?? 0) || 0;
+  const valorOriginalConta =
+    Number(detalhe?.valor_original ?? valorTotal - jurosAtual + descontoAtual) || 0;
+  const [jurosAjuste, setJurosAjuste] = useState<number | ''>('');
+  const [descontoAjuste, setDescontoAjuste] = useState<number | ''>('');
+  useEffect(() => {
+    setJurosAjuste(jurosAtual);
+    setDescontoAjuste(descontoAtual);
+  }, [contaId, jurosAtual, descontoAtual]);
+  const jurosDescontoAlterados =
+    permiteAjusteJurosDesconto &&
+    (Math.abs((Number(jurosAjuste) || 0) - jurosAtual) > 0.001 ||
+      Math.abs((Number(descontoAjuste) || 0) - descontoAtual) > 0.001);
+  const valorTotalAjustado = jurosDescontoAlterados
+    ? calcularValorTotalConta(valorOriginalConta, jurosAjuste, descontoAjuste)
+    : valorTotal;
+  const valorEmAbertoAjustado = jurosDescontoAlterados
+    ? Math.max(0, Math.round((valorTotalAjustado - valorPagoAtual) * 100) / 100)
+    : valorEmAberto;
   const st = String(detalhe?.status_original ?? detalhe?.status ?? '').toUpperCase();
   const estaQuitado =
     st === 'QUITADO' || st === 'PAGO_TOTAL' || valorEmAberto <= 0;
@@ -95,10 +121,10 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
 
   useEffect(() => {
     if (usuarioEditouValor.current) return;
-    if (valorEmAberto > 0) {
-      setValorPago(Number(valorEmAberto.toFixed(2)));
+    if (valorEmAbertoAjustado > 0) {
+      setValorPago(Number(valorEmAbertoAjustado.toFixed(2)));
     }
-  }, [valorEmAberto]);
+  }, [valorEmAbertoAjustado]);
 
   useEffect(() => {
     if (autoFilledFormaRef.current) return;
@@ -119,11 +145,17 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
       const acrescimo = Number(valorPago);
       if (!acrescimo || acrescimo <= 0) throw new Error('Informe o valor pago');
       if (!formaPagamento) throw new Error('Selecione a forma de pagamento');
-      if (acrescimo > valorEmAberto + 0.009) {
+      if (valorTotalAjustado < 0) {
+        throw new Error('O desconto não pode ser maior que o valor original somado aos juros.');
+      }
+      if (acrescimo > valorEmAbertoAjustado + 0.009) {
         throw new Error('Valor não pode ser maior que o valor em aberto');
       }
       // Cada pagamento vira um lançamento no histórico (estornável individualmente).
       return financeiroService.registrarPagamento(contaId, {
+        ...(jurosDescontoAlterados
+          ? { juros: Number(jurosAjuste) || 0, desconto: Number(descontoAjuste) || 0 }
+          : {}),
         valor: Number(acrescimo.toFixed(2)),
         forma_pagamento: formaPagamento as RegistrarPagamentoContaDto['forma_pagamento'],
         data_pagamento: dataPagamento,
@@ -223,13 +255,26 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
         ) : (
           <form onSubmit={handleSubmit} className="bg-card border rounded-lg p-6 space-y-6">
             <h2 className="text-lg font-semibold border-b pb-2">Dados do Pagamento</h2>
+            {permiteAjusteJurosDesconto ? (
+              <AjusteJurosDescontoPagamento
+                valorOriginal={valorOriginalConta}
+                valorPagoAtual={valorPagoAtual}
+                juros={jurosAjuste}
+                desconto={descontoAjuste}
+                jurosAtual={jurosAtual}
+                descontoAtual={descontoAtual}
+                onJurosChange={setJurosAjuste}
+                onDescontoChange={setDescontoAjuste}
+                labelPago="Já pago"
+              />
+            ) : null}
             <div className="space-y-2">
               <Label>Valor *</Label>
               <Input
                 type="number"
                 step="0.01"
                 min="0"
-                max={valorEmAberto}
+                max={valorEmAbertoAjustado}
                 value={valorPago === '' ? '' : valorPago}
                 onChange={(e) => {
                   usuarioEditouValor.current = true;
@@ -238,7 +283,7 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Valor em aberto: {formatCurrency(valorEmAberto)}. Permite pagamento parcial.
+                Valor em aberto: {formatCurrency(valorEmAbertoAjustado)}. Permite pagamento parcial.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -351,7 +396,13 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
               </Button>
               <Button
                 type="submit"
-                disabled={isPending || !formaPagamento || !valorPago || Number(valorPago) <= 0}
+                disabled={
+                  isPending ||
+                  !formaPagamento ||
+                  !valorPago ||
+                  Number(valorPago) <= 0 ||
+                  valorTotalAjustado < 0
+                }
               >
                 {isPending ? (
                   <>
