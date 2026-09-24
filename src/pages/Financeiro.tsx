@@ -422,6 +422,9 @@ const Financeiro = () => {
   const contasReceberStats = dashboardUnificado?.contas_receber ?? resumoFinanceiro?.contas_receber;
   const contasPagarStats = dashboardUnificado?.contas_pagar ?? resumoFinanceiro?.contas_pagar;
 
+  // Card "Previsão de entrada": todas as previsões pendentes, de qualquer data.
+  // Não usa o período da tela — senão zerava ao clicar em Receita/Despesas do Mês
+  // (que aplicam o mês atual) quando as previsões são de outro mês.
   const { data: contasPrevisaoEntrada = [] } = useQuery({
     queryKey: [
       "contas-financeiras",
@@ -430,8 +433,6 @@ const Financeiro = () => {
       clienteFilterId,
       fornecedorFilterId,
       rocaFilterId,
-      dataInicialFilter,
-      dataFinalFilter,
       searchTerm,
     ],
     queryFn: () =>
@@ -441,8 +442,6 @@ const Financeiro = () => {
         cliente_id: clienteFilterId,
         fornecedor_id: fornecedorFilterId,
         roca_id: rocaFilterId,
-        data_inicial: dataInicialFilter || undefined,
-        data_final: dataFinalFilter || undefined,
       }),
     refetchInterval: 30000,
     retry: false,
@@ -783,7 +782,7 @@ const Financeiro = () => {
         labelClassName: stat.labelClassName,
         Icon: stat.Icon,
         active: isPrevisaoCard
-          ? activeTab === "PREVISAO" && periodoEhMesAtual
+          ? activeTab === "PREVISAO"
           : isSaldoCard
             ? cardTipoFilter === "todos" &&
               activeTab === "Todos" &&
@@ -791,16 +790,16 @@ const Financeiro = () => {
             : cardTipoAtivo && periodoEhMesAtual,
         onClick: () => {
           if (isPrevisaoCard) {
-            const desligar =
-              activeTab === "PREVISAO" && periodoEhMesAtual;
+            // O card soma todas as previsões pendentes (inclusive de meses anteriores);
+            // o clique só filtra previsões, sem impor o mês atual — senão o valor zerava.
+            const desligar = activeTab === "PREVISAO";
+            setCardTipoFilter("todos");
             if (desligar) {
               setActiveTab("Todos");
-              setCardTipoFilter("todos");
-              limparPeriodoSeForMesAtual();
             } else {
               setActiveTab("PREVISAO");
-              setCardTipoFilter("todos");
-              aplicarPeriodoMesAtual();
+              // Remove o "mês atual" aplicado por outro card; período manual é mantido.
+              limparPeriodoSeForMesAtual();
             }
             setPage(1);
             return;
