@@ -11,6 +11,10 @@ export function toYMD(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+export function inicioDoMesYMD(ref = new Date()): string {
+  return toYMD(new Date(ref.getFullYear(), ref.getMonth(), 1));
+}
+
 export function fimDoMesYMD(ref = new Date()): string {
   return toYMD(new Date(ref.getFullYear(), ref.getMonth() + 1, 0));
 }
@@ -63,14 +67,21 @@ export async function listarContasTodasAsPaginas(
   return acc;
 }
 
+/** Receita estimada (previsão): não é valor a receber de cliente — fica fora do Total a Receber. */
+export function contaEhPrevisao(c: ContaFinanceira): boolean {
+  return c.previsao === true || String(c.status ?? '').toUpperCase() === 'PREVISAO';
+}
+
 export function contaTemSaldoAberto(c: ContaFinanceira): boolean {
   const st = String(c.status ?? '').toUpperCase();
   if (st === 'CANCELADO') return false;
 
-  const original = Number(c.valor_original ?? 0);
+  // Total com juros/desconto (valor_total); contas antigas só têm valor_original.
+  const original = Number(c.valor_total ?? c.valor_original ?? 0);
   const pago = Number(c.valor_pago ?? 0);
-  const abertoExplicit = (c as { valor_restante?: number; valor_em_aberto?: number }).valor_restante ??
-    (c as { valor_em_aberto?: number }).valor_em_aberto;
+  // Mesma prioridade do resumo do backend (cards): valor_em_aberto, depois valor_restante.
+  const abertoExplicit = (c as { valor_em_aberto?: number }).valor_em_aberto ??
+    (c as { valor_restante?: number }).valor_restante;
   
   const aberto = abertoExplicit !== undefined && abertoExplicit !== null
     ? Number(abertoExplicit)
@@ -140,20 +151,19 @@ export function contaVenceHojeLocal(c: ContaFinanceira, ref?: Date): boolean {
   return dias === 0;
 }
 
-/** Vence neste mês civil e ainda não venceu (alinha ao card Vencendo Este Mês). */
+/** Vence no mês civil atual (mês inteiro, inclusive o que já venceu) e ainda tem saldo. */
 export function contaVenceEsteMesLocal(c: ContaFinanceira, ref: Date = new Date()): boolean {
   const st = String(c.status ?? '').toUpperCase();
   if (st === 'QUITADO' || st === 'PAGO_TOTAL' || st === 'CANCELADO') return false;
   if (!contaTemSaldoAberto(c)) return false;
   const vencimento = parseDateOnlyLocal(c.data_vencimento);
   if (!vencimento) return false;
-  const hoje = new Date(ref);
-  hoje.setHours(0, 0, 0, 0);
-  vencimento.setHours(0, 0, 0, 0);
-  if (vencimento.getMonth() !== hoje.getMonth() || vencimento.getFullYear() !== hoje.getFullYear()) {
-    return false;
-  }
-  return vencimento.getTime() >= hoje.getTime();
+  // Protege contra `array.filter(contaVenceEsteMesLocal)`, que passaria o índice como `ref`.
+  const base = ref instanceof Date ? ref : new Date();
+  return (
+    vencimento.getMonth() === base.getMonth() &&
+    vencimento.getFullYear() === base.getFullYear()
+  );
 }
 
 export function valorPrincipalConta(c: ContaFinanceira): number {
@@ -191,13 +201,14 @@ export function saldoAbertoConta(c: ContaFinanceira): number {
   const emAbertoRaw = (c as { valor_em_aberto?: number | string | null })
     .valor_em_aberto;
 
-  if (restanteRaw != null && String(restanteRaw).trim() !== '') {
-    const r = Number(restanteRaw);
-    if (Number.isFinite(r)) return Math.max(0, r);
-  }
+  // Mesma prioridade do resumo do backend (cards): valor_em_aberto, depois valor_restante.
   if (emAbertoRaw != null && String(emAbertoRaw).trim() !== '') {
     const em = Number(emAbertoRaw);
     if (Number.isFinite(em)) return Math.max(0, em);
+  }
+  if (restanteRaw != null && String(restanteRaw).trim() !== '') {
+    const r = Number(restanteRaw);
+    if (Number.isFinite(r)) return Math.max(0, r);
   }
 
   const total = Number(
@@ -276,6 +287,7 @@ function calcularResumoCardsPorTipo(
     if (conta.tipo != null && conta.tipo !== tipo) continue;
     const st = String(conta.status ?? '').toUpperCase();
     if (st === 'CANCELADO') continue;
+    if (contaEhPrevisao(conta)) continue;
 
     valorPago += Number(conta.valor_pago) || 0;
 
@@ -348,8 +360,8 @@ export function calcularStatsFinanceiroFiltrado(
         (s, c) =>
           s +
           Number(
-            (c as { valor_original?: number }).valor_original ??
-              (c as { valor_total?: number }).valor_total ??
+            (c as { valor_total?: number }).valor_total ??
+              (c as { valor_original?: number }).valor_original ??
               0,
           ),
         0,

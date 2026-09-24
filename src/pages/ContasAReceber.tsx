@@ -62,6 +62,7 @@ import {
 import {
   calcularResumoCardsReceber,
   contarPedidosPorVencimento,
+  contaEhPrevisao,
   contaEstaPaga,
   contaEstaVencidaLocal,
   contaTemSaldoAberto,
@@ -110,7 +111,7 @@ import {
     ArrowDown,
     ArrowUpDown,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -133,7 +134,6 @@ const ContasAReceber = () => {
   const rotulo = useRotuloRoca();
   const [viewMode, setViewMode] = useState<"clientes" | "pedidos">(() => getSavedCReceberState("viewMode", "pedidos"));
   /** Guia: card Total a Receber preferir soma da lista de clientes (bate com a tabela). */
-  const [totalAReceberFromLista, setTotalAReceberFromLista] = useState<number | null>(null);
   /** Filtro por card clicável: todos | valor_pago | vencidas | vencendo_hoje | vencendo_este_mes */
   const [activeCardFilter, setActiveCardFilter] = useState<
     "todos" | "a_receber" | "valor_pago" | "vencidas" | "vencendo_hoje" | "vencendo_este_mes"
@@ -272,10 +272,6 @@ const ContasAReceber = () => {
   const rocasLista: Roca[] = Array.isArray(rocasData)
     ? rocasData
     : (rocasData as { rocas?: Roca[] })?.rocas ?? [];
-
-  const handleTotalAReceberFromLista = useCallback((total: number) => {
-    setTotalAReceberFromLista(total);
-  }, []);
 
   // Buscar clientes
   const { data: clientesData } = useQuery({
@@ -581,7 +577,8 @@ const ContasAReceber = () => {
               const id = Number(c.id);
               if (!Number.isFinite(id) || seen.has(id)) return false;
               seen.add(id);
-              return contaTemSaldoAberto(c);
+              // Previsões não entram no Total a Receber (card e lista iguais).
+              return !contaEhPrevisao(c) && contaTemSaldoAberto(c);
             });
             return comoResposta(merged);
           }
@@ -618,15 +615,17 @@ const ContasAReceber = () => {
             return comoResposta(merged);
           }
           if (activeCardFilter === "vencendo_este_mes") {
-            // Inclui ABERTO/PARCIAL (modelo por saldo) além dos status legados.
-            const [pendentes, parciais, abertos, parciaisSaldo] = await Promise.all([
+            // Inclui ABERTO/PARCIAL (modelo por saldo) além dos status legados, e VENCIDO:
+            // o card considera o mês inteiro, inclusive o que já venceu no mês.
+            const [pendentes, parciais, abertos, parciaisSaldo, vencidos] = await Promise.all([
               listarContasTodasAsPaginas({ ...baseArgs, status: "PENDENTE" }),
               listarContasTodasAsPaginas({ ...baseArgs, status: "PAGO_PARCIAL" }),
               listarContasTodasAsPaginas({ ...baseArgs, status: "ABERTO" }),
               listarContasTodasAsPaginas({ ...baseArgs, status: "PARCIAL" }),
+              listarContasTodasAsPaginas({ ...baseArgs, status: "VENCIDO" }),
             ]);
             const seen = new Set<number>();
-            const merged = [...pendentes, ...parciais, ...abertos, ...parciaisSaldo].filter((c) => {
+            const merged = [...pendentes, ...parciais, ...abertos, ...parciaisSaldo, ...vencidos].filter((c) => {
               const id = Number(c.id);
               if (!Number.isFinite(id) || seen.has(id)) return false;
               seen.add(id);
@@ -971,9 +970,7 @@ const ContasAReceber = () => {
     const totalReceber =
       resumoCardsFiltrado != null
         ? resumoCardsFiltrado.totalReceber
-        : viewMode === "clientes" && totalAReceberFromLista !== null
-          ? totalAReceberFromLista
-          : activeCardFilter === "todos" && resumoCardsListagem != null
+        : activeCardFilter === "todos" && resumoCardsListagem != null
             ? resumoCardsListagem.totalReceber
             : parseValor(dashboardReceber?.valor_total_pendente) ?? 0;
 
@@ -1066,8 +1063,6 @@ const ContasAReceber = () => {
     ];
   }, [
     dashboardReceber,
-    viewMode,
-    totalAReceberFromLista,
     usarFallbackContasFinanceiras,
     pedidos,
     resumoCardsFiltrado,
@@ -1093,9 +1088,7 @@ const ContasAReceber = () => {
           <p className="text-xs">
             {resumoCardsFiltrado != null
               ? "Soma das contas filtradas (mesma base da tabela)."
-              : viewMode === "clientes" && totalAReceberFromLista !== null
-              ? "Soma da lista de clientes (Total em Aberto de cada linha). Sempre igual à tabela."
-              : "Resumo pendente do dashboard de contas a receber."}
+              : "Soma das contas a receber em aberto (mesma base das visões por pedidos e por clientes)."}
           </p>
         </TooltipContent>
       </Tooltip>
@@ -2509,7 +2502,7 @@ const ContasAReceber = () => {
           </Dialog>
 
         {viewMode === "clientes" ? (
-          <ContasAReceberListaClientes onTotalAReceber={handleTotalAReceberFromLista} />
+          <ContasAReceberListaClientes contas={contasExibir} isLoading={isLoadingContas} />
         ) : (
           <>
         {/* Search and Filters (mesmo design da página Fornecedores) */}

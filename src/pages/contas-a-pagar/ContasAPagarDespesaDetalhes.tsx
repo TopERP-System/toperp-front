@@ -185,7 +185,7 @@ const ContasAPagarDespesaDetalhes = () => {
   const valorAberto = useMemo(() => {
     if (!conta) return 0;
     const vt = Number(
-      detalhe?.valor_total_pedido ?? conta.valor_original ?? 0,
+      detalhe?.valor_total_pedido ?? conta.valor_total ?? conta.valor_original ?? 0,
     );
     const vp = Number(
       detalhe?.valor_pago ?? (conta as any).valor_pago ?? 0,

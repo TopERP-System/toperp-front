@@ -25,7 +25,12 @@ export type ApiCentroCustoDespesa = {
   /** Conta a pagar espelhada (CPAG-…); necessário para abrir a tela de registrar pagamento. */
   contaFinanceiraId?: number | null;
   descricao: string;
+  /** Valor original da despesa. Para saldo/status usar `valorTotal`. */
   valor: number;
+  juros?: number;
+  desconto?: number;
+  /** valor + juros - desconto (calculado pelo backend). */
+  valorTotal?: number;
   data: string;
   dataPagamentoManual?: string | null;
   observacoes?: string | null;
@@ -196,6 +201,8 @@ class CentroCustoService {
     rocaId: number;
     descricao: string;
     valor: number;
+    juros?: number;
+    desconto?: number;
     data: string;
     dataVencimento?: string;
     data_vencimento?: string;
@@ -216,6 +223,8 @@ class CentroCustoService {
       rocaId: number;
       descricao: string;
       valor: number;
+      juros: number;
+      desconto: number;
       data: string;
       observacoes: string | null;
     }>,

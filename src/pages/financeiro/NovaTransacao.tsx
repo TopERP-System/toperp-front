@@ -37,6 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn, formatCurrency } from "@/lib/utils";
 import { toYMD } from "@/lib/contas-financeiras-listagem";
 import { formatValorMonetarioBr } from "@/lib/parse-valor-monetario";
+import { calcularValorTotalConta } from "@/lib/conta-financeira-edicao";
 import { Cliente, clientesService } from "@/services/clientes.service";
 import {
   centroCustoService,
@@ -213,6 +214,8 @@ const initialForm = (tipo: ModoLancamento = "RECEBER"): NovaTransacaoForm => ({
   tipo,
   descricao: "",
   valor_original: 0,
+  juros: 0,
+  desconto: 0,
   data_emissao: toYMD(new Date()),
   data_vencimento: "",
   roca_id: undefined,
@@ -237,27 +240,36 @@ const NovaTransacao = () => {
   const [salvandoQuickTipo, setSalvandoQuickTipo] = useState(false);
   const [form, setForm] = useState<NovaTransacaoForm>(() => initialForm("RECEBER"));
   const [valorOriginalInput, setValorOriginalInput] = useState("");
+  const [jurosInput, setJurosInput] = useState("");
+  const [descontoInput, setDescontoInput] = useState("");
   const [salvandoDespesaCc, setSalvandoDespesaCc] = useState(false);
 
   const resetForm = () => {
     setForm(initialForm(modo));
     setValorOriginalInput("");
+    setJurosInput("");
+    setDescontoInput("");
     setPrevisao(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleValorOriginalChange = (raw: string) => {
+  /** Máscara de moeda (dígitos → centavos) para os campos monetários do formulário. */
+  const handleMoedaChange = (
+    raw: string,
+    campo: "valor_original" | "juros" | "desconto",
+    setInput: (v: string) => void,
+  ) => {
     const apenasNumeros = raw.replace(/\D/g, "");
     if (!apenasNumeros) {
-      setValorOriginalInput("");
-      setForm((prev) => ({ ...prev, valor_original: 0 }));
+      setInput("");
+      setForm((prev) => ({ ...prev, [campo]: 0 }));
       return;
     }
     // Limita a 15 dígitos (centavos) para evitar overflow visual
     const digitos = apenasNumeros.slice(0, 15);
     const valorDecimal = parseInt(digitos, 10) / 100;
-    setValorOriginalInput(formatValorMonetarioBr(valorDecimal));
-    setForm((prev) => ({ ...prev, valor_original: valorDecimal }));
+    setInput(formatValorMonetarioBr(valorDecimal));
+    setForm((prev) => ({ ...prev, [campo]: valorDecimal }));
   };
 
   const { data: clientesData } = useQuery({
@@ -412,6 +424,21 @@ const NovaTransacao = () => {
     form.centro_custo_tipo_id > 0;
   const salvando = createContaMutation.isPending || salvandoDespesaCc;
 
+  /** Juros/desconto não se aplicam a contas de pedido (valores vêm do pedido). */
+  const jurosDescontoPermitido = temCentroCusto || !form.pedido_id;
+  const juros = jurosDescontoPermitido ? Number(form.juros) || 0 : 0;
+  const desconto = jurosDescontoPermitido ? Number(form.desconto) || 0 : 0;
+  const valorTotal = calcularValorTotalConta(form.valor_original, juros, desconto);
+
+  /** Bloqueia o envio quando o desconto supera valor original + juros. */
+  const validarJurosDesconto = (): boolean => {
+    if (valorTotal < 0) {
+      toast.error("O desconto não pode ser maior que o valor original somado aos juros.");
+      return false;
+    }
+    return true;
+  };
+
   const selecionarModo = (novoModo: ModoLancamento) => {
     setModo(novoModo);
     if (novoModo === "PAGAR") {
@@ -474,6 +501,7 @@ const NovaTransacao = () => {
         toast.error(`Selecione a ${rotulo.singularLower} (centro de custo)`);
         return;
       }
+      if (!validarJurosDesconto()) return;
       setSalvandoDespesaCc(true);
       try {
         const despesaCriada = await centroCustoService.criarDespesa({
@@ -481,6 +509,8 @@ const NovaTransacao = () => {
           rocaId: form.roca_id,
           descricao: form.descricao.trim(),
           valor: Number(form.valor_original),
+          juros,
+          desconto,
           data: form.data_emissao || form.data_vencimento,
           dataVencimento: form.data_vencimento,
           data_vencimento: form.data_vencimento,
@@ -530,12 +560,15 @@ const NovaTransacao = () => {
         toast.error("Preencha descrição, valor e data prevista");
         return;
       }
+      if (!validarJurosDesconto()) return;
 
       createContaMutation.mutate({
         tipo: modo === "RECEBER" ? "RECEBER" : "PAGAR",
         previsao: true,
         descricao: form.descricao,
         valor_original: Number(form.valor_original),
+        juros,
+        desconto,
         data_prevista: form.data_prevista,
         data_emissao: form.data_emissao || toYMD(new Date()),
         data_vencimento: form.data_vencimento || undefined,
@@ -554,11 +587,14 @@ const NovaTransacao = () => {
       toast.error("Preencha os campos obrigatórios (Descrição, Valor e Data de Vencimento)");
       return;
     }
+    if (!validarJurosDesconto()) return;
 
     createContaMutation.mutate({
       tipo: modo === "RECEBER" ? "RECEBER" : "PAGAR",
       descricao: form.descricao,
       valor_original: Number(form.valor_original),
+      juros,
+      desconto,
       data_emissao: form.data_emissao,
       data_vencimento: form.data_vencimento,
       cliente_id: form.cliente_id || undefined,
@@ -733,9 +769,59 @@ const NovaTransacao = () => {
                         placeholder="0,00"
                         className="h-11 rounded-xl pl-10 tabular-nums"
                         value={valorOriginalInput}
-                        onChange={(e) => handleValorOriginalChange(e.target.value)}
+                        onChange={(e) =>
+                          handleMoedaChange(e.target.value, "valor_original", setValorOriginalInput)
+                        }
                       />
                     </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="juros">Juros</Label>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          R$
+                        </span>
+                        <Input
+                          id="juros"
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          className="h-11 rounded-xl pl-10 tabular-nums"
+                          value={jurosDescontoPermitido ? jurosInput : ""}
+                          disabled={!jurosDescontoPermitido}
+                          onChange={(e) => handleMoedaChange(e.target.value, "juros", setJurosInput)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="desconto">Desconto</Label>
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          R$
+                        </span>
+                        <Input
+                          id="desconto"
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          className="h-11 rounded-xl pl-10 tabular-nums"
+                          value={jurosDescontoPermitido ? descontoInput : ""}
+                          disabled={!jurosDescontoPermitido}
+                          onChange={(e) =>
+                            handleMoedaChange(e.target.value, "desconto", setDescontoInput)
+                          }
+                        />
+                      </div>
+                    </div>
+                    {!jurosDescontoPermitido ? (
+                      <p className="text-xs text-muted-foreground sm:col-span-2">
+                        Juros e desconto não se aplicam a lançamentos vinculados a pedido — o valor
+                        vem do próprio pedido.
+                      </p>
+                    ) : valorTotal < 0 ? (
+                      <p className="text-xs text-destructive sm:col-span-2">
+                        O desconto não pode ser maior que o valor original somado aos juros.
+                      </p>
+                    ) : null}
                   </div>
                 </FormSection>
 
@@ -1125,12 +1211,33 @@ const NovaTransacao = () => {
                       {previsao ? " · Previsão" : ""}
                     </p>
                     <p className="mt-3 text-3xl font-bold tracking-tight">
-                      {form.valor_original > 0
-                        ? formatCurrency(form.valor_original)
-                        : "R$ 0,00"}
+                      {formatCurrency(Math.max(0, valorTotal))}
                     </p>
+                    <p className="text-xs opacity-90">Valor total</p>
                   </div>
                   <CardContent className="space-y-3 p-5 pt-4">
+                    <div className="space-y-1.5 rounded-xl bg-muted/40 p-3 text-sm tabular-nums">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">Valor original</span>
+                        <span className="font-medium">{formatCurrency(form.valor_original || 0)}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">(+) Juros</span>
+                        <span className="font-medium">{formatCurrency(juros)}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">(−) Desconto</span>
+                        <span className="font-medium">{formatCurrency(desconto)}</span>
+                      </div>
+                      <div className="flex justify-between gap-2 border-t border-border/60 pt-1.5">
+                        <span className="font-medium">(=) Valor total</span>
+                        <span
+                          className={cn("font-semibold", valorTotal < 0 && "text-destructive")}
+                        >
+                          {formatCurrency(valorTotal)}
+                        </span>
+                      </div>
+                    </div>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between gap-2 border-b border-border/40 pb-2">
                         <span className="text-muted-foreground">Descrição</span>

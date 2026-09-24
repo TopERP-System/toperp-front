@@ -144,7 +144,12 @@ export type CentroCustoDespesa = {
   rocaNome: string;
   /** ID da conta a pagar (mesma usada em Contas a Pagar). */
   contaFinanceiraId?: number | null;
+  /** Valor original. Para saldo/status usar `totalDespesa(d)`. */
   valor: number;
+  juros?: number;
+  desconto?: number;
+  /** valor + juros - desconto (vem da API; recalculado se ausente). */
+  valorTotal?: number;
   data: string;
   dataPagamentoManual?: string;
   observacoes?: string;
@@ -173,6 +178,9 @@ function mapDespesa(row: ApiCentroCustoDespesa): CentroCustoDespesa {
         ? Number(row.contaFinanceiraId)
         : null,
     valor: Number(row.valor),
+    juros: Number(row.juros) || 0,
+    desconto: Number(row.desconto) || 0,
+    valorTotal: totalDespesa(row),
     data: dataIso(row.data as string),
     dataPagamentoManual: row.dataPagamentoManual
       ? dataIso(row.dataPagamentoManual)
@@ -186,20 +194,35 @@ function mapDespesa(row: ApiCentroCustoDespesa): CentroCustoDespesa {
   };
 }
 
+/** Total da despesa: valor + juros - desconto (prefere o `valorTotal` calculado pela API). */
+export function totalDespesa(d: {
+  valor: number | string;
+  juros?: number | string | null;
+  desconto?: number | string | null;
+  valorTotal?: number | string | null;
+}): number {
+  if (d.valorTotal != null && Number.isFinite(Number(d.valorTotal))) {
+    return Number(d.valorTotal);
+  }
+  const total =
+    (Number(d.valor) || 0) + (Number(d.juros) || 0) - (Number(d.desconto) || 0);
+  return Math.round(total * 100) / 100;
+}
+
 export function totalPagoNaDespesa(d: CentroCustoDespesa): number {
   return d.pagamentos.reduce((s, p) => s + Number(p.valor || 0), 0);
 }
 
 export function statusDespesa(d: CentroCustoDespesa): 'ABERTO' | 'PARCIAL' | 'QUITADO' {
   const pago = totalPagoNaDespesa(d);
-  const total = Number(d.valor) || 0;
+  const total = totalDespesa(d);
   if (pago <= 0) return 'ABERTO';
   if (pago >= total - 0.005) return 'QUITADO';
   return 'PARCIAL';
 }
 
 export function valorAberto(d: CentroCustoDespesa): number {
-  return Math.max(0, (Number(d.valor) || 0) - totalPagoNaDespesa(d));
+  return Math.max(0, totalDespesa(d) - totalPagoNaDespesa(d));
 }
 
 type AtualizarDespesaInput = Partial<
@@ -415,6 +438,8 @@ export function CentroCustosProvider({ children }: { children: ReactNode }) {
         rocaId: data.rocaId,
         descricao: data.descricao.trim(),
         valor: data.valor,
+        juros: data.juros || undefined,
+        desconto: data.desconto || undefined,
         data: dataIso(data.data),
         observacoes: data.observacoes?.trim() || undefined,
       });
@@ -481,6 +506,8 @@ export function CentroCustosProvider({ children }: { children: ReactNode }) {
       if (data.rocaId !== undefined) payload.rocaId = data.rocaId;
       if (data.descricao !== undefined) payload.descricao = data.descricao.trim();
       if (data.valor !== undefined) payload.valor = data.valor;
+      if (data.juros !== undefined) payload.juros = data.juros;
+      if (data.desconto !== undefined) payload.desconto = data.desconto;
       if (data.data !== undefined) payload.data = dataIso(data.data);
       if (data.observacoes !== undefined) {
         payload.observacoes = data.observacoes?.trim() ? data.observacoes.trim() : null;

@@ -12,6 +12,10 @@ export interface ContaFinanceira {
   roca_nome?: string | null;
   descricao: string;
   valor_original: number;
+  /** Acréscimo (valor_total = valor_original + juros - desconto). Só em contas sem pedido. */
+  juros?: number | string;
+  /** Abatimento (valor_total = valor_original + juros - desconto). Só em contas sem pedido. */
+  desconto?: number | string;
   valor_pago: number;
   valor_restante: number;
   /** Modelo por saldo — preferir sobre valor_original quando presente. */
@@ -44,6 +48,10 @@ export interface CreateContaFinanceiraDto {
   roca_id?: number | null;
   descricao: string;
   valor_original: number;
+  /** Não permitido em contas vinculadas a pedido (backend responde 400). */
+  juros?: number;
+  /** Não permitido em contas vinculadas a pedido (backend responde 400). */
+  desconto?: number;
   previsao?: boolean;
   data_prevista?: string;
   data_emissao?: string;
@@ -61,7 +69,8 @@ export interface ContasFinanceirasResponse {
 }
 
 export interface HistoricoPagamentoItem {
-  id: number;
+  /** null na linha `legado` (valor pago antes do histórico detalhado, sem lançamento próprio). */
+  id: number | null;
   valor_pago: number;
   data_lancamento: string;
   forma_pagamento?: string | null;
@@ -72,6 +81,16 @@ export interface HistoricoPagamentoItem {
   observacoes?: string | null;
   conta_bancaria_id?: number | null;
   conta_bancaria_nome?: string | null;
+  /** Pagamento anterior ao histórico detalhado — não pode ser estornado individualmente. */
+  legado?: boolean;
+}
+
+export interface RegistrarPagamentoContaDto {
+  valor: number;
+  data_pagamento: string;
+  forma_pagamento: NonNullable<CreateContaFinanceiraDto['forma_pagamento']>;
+  conta_bancaria_id?: number;
+  observacoes?: string;
 }
 
 /** Resposta do endpoint GET /contas-financeiras/:id/detalhe (modal Visualizar) */
@@ -81,7 +100,12 @@ export interface ContaFinanceiraDetalhe {
   tipo: string;
   descricao: string;
   descricao_parcelas_quitadas: string;
+  /** Total da conta (sem pedido: valor_original + juros - desconto; com pedido: total do pedido). */
   valor_total_pedido: number;
+  valor_original?: number;
+  juros?: number;
+  desconto?: number;
+  valor_total?: number;
   valor_pago: number;
   valor_em_aberto: number;
   status: string;
@@ -420,6 +444,26 @@ class FinanceiroService {
     return apiClient.post<ContaFinanceira>('/contas-financeiras', data);
   }
 
+  /** Registra um pagamento/recebimento individual (conta sem pedido) — fica no histórico. */
+  async registrarPagamento(
+    contaId: number,
+    data: RegistrarPagamentoContaDto,
+  ): Promise<ContaFinanceira> {
+    return apiClient.post<ContaFinanceira>(`/contas-financeiras/${contaId}/pagamentos`, data);
+  }
+
+  /** Estorna um único pagamento; ele permanece no histórico marcado como estornado. */
+  async estornarLancamento(
+    contaId: number,
+    pagamentoId: number,
+    data: { motivo_estorno?: string; data_estorno?: string } = {},
+  ): Promise<ContaFinanceira> {
+    return apiClient.patch<ContaFinanceira>(
+      `/contas-financeiras/${contaId}/pagamentos/${pagamentoId}/estornar`,
+      data,
+    );
+  }
+
   async atualizar(
     id: number | string,
     data: Partial<
@@ -451,6 +495,8 @@ class FinanceiroService {
     // como se fosse criação parcial e falha (ex.: sem roca_id no JSON mesmo com roça no formulário).
     if (shouldInclude(data.descricao)) payload.descricao = typeof data.descricao === 'string' ? data.descricao.trim() : data.descricao;
     if (shouldInclude(data.valor_original)) payload.valor_original = Number(data.valor_original);
+    if (shouldInclude(data.juros)) payload.juros = Number(Number(data.juros).toFixed(2));
+    if (shouldInclude(data.desconto)) payload.desconto = Number(Number(data.desconto).toFixed(2));
     if (data.valor_pago !== undefined && data.valor_pago !== null && !Number.isNaN(Number(data.valor_pago))) {
       payload.valor_pago = Number(Number(data.valor_pago).toFixed(2));
     }

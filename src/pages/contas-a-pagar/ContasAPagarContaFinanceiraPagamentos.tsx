@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency } from '@/lib/utils';
-import { CreateContaFinanceiraDto, financeiroService } from '@/services/financeiro.service';
+import { financeiroService, type RegistrarPagamentoContaDto } from '@/services/financeiro.service';
 import { contasBancariasService } from '@/services/contas-bancarias.service';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, DollarSign, Loader2, Truck } from 'lucide-react';
@@ -122,13 +122,13 @@ const ContasAPagarContaFinanceiraPagamentos = () => {
       if (acrescimo > valorEmAberto + 0.009) {
         throw new Error('Valor não pode ser maior que o valor em aberto');
       }
-      const novoPago = Number((valorPagoAtual + acrescimo).toFixed(2));
-      return financeiroService.atualizar(contaId, {
-        valor_pago: novoPago,
-        forma_pagamento: formaPagamento as CreateContaFinanceiraDto['forma_pagamento'],
+      // Cada pagamento vira um lançamento no histórico (estornável individualmente).
+      return financeiroService.registrarPagamento(contaId, {
+        valor: Number(acrescimo.toFixed(2)),
+        forma_pagamento: formaPagamento as RegistrarPagamentoContaDto['forma_pagamento'],
         data_pagamento: dataPagamento,
         ...(observacoes?.trim() ? { observacoes: observacoes.trim() } : {}),
-        ...(contaBancariaId ? ({ conta_bancaria_id: Number(contaBancariaId) } as any) : {}),
+        ...(contaBancariaId ? { conta_bancaria_id: Number(contaBancariaId) } : {}),
       });
     },
     onSuccess: () => {

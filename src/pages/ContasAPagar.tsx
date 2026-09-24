@@ -132,7 +132,7 @@ import { relatoriosClienteService } from "@/services/relatorios-cliente.service"
 import { centroCustoService } from "@/services/centro-custo.service";
 import { toast } from "sonner";
 import { contaEhDespesaSemPedido } from "@/pages/contas-a-pagar/despesaContaUtils";
-import { calcularResumoCardsPagar, contaTemSaldoAberto, contaVenceEsteMesLocal, fimDoMesYMD, toYMD } from "@/lib/contas-financeiras-listagem";
+import { calcularResumoCardsPagar, contaTemSaldoAberto, contaVenceEsteMesLocal, fimDoMesYMD, inicioDoMesYMD } from "@/lib/contas-financeiras-listagem";
 
 function formatarVencimentoItemAgrupado(item: ContaFinanceiraAgrupada): string {
   const qtd = item.qtd_parcelas ?? 1;
@@ -864,16 +864,17 @@ function ContasAPagar() {
             return paginateLocal(merged.filter(contaTemSaldoAberto));
           }
           if (activeCardFilter === "vencendo_este_mes") {
-            const hojeStr = toYMD(new Date());
+            // Mês civil inteiro (inclui o que já venceu no mês), como o card.
             const merged = await listarContasPagarTodasAsPaginas({
               tipo: "PAGAR",
               fornecedor_id: fornecedorArg,
               roca_id: rocaArg,
               tipo_despesa_id: tipoDespesaArg,
-              data_inicial: hojeStr,
+              data_inicial: inicioDoMesYMD(),
               data_final: fimDoMesYMD(),
             });
-            return paginateLocal(merged.filter(contaVenceEsteMesLocal));
+            // Não passar a função direto ao filter: o índice viraria o parâmetro `ref` (data).
+            return paginateLocal(merged.filter((c) => contaVenceEsteMesLocal(c)));
           }
         }
 
