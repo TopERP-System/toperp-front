@@ -402,7 +402,7 @@ const Financeiro = () => {
   );
 
   // GET /financeiro/dashboard (unificado) com fallback para GET /contas-financeiras/dashboard/resumo
-  const { data: dashboardUnificado } = useQuery({
+  const { data: dashboardUnificado, isLoading: isLoadingUnificado } = useQuery({
     queryKey: ["dashboard-unificado-financeiro", dashboardFiltros],
     queryFn: () => financeiroService.getDashboardUnificado(dashboardFiltros),
     refetchInterval: 30000,
@@ -425,7 +425,7 @@ const Financeiro = () => {
   // Card "Previsão de entrada": todas as previsões pendentes, de qualquer data.
   // Não usa o período da tela — senão zerava ao clicar em Receita/Despesas do Mês
   // (que aplicam o mês atual) quando as previsões são de outro mês.
-  const { data: contasPrevisaoEntrada = [] } = useQuery({
+  const { data: contasPrevisaoEntrada = [], isLoading: isLoadingPrevisaoEntrada } = useQuery({
     queryKey: [
       "contas-financeiras",
       "financeiro",
@@ -761,6 +761,11 @@ const Financeiro = () => {
     }
   };
 
+  // Cards em carregamento (brilho em vez de piscar R$ 0,00): a fonte em uso ainda não respondeu.
+  const carregandoResumoCards = temFiltrosAvancados
+    ? statsFiltrados == null
+    : resumoParaStats == null && (isLoadingUnificado || isLoadingResumo);
+
   const statsCardItems = useMemo((): ModuleStatCardItem[] => {
     return stats.map((stat) => {
       const cardFilter = stat.cardFilter ?? "todos";
@@ -781,6 +786,10 @@ const Financeiro = () => {
         cardClassName: stat.cardClassName,
         labelClassName: stat.labelClassName,
         Icon: stat.Icon,
+        loading:
+          stat.key === "previsao_entrada"
+            ? isLoadingPrevisaoEntrada
+            : carregandoResumoCards,
         active: isPrevisaoCard
           ? activeTab === "PREVISAO"
           : isSaldoCard
@@ -840,6 +849,8 @@ const Financeiro = () => {
     periodoMesAtual,
     dataInicialFilter,
     dataFinalFilter,
+    carregandoResumoCards,
+    isLoadingPrevisaoEntrada,
   ]);
 
   // Query para detalhe enriquecido (usado apenas no modal Visualizar - GET :id/detalhe)

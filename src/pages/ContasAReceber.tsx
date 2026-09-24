@@ -61,7 +61,6 @@ import {
 } from "@/components/ui/tooltip";
 import {
   calcularResumoCardsReceber,
-  contarPedidosPorVencimento,
   contaEhPrevisao,
   contaEstaPaga,
   contaEstaVencidaLocal,
@@ -854,14 +853,6 @@ const ContasAReceber = () => {
     return calcularResumoCardsReceber(contasFiltradasParaCards);
   }, [temFiltrosAtivos, contasFiltradasParaCards]);
 
-  /**
-   * Contagens por pedido a partir da listagem carregada (mesma base da tabela).
-   * Quando um card de vencimento está ativo, a listagem já é o recorte desse card.
-   */
-  const contagensListagem = useMemo(() => {
-    if (!usarFallbackContasFinanceiras || contasExibir.length === 0) return null;
-    return contarPedidosPorVencimento(contasExibir);
-  }, [usarFallbackContasFinanceiras, contasExibir]);
 
   const resumoCardsListagem = useMemo(() => {
     if (!usarFallbackContasFinanceiras || contasExibir.length === 0) return null;
@@ -976,33 +967,25 @@ const ContasAReceber = () => {
 
     const contagemCard = (
       campo: "vencidas" | "vencendoHoje" | "vencendoEsteMes",
-      filtroCard: typeof activeCardFilter,
       dashboardValor: number,
     ) => {
       if (resumoCardsFiltrado != null) return resumoCardsFiltrado[campo];
-      // Card ativo: a listagem já é o recorte — conta pedidos nessa base.
-      if (
-        contagensListagem != null &&
-        (activeCardFilter === "todos" || activeCardFilter === filtroCard)
-      ) {
-        return contagensListagem[campo];
-      }
+      // Sem filtros: sempre o resumo do backend (igual ao Contas a Pagar). Antes, com o
+      // card ativo, a contagem vinha da lista recarregada no clique e o card piscava;
+      // a contagem do backend agora separa pedido × conta avulsa e bate com a lista.
       return dashboardValor;
     };
 
     const totalVencidas = contagemCard(
       "vencidas",
-      "vencidas",
       Number(dashboardReceber?.vencidas) ?? 0,
     );
     const totalVencendoHoje = contagemCard(
       "vencendoHoje",
-      "vencendo_hoje",
       Number(dashboardReceber?.vencendo_hoje) ?? 0,
     );
     const totalVencendoEsteMes = contagemCard(
       "vencendoEsteMes",
-      "vencendo_este_mes",
       Number(dashboardReceber?.vencendo_este_mes) ?? 0,
     );
     const valorPagoFromPedidos =
@@ -1067,7 +1050,6 @@ const ContasAReceber = () => {
     pedidos,
     resumoCardsFiltrado,
     resumoCardsListagem,
-    contagensListagem,
     activeCardFilter,
   ]);
 
@@ -1094,9 +1076,6 @@ const ContasAReceber = () => {
       </Tooltip>
     </TooltipProvider>
   );
-
-  // statsCardItems é montado após transacoesDisplayGrupos para sincronizar
-  // a contagem do card ativo com o rodapé da tabela (pedidos, não parcelas).
 
   // Query para buscar conta financeira por ID
   const { data: contaSelecionada, isLoading: isLoadingConta } = useQuery({
@@ -2006,27 +1985,13 @@ const ContasAReceber = () => {
   }, [transacoesDisplayGrupos, sortColumn, sortDirection]);
 
   /** Card ativo de vencimento: valor = quantidade de pedidos na tabela (rodapé). */
-  const qtdPedidosNaTabela = usarFallbackContasFinanceiras
-    ? transacoesDisplayGrupos.length
-    : transacoesDisplayReceber.length;
-
+  // O card ativo mantém a contagem do resumo (antes era trocada pela quantidade de
+  // linhas da tabela, que fica 0 enquanto a lista recarrega após o clique).
   const statsCardItems = useMemo((): ModuleStatCardItem[] => {
-    const valorCardAtivo = (filterKey: string, fallback: string) => {
-      if (
-        activeCardFilter === filterKey &&
-        (filterKey === "vencidas" ||
-          filterKey === "vencendo_hoje" ||
-          filterKey === "vencendo_este_mes")
-      ) {
-        return String(qtdPedidosNaTabela);
-      }
-      return fallback;
-    };
-
     return stats.map((stat) => ({
       key: stat.key,
       label: stat.label,
-      value: valorCardAtivo(stat.filterKey, stat.value),
+      value: stat.value,
       iconWrap: stat.iconWrap,
       iconClass: stat.iconClass,
       valueClass: stat.valueClass,
@@ -2044,7 +2009,6 @@ const ContasAReceber = () => {
     stats,
     activeCardFilter,
     totalReceberTooltip,
-    qtdPedidosNaTabela,
   ]);
 
   // Filtrar por busca e por card ativo (mantido para fallback contas-financeiras)

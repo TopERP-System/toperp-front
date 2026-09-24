@@ -18,6 +18,11 @@ export type ModuleStatCardItem = {
   /** Fundo/borda do card (ex.: cards tintidos do dashboard). */
   cardClassName?: string;
   labelClassName?: string;
+  /**
+   * Valor sendo (re)calculado: card acinzentado com brilho da esquerda para a
+   * direita e o valor substituído por uma barra — evita piscar "R$ 0,00".
+   */
+  loading?: boolean;
 };
 
 type ColumnPreset = 2 | 3 | 4 | 5 | 6 | 7 | 8;
@@ -41,6 +46,7 @@ export function ModuleStatCard({ item }: ModuleStatCardProps) {
   const Icon = item.Icon;
   const interactive = Boolean(item.onClick);
   const Wrapper = interactive ? 'button' : 'div';
+  const loading = Boolean(item.loading);
 
   return (
     <Wrapper
@@ -54,12 +60,22 @@ export function ModuleStatCard({ item }: ModuleStatCardProps) {
       )}
     >
       <Card
+        aria-busy={loading || undefined}
         className={cn(
-          'h-full min-w-0 rounded-2xl border-slate-200 bg-white shadow-sm',
+          'relative h-full min-w-0 overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm transition-[filter,opacity] duration-300',
           interactive && 'transition-shadow hover:shadow-md',
           item.cardClassName,
+          loading && 'opacity-80 grayscale',
         )}
       >
+        {loading ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-10 bg-slate-200/40"
+          >
+            <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+          </div>
+        ) : null}
         <CardContent className="p-4 sm:p-5">
           <div className="flex items-start justify-between gap-2">
             <p
@@ -80,15 +96,21 @@ export function ModuleStatCard({ item }: ModuleStatCardProps) {
               <Icon className={cn('h-5 w-5', item.iconClass)} aria-hidden />
             </div>
           </div>
-          <p
-            className={cn(
-              'mt-3 text-xl font-bold tabular-nums tracking-tight leading-tight break-words sm:mt-4 sm:text-2xl',
-              item.valueClass,
-            )}
-            title={String(item.value)}
-          >
-            {item.value}
-          </p>
+          {loading ? (
+            <div className="mt-3 sm:mt-4" role="status" aria-label="Carregando">
+              <div className="h-7 w-2/3 rounded-md bg-slate-300/70 sm:h-8" />
+            </div>
+          ) : (
+            <p
+              className={cn(
+                'mt-3 text-xl font-bold tabular-nums tracking-tight leading-tight break-words sm:mt-4 sm:text-2xl',
+                item.valueClass,
+              )}
+              title={String(item.value)}
+            >
+              {item.value}
+            </p>
+          )}
         </CardContent>
       </Card>
     </Wrapper>
@@ -112,6 +134,18 @@ export function ModuleStatCards({
 }: ModuleStatCardsProps) {
   const colCount = (columns ?? Math.min(Math.max(items.length, 2), 8)) as ColumnPreset;
   const skeletons = loadingCount ?? (items.length || 4);
+
+  // Com os cards já definidos, carregamento vira o estado "loading" de cada card
+  // (mantém título/ícone e layout); spinner só quando ainda não há cards.
+  if (isLoading && items.length > 0) {
+    return (
+      <div className={cn(GRID_BY_COLUMNS[colCount], 'mb-6', className)}>
+        {items.map((item) => (
+          <ModuleStatCard key={item.key} item={{ ...item, loading: true }} />
+        ))}
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
