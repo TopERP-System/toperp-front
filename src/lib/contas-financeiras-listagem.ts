@@ -355,7 +355,8 @@ export function calcularStatsFinanceiroFiltrado(
 } {
   const somaCompetencia = (contas: ContaFinanceira[]) =>
     contas
-      .filter((c) => String(c.status ?? '').toUpperCase() !== 'CANCELADO')
+      // Previsões são estimativas: fora da receita/despesa do mês (como no backend).
+      .filter((c) => String(c.status ?? '').toUpperCase() !== 'CANCELADO' && !contaEhPrevisao(c))
       .reduce(
         (s, c) =>
           s +

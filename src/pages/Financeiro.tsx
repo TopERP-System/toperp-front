@@ -545,10 +545,13 @@ const Financeiro = () => {
       filtrosTotaisCards,
       secaoTipoFilter,
     ],
+    // Receita do mês = faturamento (competência): filtra pela data de emissão,
+    // a mesma regra do dashboard do backend — o card não muda ao ser clicado.
     queryFn: () =>
       listarContasTodasAsPaginas({
         ...filtrosTotaisCards,
         tipo: "RECEBER",
+        campo_data: "emissao",
       }),
     enabled: temFiltrosAvancados && secaoTipoFilter !== "despesas" && secaoTipoFilter !== "contas_pagar",
     retry: false,
@@ -563,10 +566,12 @@ const Financeiro = () => {
       filtrosTotaisCards,
       secaoTipoFilter,
     ],
+    // Despesas do mês = competência (data de emissão), como no dashboard do backend.
     queryFn: () =>
       listarContasTodasAsPaginas({
         ...filtrosTotaisCards,
         tipo: "PAGAR",
+        campo_data: "emissao",
       }),
     enabled: temFiltrosAvancados && secaoTipoFilter !== "contas_receber",
     retry: false,
