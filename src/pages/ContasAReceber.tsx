@@ -618,15 +618,17 @@ const ContasAReceber = () => {
             return comoResposta(merged);
           }
           if (activeCardFilter === "vencendo_este_mes") {
-            // Inclui ABERTO/PARCIAL (modelo por saldo) além dos status legados.
-            const [pendentes, parciais, abertos, parciaisSaldo] = await Promise.all([
+            // Inclui ABERTO/PARCIAL (modelo por saldo) além dos status legados, e VENCIDO:
+            // o card considera o mês inteiro, inclusive o que já venceu no mês.
+            const [pendentes, parciais, abertos, parciaisSaldo, vencidos] = await Promise.all([
               listarContasTodasAsPaginas({ ...baseArgs, status: "PENDENTE" }),
               listarContasTodasAsPaginas({ ...baseArgs, status: "PAGO_PARCIAL" }),
               listarContasTodasAsPaginas({ ...baseArgs, status: "ABERTO" }),
               listarContasTodasAsPaginas({ ...baseArgs, status: "PARCIAL" }),
+              listarContasTodasAsPaginas({ ...baseArgs, status: "VENCIDO" }),
             ]);
             const seen = new Set<number>();
-            const merged = [...pendentes, ...parciais, ...abertos, ...parciaisSaldo].filter((c) => {
+            const merged = [...pendentes, ...parciais, ...abertos, ...parciaisSaldo, ...vencidos].filter((c) => {
               const id = Number(c.id);
               if (!Number.isFinite(id) || seen.has(id)) return false;
               seen.add(id);

@@ -11,6 +11,10 @@ export function toYMD(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+export function inicioDoMesYMD(ref = new Date()): string {
+  return toYMD(new Date(ref.getFullYear(), ref.getMonth(), 1));
+}
+
 export function fimDoMesYMD(ref = new Date()): string {
   return toYMD(new Date(ref.getFullYear(), ref.getMonth() + 1, 0));
 }
@@ -143,19 +147,17 @@ export function contaVenceHojeLocal(c: ContaFinanceira, ref?: Date): boolean {
 }
 
 /** Vence neste mês civil e ainda não venceu (alinha ao card Vencendo Este Mês). */
+/** Vence no mês civil atual (mês inteiro, inclusive o que já venceu) e ainda tem saldo. */
 export function contaVenceEsteMesLocal(c: ContaFinanceira, ref: Date = new Date()): boolean {
   const st = String(c.status ?? '').toUpperCase();
   if (st === 'QUITADO' || st === 'PAGO_TOTAL' || st === 'CANCELADO') return false;
   if (!contaTemSaldoAberto(c)) return false;
   const vencimento = parseDateOnlyLocal(c.data_vencimento);
   if (!vencimento) return false;
-  const hoje = new Date(ref);
-  hoje.setHours(0, 0, 0, 0);
-  vencimento.setHours(0, 0, 0, 0);
-  if (vencimento.getMonth() !== hoje.getMonth() || vencimento.getFullYear() !== hoje.getFullYear()) {
-    return false;
-  }
-  return vencimento.getTime() >= hoje.getTime();
+  return (
+    vencimento.getMonth() === ref.getMonth() &&
+    vencimento.getFullYear() === ref.getFullYear()
+  );
 }
 
 export function valorPrincipalConta(c: ContaFinanceira): number {
