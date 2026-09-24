@@ -70,8 +70,9 @@ export function contaTemSaldoAberto(c: ContaFinanceira): boolean {
   // Total com juros/desconto (valor_total); contas antigas só têm valor_original.
   const original = Number(c.valor_total ?? c.valor_original ?? 0);
   const pago = Number(c.valor_pago ?? 0);
-  const abertoExplicit = (c as { valor_restante?: number; valor_em_aberto?: number }).valor_restante ??
-    (c as { valor_em_aberto?: number }).valor_em_aberto;
+  // Mesma prioridade do resumo do backend (cards): valor_em_aberto, depois valor_restante.
+  const abertoExplicit = (c as { valor_em_aberto?: number }).valor_em_aberto ??
+    (c as { valor_restante?: number }).valor_restante;
   
   const aberto = abertoExplicit !== undefined && abertoExplicit !== null
     ? Number(abertoExplicit)
@@ -192,13 +193,14 @@ export function saldoAbertoConta(c: ContaFinanceira): number {
   const emAbertoRaw = (c as { valor_em_aberto?: number | string | null })
     .valor_em_aberto;
 
-  if (restanteRaw != null && String(restanteRaw).trim() !== '') {
-    const r = Number(restanteRaw);
-    if (Number.isFinite(r)) return Math.max(0, r);
-  }
+  // Mesma prioridade do resumo do backend (cards): valor_em_aberto, depois valor_restante.
   if (emAbertoRaw != null && String(emAbertoRaw).trim() !== '') {
     const em = Number(emAbertoRaw);
     if (Number.isFinite(em)) return Math.max(0, em);
+  }
+  if (restanteRaw != null && String(restanteRaw).trim() !== '') {
+    const r = Number(restanteRaw);
+    if (Number.isFinite(r)) return Math.max(0, r);
   }
 
   const total = Number(
