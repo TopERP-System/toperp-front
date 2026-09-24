@@ -452,7 +452,7 @@ const Financeiro = () => {
     () =>
       Number(
         contasPrevisaoEntrada
-          .reduce((s, c) => s + (Number(c.valor_original) || 0), 0)
+          .reduce((s, c) => s + (Number(c.valor_total ?? c.valor_original) || 0), 0)
           .toFixed(2),
       ),
     [contasPrevisaoEntrada],

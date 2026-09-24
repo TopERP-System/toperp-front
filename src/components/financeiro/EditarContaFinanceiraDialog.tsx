@@ -19,9 +19,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRotuloRoca } from "@/hooks/useRotuloRoca";
 import {
   buildPatchContaFinanceira,
+  calcularValorTotalConta,
+  contaAceitaJurosDesconto,
   mapContaApiParaEdicao,
   type ContaFinanceiraEdicaoForm,
 } from "@/lib/conta-financeira-edicao";
+import { formatCurrency } from "@/lib/utils";
 import {
   Cliente,
   clientesService,
@@ -238,8 +241,26 @@ export function EditarContaFinanceiraDialog({
     },
   });
 
+  const jurosDescontoPermitido = contaAceitaJurosDesconto(editConta);
+  const valorTotalEdicao = editConta
+    ? jurosDescontoPermitido
+      ? calcularValorTotalConta(
+          editConta.valor_original,
+          editConta.juros,
+          editConta.desconto,
+        )
+      : Number(editConta.valor_original) || 0
+    : 0;
+
   const handleUpdate = () => {
     if (contaId == null || !editConta) return;
+
+    if (valorTotalEdicao < 0) {
+      toast.error(
+        "O desconto não pode ser maior que o valor original somado aos juros.",
+      );
+      return;
+    }
 
     if (isEditPrevisao) {
       if (
@@ -386,7 +407,62 @@ export function EditarContaFinanceiraDialog({
                       }
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Juros</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      disabled={!jurosDescontoPermitido}
+                      value={jurosDescontoPermitido ? editConta.juros || "" : ""}
+                      onChange={(e) =>
+                        setEditConta({
+                          ...editConta,
+                          juros: e.target.value ? Math.max(0, Number(e.target.value)) : 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Desconto</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      disabled={!jurosDescontoPermitido}
+                      value={jurosDescontoPermitido ? editConta.desconto || "" : ""}
+                      onChange={(e) =>
+                        setEditConta({
+                          ...editConta,
+                          desconto: e.target.value ? Math.max(0, Number(e.target.value)) : 0,
+                        })
+                      }
+                    />
+                  </div>
                 </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">
+                    {jurosDescontoPermitido
+                      ? "Valor total (original + juros − desconto)"
+                      : "Juros e desconto não se aplicam a contas vinculadas a pedido."}
+                  </span>
+                  <span
+                    className={
+                      valorTotalEdicao < 0
+                        ? "font-semibold text-destructive tabular-nums"
+                        : "font-semibold tabular-nums"
+                    }
+                  >
+                    {formatCurrency(valorTotalEdicao)}
+                  </span>
+                </div>
+                {valorTotalEdicao < 0 ? (
+                  <p className="text-xs text-destructive">
+                    O desconto não pode ser maior que o valor original somado aos juros.
+                  </p>
+                ) : null}
               </div>
             </div>
 

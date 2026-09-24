@@ -85,6 +85,7 @@ import {
   isDespesasFiltroVazio,
   useCentroCustos,
   statusDespesa,
+  totalDespesa,
   totalPagoNaDespesa,
   type CentroCustoDespesa,
   type CentroCustoTipo,
@@ -221,7 +222,7 @@ function DespesasTable({
             <TableHead>Descrição</TableHead>
             <TableHead className="text-center">{rotulo.singular}</TableHead>
             <TableHead className="text-center">Tipo</TableHead>
-            <TableHead className="text-center">Valor</TableHead>
+            <TableHead className="text-center">Valor total</TableHead>
             <TableHead className="text-center">Data</TableHead>
             <TableHead className="text-center">Status</TableHead>
             <TableHead className="text-center">Pago</TableHead>
@@ -254,7 +255,7 @@ function DespesasTable({
                   </TableCell>
                   <TableCell className="text-center">{nomeTipo(d)}</TableCell>
                   <TableCell className="text-center tabular-nums">
-                    {formatCurrency(Number(d.valor))}
+                    {formatCurrency(totalDespesa(d))}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-center">{formatDate(d.data)}</TableCell>
                   <TableCell className="text-center">{badgeStatus(st)}</TableCell>
@@ -488,7 +489,7 @@ const RELATORIO_DESPESA_META: Record<
 
 function statusLinhaRelatorio(d: ApiCentroCustoDespesa): string {
   const pago = (d.pagamentos ?? []).reduce((s, p) => s + Number(p.valor || 0), 0);
-  const total = Number(d.valor) || 0;
+  const total = totalDespesa(d);
   if (pago <= 0) return 'Aberto';
   if (pago >= total - 0.005) return 'Quitado';
   return 'Parcial';
@@ -517,7 +518,7 @@ function agregarDespesasPorMes(rows: ApiCentroCustoDespesa[]) {
     if (!ym) continue;
     const cur = map.get(ym) ?? { qtd: 0, total: 0 };
     cur.qtd += 1;
-    cur.total += Number(d.valor) || 0;
+    cur.total += totalDespesa(d);
     map.set(ym, cur);
   }
   return [...map.entries()]
@@ -536,7 +537,7 @@ function agregarDespesasPorTipo(rows: ApiCentroCustoDespesa[]) {
     const nome = d.tipoNome?.trim() || `Tipo #${d.tipoId}`;
     const cur = map.get(nome) ?? { qtd: 0, total: 0 };
     cur.qtd += 1;
-    cur.total += Number(d.valor) || 0;
+    cur.total += totalDespesa(d);
     map.set(nome, cur);
   }
   return [...map.entries()]
@@ -710,7 +711,7 @@ function DespesasFiltrosBar({
     return base;
   }, [relatorioKind, rotulo.singularLower]);
   const totalRelatorioValor =
-    relatorioRows?.reduce((s, d) => s + (Number(d.valor) || 0), 0) ?? 0;
+    relatorioRows?.reduce((s, d) => s + totalDespesa(d), 0) ?? 0;
   const porMes = relatorioRows ? agregarDespesasPorMes(relatorioRows) : [];
   const porTipoAgg = relatorioRows ? agregarDespesasPorTipo(relatorioRows) : [];
 
@@ -1389,7 +1390,7 @@ function DespesasFiltrosBar({
                         <TableHead>Descrição</TableHead>
                         <TableHead>Tipo</TableHead>
                         <TableHead>{rotulo.singular}</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead className="text-right">Valor total</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1416,7 +1417,7 @@ function DespesasFiltrosBar({
                               {d.rocaNome ?? '—'}
                             </TableCell>
                             <TableCell className="text-right tabular-nums">
-                              {formatCurrency(Number(d.valor) || 0)}
+                              {formatCurrency(totalDespesa(d))}
                             </TableCell>
                             <TableCell>{statusLinhaRelatorio(d)}</TableCell>
                           </TableRow>
@@ -1615,6 +1616,8 @@ export default function CentroCustos() {
   /** Despesa form */
   const [descricao, setDescricao] = useState('');
   const [valorStr, setValorStr] = useState('');
+  const [jurosStr, setJurosStr] = useState('');
+  const [descontoStr, setDescontoStr] = useState('');
   const [dataDesp, setDataDesp] = useState(() => new Date().toISOString().slice(0, 10));
   const [observacoes, setObservacoes] = useState('');
   const [tipoIdSel, setTipoIdSel] = useState<string>('');
@@ -1655,13 +1658,27 @@ export default function CentroCustos() {
   };
 
   /** Ao sair do campo, normaliza para pt-BR com 2 decimais (ex.: 2900 → 2.900,00). */
-  const onBlurFormatarValorDespesa = () => {
-    const s = valorStr.trim();
+  const formatarAoSair = (valor: string, setValor: (v: string) => void) => {
+    const s = valor.trim();
     if (s === '') return;
     const n = parseValorMonetarioEntrada(s);
     if (n === null || !Number.isFinite(n)) return;
-    setValorStr(formatValorMonetarioBr(n));
+    setValor(formatValorMonetarioBr(n));
   };
+
+  /** Juros/desconto vazios contam como zero. */
+  const parseValorOpcional = (s: string): number => (s.trim() === '' ? 0 : parseValor(s));
+
+  const valorEdicao = parseValor(valorStr);
+  const jurosEdicao = parseValorOpcional(jurosStr);
+  const descontoEdicao = parseValorOpcional(descontoStr);
+  const totalEdicao =
+    Math.round(
+      ((Number.isFinite(valorEdicao) ? valorEdicao : 0) +
+        (Number.isFinite(jurosEdicao) ? jurosEdicao : 0) -
+        (Number.isFinite(descontoEdicao) ? descontoEdicao : 0)) *
+        100,
+    ) / 100;
 
   const despesaNomeTipo = nomeTipoDespesa;
 
@@ -1680,8 +1697,25 @@ export default function CentroCustos() {
       toast.error(`Selecione a ${rotulo.singularLower}.`);
       return;
     }
-    if (!Number.isFinite(v) || v < totalPagoNaDespesa(editDesp)) {
-      toast.error('Valor não pode ser menor que o total já pago.');
+    if (!Number.isFinite(v) || v <= 0) {
+      toast.error('Informe um valor válido.');
+      return;
+    }
+    if (
+      !Number.isFinite(jurosEdicao) ||
+      !Number.isFinite(descontoEdicao) ||
+      jurosEdicao < 0 ||
+      descontoEdicao < 0
+    ) {
+      toast.error('Juros e desconto devem ser valores válidos e não negativos.');
+      return;
+    }
+    if (totalEdicao < 0) {
+      toast.error('O desconto não pode ser maior que o valor original somado aos juros.');
+      return;
+    }
+    if (totalEdicao < totalPagoNaDespesa(editDesp) - 0.005) {
+      toast.error('O valor total (valor + juros − desconto) não pode ser menor que o total já pago.');
       return;
     }
     try {
@@ -1691,6 +1725,8 @@ export default function CentroCustos() {
         rocaId: rocaSel.id,
         rocaNome: rocaSel.nome,
         valor: v,
+        juros: jurosEdicao,
+        desconto: descontoEdicao,
         data: dataDesp,
         observacoes: observacoes.trim() || undefined,
       });
@@ -1705,6 +1741,8 @@ export default function CentroCustos() {
     setEditDesp(d);
     setDescricao(d.descricao);
     setValorStr(formatValorMonetarioBr(Number(d.valor)));
+    setJurosStr(d.juros ? formatValorMonetarioBr(d.juros) : '');
+    setDescontoStr(d.desconto ? formatValorMonetarioBr(d.desconto) : '');
     setDataDesp(d.data.slice(0, 10));
     setObservacoes(d.observacoes ?? '');
     setTipoIdSel(d.tipoId);
@@ -1771,6 +1809,8 @@ export default function CentroCustos() {
     setEditDesp(null);
     setDescricao('');
     setValorStr('');
+    setJurosStr('');
+    setDescontoStr('');
     setObservacoes('');
     setTipoIdSel('');
     setRocaSel(null);
@@ -2113,7 +2153,7 @@ export default function CentroCustos() {
                   <Input
                     value={valorStr}
                     onChange={(e) => setValorStr(e.target.value)}
-                    onBlur={onBlurFormatarValorDespesa}
+                    onBlur={() => formatarAoSair(valorStr, setValorStr)}
                     inputMode="decimal"
                     className="tabular-nums"
                   />
@@ -2122,6 +2162,42 @@ export default function CentroCustos() {
                   <Label>Data</Label>
                   <Input type="date" value={dataDesp} onChange={(e) => setDataDesp(e.target.value)} />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label>Juros</Label>
+                  <Input
+                    value={jurosStr}
+                    placeholder="0,00"
+                    onChange={(e) => setJurosStr(e.target.value)}
+                    onBlur={() => formatarAoSair(jurosStr, setJurosStr)}
+                    inputMode="decimal"
+                    className="tabular-nums"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Desconto</Label>
+                  <Input
+                    value={descontoStr}
+                    placeholder="0,00"
+                    onChange={(e) => setDescontoStr(e.target.value)}
+                    onBlur={() => formatarAoSair(descontoStr, setDescontoStr)}
+                    inputMode="decimal"
+                    className="tabular-nums"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Valor total (valor + juros − desconto)</span>
+                <span
+                  className={
+                    totalEdicao < 0
+                      ? 'font-semibold tabular-nums text-destructive'
+                      : 'font-semibold tabular-nums'
+                  }
+                >
+                  {formatCurrency(totalEdicao)}
+                </span>
               </div>
               <div className="space-y-1">
                 <Label>Observações</Label>

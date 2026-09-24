@@ -46,6 +46,26 @@ export function toEditValorOriginal(val: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** valor_total = valor_original + juros - desconto (mesma regra do backend), 2 casas. */
+export function calcularValorTotalConta(
+  valorOriginal: unknown,
+  juros?: unknown,
+  desconto?: unknown,
+): number {
+  const total =
+    toEditValorOriginal(valorOriginal) +
+    toEditValorOriginal(juros) -
+    toEditValorOriginal(desconto);
+  return Math.round(total * 100) / 100;
+}
+
+/** Juros/desconto só valem para contas sem pedido (o backend recusa em contas de pedido). */
+export function contaAceitaJurosDesconto(
+  conta: { pedido_id?: number | null } | null | undefined,
+): boolean {
+  return !(conta?.pedido_id != null && Number(conta.pedido_id) > 0);
+}
+
 function pickOptionalId(...candidates: unknown[]): number | undefined {
   for (const c of candidates) {
     if (c == null || c === "") continue;
@@ -70,6 +90,8 @@ export function mapContaApiParaEdicao(
     previsao: r.previsao === true || r.previsao === "t",
     descricao: String(r.descricao ?? ""),
     valor_original: toEditValorOriginal(r.valor_original),
+    juros: toEditValorOriginal(r.juros),
+    desconto: toEditValorOriginal(r.desconto),
     data_emissao: toDateInputValue(r.data_emissao),
     data_vencimento: toDateInputValue(r.data_vencimento),
     data_prevista: toDateInputValue(r.data_prevista),
@@ -107,6 +129,12 @@ export function buildPatchContaFinanceira(
     return {
       descricao: editConta.descricao,
       valor_original: Number(editConta.valor_original),
+      ...(contaAceitaJurosDesconto(editConta)
+        ? {
+            juros: toEditValorOriginal(editConta.juros),
+            desconto: toEditValorOriginal(editConta.desconto),
+          }
+        : {}),
       data_prevista: editConta.data_prevista,
       data_emissao: editConta.data_emissao || undefined,
       cliente_id:
@@ -155,6 +183,11 @@ export function buildPatchContaFinanceira(
       editConta.fornecedor_id != null && editConta.fornecedor_id > 0
         ? editConta.fornecedor_id
         : null;
+  }
+
+  if (contaAceitaJurosDesconto(dados)) {
+    dados.juros = toEditValorOriginal(editConta.juros);
+    dados.desconto = toEditValorOriginal(editConta.desconto);
   }
 
   if (editConta.forma_pagamento) {

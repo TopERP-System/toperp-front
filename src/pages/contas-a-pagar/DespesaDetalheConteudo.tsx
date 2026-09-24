@@ -1,3 +1,4 @@
+import { ComposicaoValoresConta } from "@/components/financeiro/ComposicaoValoresConta";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -40,8 +41,14 @@ export function DespesaDetalheConteudo({
   historico: LinhaHistoricoDespesa[];
 }) {
   const valorTotal = Number(
-    detalhe?.valor_total_pedido ?? conta.valor_original ?? 0,
+    detalhe?.valor_total ??
+      detalhe?.valor_total_pedido ??
+      conta.valor_total ??
+      conta.valor_original ??
+      0,
   );
+  const juros = Number(detalhe?.juros ?? conta.juros ?? 0) || 0;
+  const desconto = Number(detalhe?.desconto ?? conta.desconto ?? 0) || 0;
   const valorPago = Number(
     detalhe?.valor_pago ?? (conta as any).valor_pago ?? 0,
   );
@@ -113,25 +120,16 @@ export function DespesaDetalheConteudo({
             <div className="font-medium">{statusFin}</div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 border-t pt-4 md:grid-cols-5">
-          <div className="space-y-1">
-            <div className="text-sm text-muted-foreground">Valor Total</div>
-            <div className="text-primary text-xl font-bold">
-              {formatCurrency(valorTotal)}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-sm text-muted-foreground">Total Pago</div>
-            <div className="text-xl font-bold text-green-600">
-              {formatCurrency(valorPago)}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-sm text-muted-foreground">Valor em Aberto</div>
-            <div className="text-xl font-bold text-amber-600">
-              {formatCurrency(valorAberto)}
-            </div>
-          </div>
+        <div className="border-t pt-4">
+          <ComposicaoValoresConta
+            valorTotal={valorTotal}
+            juros={juros}
+            desconto={desconto}
+            valorPago={valorPago}
+            valorAberto={valorAberto}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4 border-t pt-4 md:grid-cols-4">
           {dataEmissao ? (
             <div className="space-y-1">
               <div className="text-sm text-muted-foreground">Data de Emissão</div>

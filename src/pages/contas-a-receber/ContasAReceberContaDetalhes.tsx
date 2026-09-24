@@ -1,4 +1,5 @@
 import AppLayout from '@/components/layout/AppLayout';
+import { ComposicaoValoresConta } from '@/components/financeiro/ComposicaoValoresConta';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -154,19 +155,17 @@ const ContasAReceberContaDetalhes = () => {
               <div className="font-medium">{conta.status}</div>
             </div>
           </div>
+          <div className="pt-4 border-t">
+            <ComposicaoValoresConta
+              valorTotal={Number(conta.valor_total ?? conta.valor_total_pedido ?? 0)}
+              juros={Number(conta.juros ?? 0) || 0}
+              desconto={Number(conta.desconto ?? 0) || 0}
+              valorPago={Number(conta.valor_pago || 0)}
+              valorAberto={valorAberto}
+              labelPago="Total Recebido"
+            />
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Valor Total</div>
-              <div className="text-xl font-bold text-primary">{formatCurrency(Number(conta.valor_total_pedido || 0))}</div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Total Recebido</div>
-              <div className="text-xl font-bold text-green-600">{formatCurrency(Number(conta.valor_pago || 0))}</div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Valor em Aberto</div>
-              <div className="text-xl font-bold text-amber-600">{formatCurrency(valorAberto)}</div>
-            </div>
             <div className="space-y-1">
               <div className="text-sm text-muted-foreground">Vencimento</div>
               <div className="font-medium">

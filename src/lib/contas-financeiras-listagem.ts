@@ -67,7 +67,8 @@ export function contaTemSaldoAberto(c: ContaFinanceira): boolean {
   const st = String(c.status ?? '').toUpperCase();
   if (st === 'CANCELADO') return false;
 
-  const original = Number(c.valor_original ?? 0);
+  // Total com juros/desconto (valor_total); contas antigas só têm valor_original.
+  const original = Number(c.valor_total ?? c.valor_original ?? 0);
   const pago = Number(c.valor_pago ?? 0);
   const abertoExplicit = (c as { valor_restante?: number; valor_em_aberto?: number }).valor_restante ??
     (c as { valor_em_aberto?: number }).valor_em_aberto;
@@ -348,8 +349,8 @@ export function calcularStatsFinanceiroFiltrado(
         (s, c) =>
           s +
           Number(
-            (c as { valor_original?: number }).valor_original ??
-              (c as { valor_total?: number }).valor_total ??
+            (c as { valor_total?: number }).valor_total ??
+              (c as { valor_original?: number }).valor_original ??
               0,
           ),
         0,
