@@ -23,24 +23,33 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import {
+  contaEhPrevisao,
+  contaTemSaldoAberto,
+  saldoAbertoConta,
+} from '@/lib/contas-financeiras-listagem';
 import { formatCurrency, parseDateOnlyLocal } from '@/lib/utils';
 import { Cliente, clientesService } from '@/services/clientes.service';
 import type { ClienteComPedidos } from '@/services/contas-receber.service';
-import { financeiroService } from '@/services/financeiro.service';
-import { pedidosService } from '@/services/pedidos.service';
+import { financeiroService, type ContaFinanceira } from '@/services/financeiro.service';
 import { useQuery } from '@tanstack/react-query';
 import { DollarSign, FileText, Loader2, Search } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 interface ContasAReceberListaClientesProps {
+  /** Contas a receber da tela (mesma base da visão "por pedidos" e dos cards). */
+  contas: ContaFinanceira[];
+  isLoading?: boolean;
   filtroStatus?: string;
-  /** Guia: card Total a Receber preferir soma da lista para bater com a tabela. */
+  /** Total da lista (igual ao card, pois a base é a mesma). */
   onTotalAReceber?: (total: number, count: number) => void;
 }
 
 const ContasAReceberListaClientes = ({
+  contas,
+  isLoading = false,
   filtroStatus = 'todos',
   onTotalAReceber,
 }: ContasAReceberListaClientesProps) => {
@@ -60,213 +69,92 @@ const ContasAReceberListaClientes = ({
     },
   });
 
-  const clientes: Cliente[] = Array.isArray(clientesData)
-    ? clientesData
-    : clientesData?.data || [];
+  const clientes: Cliente[] = useMemo(
+    () => (Array.isArray(clientesData) ? clientesData : clientesData?.data || []),
+    [clientesData],
+  );
 
-  // Usar endpoint /pedidos/contas-receber (sem duplicatas)
-  // todos = todos os status; aberto = só em aberto; concluido = só quitados
-  const { data: pedidosContasReceber, isLoading: isLoadingPedidos } = useQuery({
-    queryKey: ['pedidos', 'contas-receber', status],
-    queryFn: () => {
-      if (status === 'aberto') return pedidosService.listarContasReceber({ situacao: 'em_aberto' });
-      if (status === 'concluido') return pedidosService.listarContasReceber({ situacao: 'concluido' });
-      return pedidosService.listarContasReceber({ situacao: 'todos' });
+  const nomeCliente = useCallback(
+    (cid: number, conta: ContaFinanceira): string => {
+      if (!cid) return 'Sem cliente vinculado';
+      const c = clientes.find((x) => x.id === cid);
+      return (
+        c?.nome_fantasia ||
+        c?.nome_razao ||
+        c?.nome ||
+        (conta as { cliente?: { nome?: string } }).cliente?.nome ||
+        `Cliente #${cid}`
+      );
     },
-    enabled: true,
-  });
+    [clientes],
+  );
 
-  // Fallback: usar contas financeiras (RECEBER) quando pedidos retornam vazio
-  const { data: contasReceberData, isLoading: isLoadingContasReceber } = useQuery({
-    queryKey: ['contas-financeiras', 'receber', 'lista-clientes', status],
-    queryFn: async () => {
-      const res = await financeiroService.listar({
-        tipo: 'RECEBER',
-        limit: 500,
-        page: 1,
-      });
-      // Normalizar: API pode retornar { data }, { contas }, { itens } ou array direto
-      const data = Array.isArray(res)
-        ? res
-        : (res as any)?.data ?? (res as any)?.contas ?? (res as any)?.itens ?? [];
-      return Array.isArray(data) ? data : [];
-    },
-    enabled: status === 'aberto' || status === 'todos',
-    retry: 1,
-  });
-
-  const pedidos = pedidosContasReceber ?? [];
-  const contasReceber = contasReceberData ?? [];
-
-  // Fallback extra: contas agrupadas (quando pedidos e listar contas retornam vazio)
-  const { data: agrupadoData, isLoading: isLoadingAgrupado } = useQuery({
-    queryKey: ['contas-financeiras', 'agrupado', 'receber', status],
-    queryFn: () =>
-      financeiroService.listarAgrupado({
-        tipo: 'RECEBER',
-        limit: 500,
-      }),
-    enabled:
-      (status === 'aberto' || status === 'todos') &&
-      pedidos.length === 0 &&
-      contasReceber.length === 0,
-    retry: 1,
-  });
-
-  const itensAgrupado = agrupadoData?.itens ?? [];
-
+  // Mesma base da visão "por pedidos" (e do card Total a Receber): as contas
+  // financeiras a receber já carregadas pela tela, agrupadas por cliente.
   const clientesComPedidos = useMemo((): ClienteComPedidos[] => {
-    const map = new Map<number, ClienteComPedidos>();
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
+    const map = new Map<number, ClienteComPedidos & { temConta: boolean; vencMaisAntigo?: number }>();
 
-    const soEmAberto = status === 'aberto';
-    const soConcluido = status === 'concluido';
-
-    // Agrupar pedidos por cliente (novo formato)
-    pedidos.forEach((pedido) => {
-      if (pedido.status === 'CANCELADO') return;
-      if (soEmAberto && (pedido.status === 'QUITADO' || (pedido.valor_em_aberto ?? 0) <= 0)) return;
-      if (soConcluido && pedido.status !== 'QUITADO') return;
-
-      const valorAberto = pedido.valor_em_aberto ?? 0;
-      if (soEmAberto && valorAberto <= 0) return;
-      
-      // Calcular maior atraso baseado na data do pedido (aproximação)
-      // Nota: Para cálculo preciso de atraso, seria necessário buscar as parcelas do pedido
-      let maiorAtraso = 0;
-      try {
-        const dataPedido = new Date(pedido.data_pedido);
-        dataPedido.setHours(0, 0, 0, 0);
-        const dias = Math.floor(
-          (hoje.getTime() - dataPedido.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        if (dias > 0) maiorAtraso = dias;
-      } catch {}
-
-      const existing = map.get(pedido.cliente_id);
-      if (existing) {
-        existing.total_aberto += valorAberto;
-        existing.parcelas_aberto += 1; // Cada pedido conta como 1 "parcela" para agrupamento
-        if (maiorAtraso > existing.maior_atraso_dias)
-          existing.maior_atraso_dias = maiorAtraso;
-      } else {
-        map.set(pedido.cliente_id, {
-          cliente_id: pedido.cliente_id,
-          cliente_nome: pedido.cliente_nome || '—',
-          total_aberto: valorAberto,
-          parcelas_aberto: 1,
-          maior_atraso_dias: maiorAtraso,
-          primeiro_pedido_id: (pedido as any).pedido_id,
-        });
-      }
-    });
-
-    let result = Array.from(map.values());
-    if (soEmAberto) result = result.filter((c) => c.total_aberto > 0);
-    if (result.length > 0) return result;
-
-    // Fallback: listar por contas financeiras (RECEBER) quando duplicatas/API de clientes retornam vazio
-    const emAberto = (c: { status?: string; valor_restante?: number; valor_em_aberto?: number }) =>
-      c.status !== 'PAGO_TOTAL' && c.status !== 'CANCELADO' &&
-      ((c.valor_restante ?? (c as any).valor_em_aberto ?? 0) > 0);
-    const cid = (c: { cliente_id?: number; clienteId?: number }) => c.cliente_id ?? (c as any).clienteId;
-    contasReceber.filter((c) => cid(c) && emAberto(c)).forEach((conta) => {
-      const cidNum = cid(conta)!;
-      const cliente = clientes.find((c) => c.id === cidNum);
-      const valorAberto = conta.valor_restante ?? (conta as any).valor_em_aberto ?? 0;
-      let maiorAtraso = 0;
-      try {
-        const venc = parseDateOnlyLocal(conta.data_vencimento);
-        if (venc) {
-          venc.setHours(0, 0, 0, 0);
-          const dias = Math.floor(
-            (hoje.getTime() - venc.getTime()) / (1000 * 60 * 60 * 24)
-          );
-          if (dias > 0 && dias > maiorAtraso) maiorAtraso = dias;
-        }
-      } catch {
-        /* ignora data inválida */
-      }
-      const existing = map.get(cidNum);
-      if (existing) {
-        existing.total_aberto += valorAberto;
-        existing.parcelas_aberto += 1;
-        if (maiorAtraso > existing.maior_atraso_dias)
-          existing.maior_atraso_dias = maiorAtraso;
-      } else {
-        map.set(cidNum, {
-          cliente_id: cidNum,
-          cliente_nome:
-            cliente?.nome_fantasia ||
-            cliente?.nome_razao ||
-            (cliente as any)?.nome ||
-            '—',
-          total_aberto: valorAberto,
-          parcelas_aberto: 1,
-          maior_atraso_dias: maiorAtraso,
-          primeiro_pedido_id: (conta as any).pedido_id,
-        });
-      }
-    });
-    result = Array.from(map.values());
-    if (soEmAberto) result = result.filter((c) => c.total_aberto > 0);
-    if (result.length > 0) return result;
-
-    // Fallback final: contas agrupadas (GET /contas-financeiras/agrupado) – agrupar por cliente_nome
-    const statusAberto = (s: string) =>
-      s !== 'PAGO_TOTAL' && s !== 'CANCELADO' && s !== 'Pago total' && s !== 'Cancelado';
-    const mapAgrupado = new Map<number | string, ClienteComPedidos>();
-    itensAgrupado.forEach((item) => {
-      if (!statusAberto(item.status || '')) return;
-      const valor = item.valor_total ?? 0;
-      if (valor <= 0) return;
-      const nome = item.cliente_nome || '—';
-      const cliente = clientes.find(
-        (c) =>
-          (c.nome_fantasia || c.nome_razao || (c as any).nome || '')
-            .toLowerCase()
-            .trim() === nome.toLowerCase().trim()
-      );
-      const key = cliente?.id ?? nome;
-      const existing = mapAgrupado.get(key);
-      if (existing) {
-        existing.total_aberto += valor;
-        existing.parcelas_aberto += 1;
-      } else {
-        mapAgrupado.set(key, {
-          cliente_id: cliente?.id ?? 0,
-          cliente_nome: nome,
-          total_aberto: valor,
-          parcelas_aberto: 1,
+    for (const conta of contas) {
+      if (String(conta.status ?? '').toUpperCase() === 'CANCELADO') continue;
+      if (contaEhPrevisao(conta)) continue;
+      const cidRaw = Number(conta.cliente_id ?? (conta as { cliente?: { id?: number } }).cliente?.id ?? 0);
+      const cid = Number.isFinite(cidRaw) && cidRaw > 0 ? cidRaw : 0;
+      const row =
+        map.get(cid) ??
+        {
+          cliente_id: cid,
+          cliente_nome: nomeCliente(cid, conta),
+          total_aberto: 0,
+          parcelas_aberto: 0,
           maior_atraso_dias: 0,
-          primeiro_pedido_id: (item as any).pedido_id ?? undefined,
-        });
+          temConta: true,
+        };
+      map.set(cid, row);
+
+      if (!contaTemSaldoAberto(conta)) continue;
+      const saldo = saldoAbertoConta(conta);
+      if (saldo <= 0.009) continue;
+      row.total_aberto += saldo;
+      row.parcelas_aberto += 1;
+
+      const venc = parseDateOnlyLocal(conta.data_vencimento);
+      if (venc) {
+        venc.setHours(0, 0, 0, 0);
+        const dias = Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000);
+        if (dias > row.maior_atraso_dias) row.maior_atraso_dias = dias;
+        // Ações da linha abrem o pedido em aberto de vencimento mais antigo.
+        if (conta.pedido_id && (row.vencMaisAntigo == null || venc.getTime() < row.vencMaisAntigo)) {
+          row.vencMaisAntigo = venc.getTime();
+          row.primeiro_pedido_id = Number(conta.pedido_id);
+        }
+      } else if (conta.pedido_id && row.primeiro_pedido_id == null) {
+        row.primeiro_pedido_id = Number(conta.pedido_id);
       }
-    });
-    result = Array.from(mapAgrupado.values()).filter(
-      (c) => c.total_aberto > 0 && c.cliente_nome !== '—'
+    }
+
+    let result: ClienteComPedidos[] = Array.from(map.values()).map(
+      ({ temConta: _t, vencMaisAntigo: _v, ...r }) => ({
+        ...r,
+        total_aberto: Math.round(r.total_aberto * 100) / 100,
+      }),
     );
-    return result;
-  }, [pedidos, clientes, contasReceber, itensAgrupado, status]);
+    if (status === 'aberto') result = result.filter((c) => c.total_aberto > 0.009);
+    if (status === 'concluido') result = result.filter((c) => c.total_aberto <= 0.009);
+    return result.sort((x, y) => y.total_aberto - x.total_aberto);
+  }, [contas, status, nomeCliente]);
 
   const totalAReceberLista = useMemo(
     () => clientesComPedidos.reduce((s, c) => s + (c.total_aberto ?? 0), 0),
-    [clientesComPedidos]
+    [clientesComPedidos],
   );
 
   useEffect(() => {
     onTotalAReceber?.(totalAReceberLista, clientesComPedidos.length);
   }, [onTotalAReceber, totalAReceberLista, clientesComPedidos.length]);
 
-  const emptyPedidos = pedidos.length === 0;
-  const usaFallback = status === 'aberto' || status === 'todos';
-  const esperandoFallbackAgrupado =
-    emptyPedidos && contasReceber.length === 0 && usaFallback;
-  const isLoadingList =
-    isLoadingPedidos ||
-    (emptyPedidos && usaFallback && isLoadingContasReceber) ||
-    (esperandoFallbackAgrupado && isLoadingAgrupado);
+  const isLoadingList = isLoading;
 
   const filtrados = useMemo(() => {
     let list = clientesComPedidos;
@@ -342,10 +230,10 @@ const ContasAReceberListaClientes = ({
       <div className="rounded-xl border border-border overflow-x-auto bg-card shadow-sm">
         <p className="text-xs text-muted-foreground px-4 py-2 border-b bg-muted/30">
           {status === 'aberto'
-            ? 'Totais por cliente (pedidos em aberto).'
+            ? 'Totais por cliente (contas a receber em aberto — mesma base do card Total a Receber).'
             : status === 'concluido'
-              ? 'Totais por cliente (pedidos quitados).'
-              : 'Totais por cliente (todos os pedidos).'}
+              ? 'Clientes sem saldo em aberto.'
+              : 'Totais por cliente (contas a receber — mesma base do card Total a Receber).'}
         </p>
         <Table>
           <TableHeader>
@@ -370,16 +258,16 @@ const ContasAReceberListaClientes = ({
                   <FileText className="w-12 h-12 mx-auto text-muted-foreground/50" />
                   <p className="mt-2 font-medium">
                     {status === 'aberto'
-                      ? 'Nenhum cliente com pedidos em aberto'
+                      ? 'Nenhum cliente com contas em aberto'
                       : status === 'concluido'
-                        ? 'Nenhum cliente com pedidos quitados'
-                        : 'Nenhum cliente com pedidos'}
+                        ? 'Nenhum cliente com contas quitadas'
+                        : 'Nenhum cliente com contas a receber'}
                   </p>
                 </TableCell>
               </TableRow>
             ) : (
               filtrados.map((row) => (
-                <TableRow key={row.cliente_id}>
+                <TableRow key={row.cliente_id || 'sem-cliente'}>
                   <TableCell className="font-medium">{row.cliente_nome}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCurrency(row.total_aberto)}
@@ -404,16 +292,18 @@ const ContasAReceberListaClientes = ({
                             Registrar Pagamento
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem
-                          onClick={() =>
-                            row.primeiro_pedido_id
-                              ? navigate(`/financeiro/contas-receber/${row.primeiro_pedido_id}`)
-                              : navigate(`/contas-a-receber/clientes/${row.cliente_id}`)
-                          }
-                        >
-                          <FileText className="w-4 h-4 mr-2" />
-                          Ver detalhes
-                        </DropdownMenuItem>
+                        {(row.primeiro_pedido_id || row.cliente_id > 0) && (
+                          <DropdownMenuItem
+                            onClick={() =>
+                              row.primeiro_pedido_id
+                                ? navigate(`/financeiro/contas-receber/${row.primeiro_pedido_id}`)
+                                : navigate(`/contas-a-receber/clientes/${row.cliente_id}`)
+                            }
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            Ver detalhes
+                          </DropdownMenuItem>
+                        )}
                         {row.primeiro_pedido_id && (
                           <DropdownMenuItem
                             onClick={async () => {

@@ -67,6 +67,11 @@ export async function listarContasTodasAsPaginas(
   return acc;
 }
 
+/** Receita estimada (previsão): não é valor a receber de cliente — fica fora do Total a Receber. */
+export function contaEhPrevisao(c: ContaFinanceira): boolean {
+  return c.previsao === true || String(c.status ?? '').toUpperCase() === 'PREVISAO';
+}
+
 export function contaTemSaldoAberto(c: ContaFinanceira): boolean {
   const st = String(c.status ?? '').toUpperCase();
   if (st === 'CANCELADO') return false;
@@ -282,6 +287,7 @@ function calcularResumoCardsPorTipo(
     if (conta.tipo != null && conta.tipo !== tipo) continue;
     const st = String(conta.status ?? '').toUpperCase();
     if (st === 'CANCELADO') continue;
+    if (contaEhPrevisao(conta)) continue;
 
     valorPago += Number(conta.valor_pago) || 0;
 
