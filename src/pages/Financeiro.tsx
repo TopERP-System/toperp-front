@@ -120,6 +120,12 @@ const Financeiro = () => {
   const dataFinalFiltroRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState("Todos");
   const [searchTerm, setSearchTerm] = useState("");
+  /** Termo aplicado à tabela após uma pausa na digitação (evita uma requisição por tecla). */
+  const [buscaAplicada, setBuscaAplicada] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaAplicada(searchTerm.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [gerarPedidoOpen, setGerarPedidoOpen] = useState(false);
@@ -433,7 +439,6 @@ const Financeiro = () => {
       clienteFilterId,
       fornecedorFilterId,
       rocaFilterId,
-      searchTerm,
     ],
     queryFn: () =>
       listarContasTodasAsPaginas({
@@ -617,6 +622,7 @@ const Financeiro = () => {
       rocaFilterId,
       dataInicialFilter,
       dataFinalFilter,
+      buscaAplicada,
     ],
     queryFn: async () => {
       try {
@@ -637,7 +643,7 @@ const Financeiro = () => {
           // Card Receita/Despesas do Mês ativo: mesmas contas que compõem o valor
           // do card (competência = data de emissão).
           campo_data: cardTipoFilter !== "todos" ? "emissao" : undefined,
-          busca: searchTerm.trim() || undefined,
+          busca: buscaAplicada || undefined,
         });
         
         return {
@@ -669,7 +675,7 @@ const Financeiro = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm]);
+  }, [buscaAplicada]);
 
   // Calcular estatísticas do topo com a mesma base de competência:
   // - Receita do Mês = receita_mes
