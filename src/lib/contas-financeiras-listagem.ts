@@ -146,7 +146,6 @@ export function contaVenceHojeLocal(c: ContaFinanceira, ref?: Date): boolean {
   return dias === 0;
 }
 
-/** Vence neste mês civil e ainda não venceu (alinha ao card Vencendo Este Mês). */
 /** Vence no mês civil atual (mês inteiro, inclusive o que já venceu) e ainda tem saldo. */
 export function contaVenceEsteMesLocal(c: ContaFinanceira, ref: Date = new Date()): boolean {
   const st = String(c.status ?? '').toUpperCase();
