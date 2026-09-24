@@ -40,6 +40,10 @@ export interface PedidoItem {
   quantidade: number;
   preco_unitario: number;
   desconto?: number;
+  /** Quantidade que chegou estragada; abatida do subtotal */
+  perda_quantidade?: number;
+  /** Valor da perda (perda_quantidade × preço), calculado pelo backend */
+  perda_valor?: number;
   subtotal?: number;
 }
 
@@ -149,6 +153,7 @@ export interface CreatePedidoDto {
     quantidade: number;
     preco_unitario: number;
     desconto?: number;
+    perda_quantidade?: number;
   }>;
 }
 
