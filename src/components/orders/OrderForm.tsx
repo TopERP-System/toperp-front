@@ -125,6 +125,7 @@ interface OrderItemForm {
   quantidade: number | '';
   preco_unitario: number | '';
   desconto: number | '';
+  perda_quantidade: number | ''; // Quantidade que chegou estragada; abatida do subtotal
   estoque_disponivel?: number; // Preenchido ao selecionar produto para exibir e validar
   nome_produto?: string; // Nome do produto para exibir no resumo (preenchido ao selecionar)
 }
@@ -229,7 +230,7 @@ export function OrderForm({
   const [observacoesInternas, setObservacoesInternas] = useState<string>('');
   const [observacoesCliente, setObservacoesCliente] = useState<string>('');
   const [itens, setItens] = useState<OrderItemForm[]>([
-    { produto_id: 0, quantidade: '', preco_unitario: '', desconto: '' },
+    { produto_id: 0, quantidade: '', preco_unitario: '', desconto: '', perda_quantidade: '' },
   ]);
 
   // Busca dentro do dropdown de produtos no formulário do pedido.
@@ -414,7 +415,7 @@ export function OrderForm({
     setOutrasTaxas('');
     setObservacoesInternas('');
     setObservacoesCliente('');
-    setItens([{ produto_id: 0, quantidade: '', preco_unitario: '', desconto: '' }]);
+    setItens([{ produto_id: 0, quantidade: '', preco_unitario: '', desconto: '', perda_quantidade: '' }]);
   };
 
   useEffect(() => {
@@ -535,6 +536,7 @@ export function OrderForm({
                 quantidade: item.quantidade,
                 preco_unitario: item.preco_unitario,
                 desconto: item.desconto || '',
+                perda_quantidade: item.perda_quantidade || '',
                 estoque_disponivel: estoque,
                 nome_produto: nomeProduto,
               };
@@ -592,6 +594,7 @@ export function OrderForm({
           quantidade: 1,
           preco_unitario: Number(valorPrevisto.toFixed(2)),
           desconto: '',
+          perda_quantidade: '',
         },
       ]);
     }
@@ -599,7 +602,7 @@ export function OrderForm({
 
   const handleAddItem = () => {
     const hadTwoOrMore = itens.length >= 2;
-    setItens([...itens, { produto_id: 0, quantidade: '', preco_unitario: '', desconto: '' }]);
+    setItens([...itens, { produto_id: 0, quantidade: '', preco_unitario: '', desconto: '', perda_quantidade: '' }]);
     if (hadTwoOrMore) {
       setTimeout(() => {
         addItemButtonRef.current?.scrollIntoView({ behavior: 'auto', block: 'nearest' });
@@ -688,22 +691,28 @@ export function OrderForm({
     setCadastroRapidoAtivo(null);
   };
 
-  const valorTotalPedido =
-    itens.reduce((acc, item) => {
-      const quantidade = typeof item.quantidade === 'number' ? item.quantidade : 0;
-      const precoUnitario = typeof item.preco_unitario === 'number' ? item.preco_unitario : 0;
-      const desconto = typeof item.desconto === 'number' ? item.desconto : 0;
-      return acc + quantidade * precoUnitario - desconto;
-    }, 0) +
-    (typeof frete === 'number' ? frete : 0) +
-    (typeof outrasTaxas === 'number' ? outrasTaxas : 0);
-
-  const subtotalItens = itens.reduce((acc, item) => {
+  /** Mesma regra do backend: subtotal = quantidade × preço - perda (qtd × preço) - desconto. */
+  const calcularItem = (item: OrderItemForm) => {
     const quantidade = typeof item.quantidade === 'number' ? item.quantidade : 0;
     const precoUnitario = typeof item.preco_unitario === 'number' ? item.preco_unitario : 0;
     const desconto = typeof item.desconto === 'number' ? item.desconto : 0;
-    return acc + quantidade * precoUnitario - desconto;
-  }, 0);
+    const perdaQuantidade = typeof item.perda_quantidade === 'number' ? item.perda_quantidade : 0;
+    const perdaValor = Number((perdaQuantidade * precoUnitario).toFixed(2));
+    return {
+      perdaValor,
+      perdaExcedeQuantidade: perdaQuantidade > quantidade,
+      subtotal: quantidade * precoUnitario - perdaValor - desconto,
+    };
+  };
+
+  const subtotalItens = itens.reduce((acc, item) => acc + calcularItem(item).subtotal, 0);
+
+  const totalPerdas = itens.reduce((acc, item) => acc + calcularItem(item).perdaValor, 0);
+
+  const valorTotalPedido =
+    subtotalItens +
+    (typeof frete === 'number' ? frete : 0) +
+    (typeof outrasTaxas === 'number' ? outrasTaxas : 0);
 
   const itensValidos = itens.filter((i) => i.produto_id && i.produto_id !== 0);
 
@@ -947,6 +956,11 @@ export function OrderForm({
       }
     }
 
+    if (itens.some((item) => item.produto_id && calcularItem(item).perdaExcedeQuantidade)) {
+      toast.error('A perda não pode ser maior que a quantidade do item.');
+      return;
+    }
+
     const itensFormatados = itens
       .filter(item => item.produto_id && item.produto_id !== 0)
       .map(item => ({
@@ -954,6 +968,7 @@ export function OrderForm({
         quantidade: Number(item.quantidade) || 0,
         preco_unitario: Number(item.preco_unitario) || 0,
         ...(item.desconto ? { desconto: Number(item.desconto) } : {}),
+        perda_quantidade: Number(item.perda_quantidade) || 0,
       }));
     
     // Determinar quantidade_parcelas: só para AVISTA (1) e PARCELADO (2-12). BOLETO_DESCONTADO não usa parcelas.
@@ -1319,7 +1334,7 @@ export function OrderForm({
                   className="rounded-xl border border-border/60 p-4"
                 >
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-12 xl:items-start xl:gap-4">
-                    <div className="space-y-2 sm:col-span-2 xl:col-span-4">
+                    <div className="space-y-2 sm:col-span-2 xl:col-span-3">
                       <Label>Produto</Label>
                       <div className="flex gap-2">
                         <Select
@@ -1443,7 +1458,31 @@ export function OrderForm({
                     </div>
 
                     <div className="space-y-2 xl:col-span-2">
-                      <Label>Preço de Compra</Label>
+                      <Label>Perda (qtd)</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        className={cn('h-10', calcularItem(item).perdaExcedeQuantidade && 'border-destructive')}
+                        value={item.perda_quantidade}
+                        onChange={(e) =>
+                          handleItemChange(index, 'perda_quantidade', e.target.value ? Number(e.target.value) : '')
+                        }
+                      />
+                      {calcularItem(item).perdaExcedeQuantidade ? (
+                        <p className="text-xs font-medium text-destructive">Maior que a quantidade</p>
+                      ) : calcularItem(item).perdaValor > 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          − {formatCurrency(calcularItem(item).perdaValor)}
+                        </p>
+                      ) : (
+                        <div className="min-h-[1.25rem]" aria-hidden />
+                      )}
+                    </div>
+
+                    <div className="space-y-2 xl:col-span-2">
+                      <Label>{tipo === 'VENDA' ? 'Preço de Venda' : 'Preço de Compra'}</Label>
                       <Input
                         type="number"
                         step="0.01"
@@ -1456,7 +1495,7 @@ export function OrderForm({
                       />
                     </div>
 
-                    <div className="space-y-2 xl:col-span-2">
+                    <div className="space-y-2 xl:col-span-1">
                       <Label>Desconto</Label>
                       <Input
                         type="number"
@@ -1474,14 +1513,7 @@ export function OrderForm({
                       <Label>Subtotal</Label>
                       <div className="flex items-center gap-2">
                         <div className="flex h-10 min-w-0 flex-1 items-center text-sm font-medium text-primary">
-                          {formatCurrency(
-                            Math.max(
-                              0,
-                              (typeof item.quantidade === 'number' ? item.quantidade : 0) *
-                                (typeof item.preco_unitario === 'number' ? item.preco_unitario : 0) -
-                                (typeof item.desconto === 'number' ? item.desconto : 0),
-                            ),
-                          )}
+                          {formatCurrency(Math.max(0, calcularItem(item).subtotal))}
                         </div>
                         <Button
                           type="button"
@@ -1948,6 +1980,14 @@ export function OrderForm({
                     <span className="text-muted-foreground">Itens</span>
                     <span className="font-medium">{itensValidos.length}</span>
                   </div>
+                  {totalPerdas > 0 && (
+                    <div className="flex justify-between gap-2 border-b border-border/40 pb-2">
+                      <span className="text-muted-foreground">Perda</span>
+                      <span className="font-medium text-amber-600 dark:text-amber-500">
+                        − {formatCurrency(totalPerdas)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-2 border-b border-border/40 pb-2">
                     <span className="text-muted-foreground">Subtotal</span>
                     <span className="font-medium">{formatCurrency(subtotalItens)}</span>

@@ -70,6 +70,12 @@ export function OrderViewDialog({
 
   if (!order) return null;
 
+  const totalPerdas = (order.itens ?? []).reduce(
+    (acc, item) => acc + normalizeCurrency(item.perda_valor ?? 0, false),
+    0,
+  );
+  const temPerda = totalPerdas > 0;
+
   const vinculadoRoca = pedidoVinculadoRoca(order);
   const nomeClienteExibicao =
     order.cliente?.nome?.trim() ||
@@ -535,7 +541,8 @@ export function OrderViewDialog({
                   <TableRow>
                     <TableHead>Produto</TableHead>
                     <TableHead className="text-right">Quantidade</TableHead>
-                    <TableHead className="text-right">Preço de Compra</TableHead>
+                    {temPerda && <TableHead className="text-right">Perda</TableHead>}
+                    <TableHead className="text-right">{order.tipo === 'VENDA' ? 'Preço de Venda' : 'Preço de Compra'}</TableHead>
                     <TableHead className="text-right">Desconto</TableHead>
                     <TableHead className="text-right">Subtotal</TableHead>
                   </TableRow>
@@ -547,7 +554,9 @@ export function OrderViewDialog({
                       const quantidade = normalizeQuantity(item.quantidade);
                       const precoUnitario = normalizeCurrency(item.preco_unitario, false);
                       const desconto = item.desconto ? normalizeCurrency(item.desconto, false) : 0;
-                      const subtotal = Math.max(0, quantidade * precoUnitario - desconto);
+                      const perdaQuantidade = normalizeQuantity(item.perda_quantidade ?? 0);
+                      const perdaValor = normalizeCurrency(item.perda_valor ?? 0, false);
+                      const subtotal = Math.max(0, quantidade * precoUnitario - perdaValor - desconto);
                       return (
                         <TableRow key={index}>
                           <TableCell>
@@ -565,6 +574,20 @@ export function OrderViewDialog({
                           <TableCell className="text-right">
                             {quantidade}
                           </TableCell>
+                          {temPerda && (
+                            <TableCell className="text-right">
+                              {perdaQuantidade > 0 ? (
+                                <div>
+                                  <div>{perdaQuantidade}</div>
+                                  <div className="text-xs text-amber-600 dark:text-amber-500">
+                                    −{formatCurrency(perdaValor)}
+                                  </div>
+                                </div>
+                              ) : (
+                                '--'
+                              )}
+                            </TableCell>
+                          )}
                           <TableCell className="text-right">
                             {formatCurrency(precoUnitario)}
                           </TableCell>
@@ -579,7 +602,7 @@ export function OrderViewDialog({
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
+                      <TableCell colSpan={temPerda ? 6 : 5} className="text-center text-muted-foreground py-4">
                         Nenhum item encontrado
                       </TableCell>
                     </TableRow>
@@ -604,6 +627,14 @@ export function OrderViewDialog({
             </div>
 
             <div className="space-y-3">
+              {totalPerdas > 0 && (
+                <div className="flex justify-between">
+                  <Label className="text-muted-foreground">Perda</Label>
+                  <div className="font-medium text-amber-600 dark:text-amber-500">
+                    -{formatCurrency(totalPerdas)}
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between">
                 <Label className="text-muted-foreground">Subtotal</Label>
                 <div className="font-medium">{formatCurrency(normalizeCurrency(order.subtotal, false))}</div>
