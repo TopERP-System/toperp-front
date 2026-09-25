@@ -13,7 +13,7 @@ import {
 } from '@/components/orders/RelatorioModalParts';
 import { RelatorioPeriodoFinanceiro } from '@/components/reports/RelatorioPeriodoFinanceiro';
 import { RelatorioMargemContribuicaoDialog } from '@/components/reports/RelatorioMargemContribuicaoDialog';
-import { RelatorioContasPedidosDialog } from '@/components/reports/RelatorioContasPedidosDialog';
+import { RelatorioProdutosClienteDialog } from '@/components/reports/RelatorioProdutosClienteDialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -58,11 +58,10 @@ import {
   Loader2,
   Plus,
   Printer,
-  Receipt,
   Search,
   ShoppingCart,
   Trash2,
-  Wallet,
+  Users,
   XCircle,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -114,7 +113,7 @@ export default function Pedidos() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filtrosDialogOpen, setFiltrosDialogOpen] = useState(false);
   const [margemDialogOpen, setMargemDialogOpen] = useState(false);
-  const [contasPedidosTipo, setContasPedidosTipo] = useState<'RECEBER' | 'PAGAR' | null>(null);
+  const [produtosClienteDialogOpen, setProdutosClienteDialogOpen] = useState(false);
   const [reportingOrderId, setReportingOrderId] = useState<number | null>(null);
   const [relatorioPedidosDialogOpen, setRelatorioPedidosDialogOpen] = useState(false);
   const [dataInicialRelPed, setDataInicialRelPed] = useState('');
@@ -880,21 +879,12 @@ export default function Pedidos() {
                 }}
               />
               <RelatorioHubCard
-                icon={Wallet}
-                title="Recebimentos de vendas"
-                description="Contas a receber geradas por pedidos de venda: recebido, em aberto e vencimentos."
+                icon={Users}
+                title="Produtos por cliente"
+                description="Itens vendidos a um cliente no período, pedido a pedido, com total geral."
                 onClick={() => {
                   setRelatoriosDialogOpen(false);
-                  setContasPedidosTipo('RECEBER');
-                }}
-              />
-              <RelatorioHubCard
-                icon={Receipt}
-                title="Pagamentos de compras"
-                description="Contas a pagar geradas por pedidos de compra: pago, em aberto e vencimentos."
-                onClick={() => {
-                  setRelatoriosDialogOpen(false);
-                  setContasPedidosTipo('PAGAR');
+                  setProdutosClienteDialogOpen(true);
                 }}
               />
             </div>
@@ -908,24 +898,11 @@ export default function Pedidos() {
           defaultDataFinal={filters.data_final}
         />
 
-        <RelatorioContasPedidosDialog
-          open={contasPedidosTipo !== null}
-          onOpenChange={(open) => {
-            if (!open) setContasPedidosTipo(null);
-          }}
-          tipo={contasPedidosTipo ?? 'RECEBER'}
-          parceiros={
-            contasPedidosTipo === 'PAGAR'
-              ? fornecedores.map((f) => ({
-                  id: f.id,
-                  nome: f.nome_fantasia || f.nome_razao || `Fornecedor #${f.id}`,
-                }))
-              : clientes.map((c) => ({ id: c.id, nome: c.nome }))
-          }
-          rocas={rocasFiltro}
-          rotuloRoca={rotulo}
-          defaultDataInicial={filters.data_inicial}
-          defaultDataFinal={filters.data_final}
+        <RelatorioProdutosClienteDialog
+          open={produtosClienteDialogOpen}
+          onOpenChange={setProdutosClienteDialogOpen}
+          clientes={clientes}
+          defaultClienteId={filters.cliente_id}
         />
 
         <Dialog open={relatorioPedidosDialogOpen} onOpenChange={setRelatorioPedidosDialogOpen}>
