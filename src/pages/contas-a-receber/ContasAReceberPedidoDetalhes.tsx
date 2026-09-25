@@ -1,4 +1,5 @@
 import AppLayout from '@/components/layout/AppLayout';
+import { ComposicaoValoresConta } from '@/components/financeiro/ComposicaoValoresConta';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -264,6 +265,30 @@ const ContasAReceberPedidoDetalhes = () => {
     resumoFinal!.valor_em_aberto
     ?? totaisContas?.aberto;
 
+  // Juros/desconto lançados no pagamento ficam nas contas; o valor do pedido não muda.
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  const ajusteDaConta = (c: (typeof contasDoPedido)[number]) => ({
+    juros: Number(c.juros ?? 0) || 0,
+    desconto: Number(c.desconto ?? 0) || 0,
+  });
+  const originalDaConta = (c: (typeof contasDoPedido)[number]) =>
+    Number(
+      c.valor_original ??
+        Number(c.valor_total ?? 0) - ajusteDaConta(c).juros + ajusteDaConta(c).desconto,
+    );
+  const contasAtivas = contasDoPedido.filter(
+    (c) => String(c.status ?? '').toUpperCase() !== 'CANCELADO',
+  );
+  const jurosPedido = round2(contasAtivas.reduce((s, c) => s + ajusteDaConta(c).juros, 0));
+  const descontoPedido = round2(
+    contasAtivas.reduce((s, c) => s + ajusteDaConta(c).desconto, 0),
+  );
+  const temJurosDesconto = jurosPedido > 0.009 || descontoPedido > 0.009;
+  const contasComAjuste = contasDoPedido.some((c) => {
+    const a = ajusteDaConta(c);
+    return a.juros > 0.009 || a.desconto > 0.009;
+  });
+
   const statusExibicao =
     valorEmAberto <= 0.009
       ? 'Quitado'
@@ -366,7 +391,16 @@ const ContasAReceberPedidoDetalhes = () => {
                       <TableHead>Conta</TableHead>
                       <TableHead>Forma</TableHead>
                       <TableHead>Vencimento</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
+                      {contasComAjuste && (
+                        <>
+                          <TableHead className="text-right">Original</TableHead>
+                          <TableHead className="text-right">Juros (+)</TableHead>
+                          <TableHead className="text-right">Desconto (−)</TableHead>
+                        </>
+                      )}
+                      <TableHead className="text-right">
+                        {contasComAjuste ? 'Total' : 'Valor'}
+                      </TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -386,6 +420,23 @@ const ContasAReceberPedidoDetalhes = () => {
                             ? formatarDataBR(c.data_vencimento)
                             : '—'}
                         </TableCell>
+                        {contasComAjuste && (
+                          <>
+                            <TableCell className="text-right whitespace-nowrap tabular-nums">
+                              {formatCurrency(originalDaConta(c))}
+                            </TableCell>
+                            <TableCell className="text-right whitespace-nowrap tabular-nums text-rose-600">
+                              {ajusteDaConta(c).juros > 0.009
+                                ? formatCurrency(ajusteDaConta(c).juros)
+                                : '—'}
+                            </TableCell>
+                            <TableCell className="text-right whitespace-nowrap tabular-nums text-sky-600">
+                              {ajusteDaConta(c).desconto > 0.009
+                                ? formatCurrency(ajusteDaConta(c).desconto)
+                                : '—'}
+                            </TableCell>
+                          </>
+                        )}
                         <TableCell className="text-right font-medium whitespace-nowrap">
                           {formatCurrency(
                             Number(
@@ -403,6 +454,25 @@ const ContasAReceberPedidoDetalhes = () => {
                       <TableCell colSpan={3} className="font-semibold">
                         Total
                       </TableCell>
+                      {contasComAjuste && (
+                        <>
+                          <TableCell className="text-right font-semibold whitespace-nowrap tabular-nums">
+                            {formatCurrency(
+                              contasDoPedido.reduce((acc, c) => acc + originalDaConta(c), 0),
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold whitespace-nowrap tabular-nums text-rose-600">
+                            {formatCurrency(
+                              contasDoPedido.reduce((acc, c) => acc + ajusteDaConta(c).juros, 0),
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold whitespace-nowrap tabular-nums text-sky-600">
+                            {formatCurrency(
+                              contasDoPedido.reduce((acc, c) => acc + ajusteDaConta(c).desconto, 0),
+                            )}
+                          </TableCell>
+                        </>
+                      )}
                       <TableCell className="text-right font-semibold whitespace-nowrap">
                         {formatCurrency(
                           contasDoPedido.reduce(
@@ -494,20 +564,32 @@ const ContasAReceberPedidoDetalhes = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Valor Total</div>
-              <div className="text-xl font-bold text-primary">{formatCurrency(valorTotal)}</div>
+          {temJurosDesconto ? (
+            <div className="pt-4 border-t">
+              <ComposicaoValoresConta
+                valorTotal={round2(Number(valorTotal || 0) + jurosPedido - descontoPedido)}
+                juros={jurosPedido}
+                desconto={descontoPedido}
+                valorPago={valorPago}
+                valorAberto={valorEmAberto}
+              />
             </div>
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Total Pago</div>
-              <div className="text-xl font-bold text-green-600">{formatCurrency(valorPago)}</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">Valor Total</div>
+                <div className="text-xl font-bold text-primary">{formatCurrency(valorTotal)}</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">Total Pago</div>
+                <div className="text-xl font-bold text-green-600">{formatCurrency(valorPago)}</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">Valor em Aberto</div>
+                <div className="text-xl font-bold text-amber-600">{formatCurrency(valorEmAberto)}</div>
+              </div>
             </div>
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">Valor em Aberto</div>
-              <div className="text-xl font-bold text-amber-600">{formatCurrency(valorEmAberto)}</div>
-            </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t">
             <div className="space-y-1">

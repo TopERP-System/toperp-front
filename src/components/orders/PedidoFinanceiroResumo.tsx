@@ -40,6 +40,11 @@ export function PedidoFinanceiroResumo({ pedidoId }: PedidoFinanceiroResumoProps
   const valorEmAberto = resumo?.valor_em_aberto ?? financeiroLegado?.resumo_financeiro?.valor_em_aberto ?? 0;
   const valorPago = resumo?.valor_pago ?? financeiroLegado?.resumo_financeiro?.valor_pago ?? 0;
   const valorTotal = resumo?.valor_total ?? financeiroLegado?.resumo_financeiro?.valor_total ?? financeiroLegado?.pedido?.valor_total ?? 0;
+  // Juros/desconto lançados no pagamento: o total a receber passa a ser pedido + juros − desconto.
+  const juros = Number(resumo?.juros ?? 0) || 0;
+  const desconto = Number(resumo?.desconto ?? 0) || 0;
+  const temJurosDesconto = juros > 0.009 || desconto > 0.009;
+  const valorTotalAjustado = Math.round((Number(valorTotal) + juros - desconto) * 100) / 100;
   const isLoading = loadingResumo || (!!errorResumo && loadingLegado);
   const semDados = !resumo && !financeiroLegado;
 
@@ -88,7 +93,18 @@ export function PedidoFinanceiroResumo({ pedidoId }: PedidoFinanceiroResumoProps
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div>
             <p className="text-muted-foreground">Valor Total</p>
-            <p className="font-semibold">{formatCurrency(valorTotal)}</p>
+            <p className="font-semibold">{formatCurrency(valorTotalAjustado)}</p>
+            {temJurosDesconto && (
+              <p className="text-xs text-muted-foreground">
+                Pedido {formatCurrency(valorTotal)}
+                {juros > 0.009 && (
+                  <span className="text-rose-600"> + juros {formatCurrency(juros)}</span>
+                )}
+                {desconto > 0.009 && (
+                  <span className="text-sky-600"> − desconto {formatCurrency(desconto)}</span>
+                )}
+              </p>
+            )}
           </div>
           <div>
             <p className="text-muted-foreground">Valor Pago</p>

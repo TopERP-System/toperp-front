@@ -22,6 +22,10 @@ export interface ResumoFinanceiroPedido {
   /** true se já existe um pagamento com tipo_lancamento = ADIANTAMENTO */
   adiantamento_ja_pago?: boolean;
   forma_pagamento_estrutural?: string | null;
+  /** Soma dos juros das contas do pedido (lançados no pagamento; não altera valor_total) */
+  juros?: number;
+  /** Soma dos descontos das contas do pedido (lançados no pagamento; não altera valor_total) */
+  desconto?: number;
   /** true quando é BOLETO_DESCONTADO, tem valor_adiantado e ainda não foi registrado o pagamento do adiantamento */
   eh_pagamento_adiantamento?: boolean;
   /** Mensagem para exibir na tela de pagamento quando eh_pagamento_adiantamento */
@@ -78,4 +82,8 @@ export interface RegistrarPagamentoBody {
   tipo_lancamento?: string;
   /** Dados do cheque (obrigatório quando forma_pagamento = CHEQUE) */
   cheque?: ChequeRegistro;
+  /** Juros da conta selecionada (valor final; substitui o atual) */
+  juros?: number;
+  /** Desconto da conta selecionada (valor final; substitui o atual) */
+  desconto?: number;
 }

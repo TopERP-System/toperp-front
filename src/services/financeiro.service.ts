@@ -12,9 +12,9 @@ export interface ContaFinanceira {
   roca_nome?: string | null;
   descricao: string;
   valor_original: number;
-  /** Acréscimo (valor_total = valor_original + juros - desconto). Só em contas sem pedido. */
+  /** Acréscimo (valor_total = valor_original + juros - desconto). Em conta de pedido, só entra pelo pagamento do pedido. */
   juros?: number | string;
-  /** Abatimento (valor_total = valor_original + juros - desconto). Só em contas sem pedido. */
+  /** Abatimento (valor_total = valor_original + juros - desconto). Em conta de pedido, só entra pelo pagamento do pedido. */
   desconto?: number | string;
   valor_pago: number;
   valor_restante: number;
