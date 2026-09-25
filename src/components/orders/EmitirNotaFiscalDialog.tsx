@@ -39,7 +39,7 @@ import {
 } from '@/types/nota-fiscal';
 import { Pedido } from '@/types/pedido';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, FileCheck2, Loader2, Receipt } from 'lucide-react';
+import { AlertCircle, AlertTriangle, FileCheck2, Loader2, Receipt } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
@@ -532,6 +532,24 @@ export function EmitirNotaFiscalDialog({
                         <li key={f.campo}>{f.label}</li>
                       ))}
                     </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {(data.avisos?.length ?? 0) > 0 && (
+                <Alert className="border-amber-500/50 bg-amber-500/5 text-amber-900 dark:text-amber-200 [&>svg]:text-amber-600">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Tributação dos produtos ({data.avisos!.length})</AlertTitle>
+                  <AlertDescription>
+                    <ul className="mt-2 list-disc pl-4 space-y-0.5 text-sm">
+                      {data.avisos!.map((aviso) => (
+                        <li key={aviso}>{aviso}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-xs opacity-80">
+                      A nota pode ser emitida assim. Para ajustar, edite o produto em Produtos › Editar ›
+                      Dados Fiscais.
+                    </p>
                   </AlertDescription>
                 </Alert>
               )}

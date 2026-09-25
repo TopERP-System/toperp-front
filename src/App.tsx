@@ -44,6 +44,7 @@ import Pedidos from "./pages/Pedidos";
 import NovoPedido from "./pages/pedidos/NovoPedido";
 import Produtos from "./pages/Produtos";
 import NovoProduto from "./pages/produtos/NovoProduto";
+import EditarProduto from "./pages/produtos/EditarProduto";
 import Settings from "./pages/Settings";
 import Transportadoras from "./pages/Transportadoras";
 import { ArrowLeftRight, Scale } from "lucide-react";
@@ -373,6 +374,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <NovoProduto />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/produtos/:id/editar"
+              element={
+                <ProtectedRoute>
+                  <EditarProduto />
                 </ProtectedRoute>
               }
             />
