@@ -542,9 +542,10 @@ export function OrderViewDialog({
                     <TableHead>Produto</TableHead>
                     <TableHead className="text-right">Quantidade</TableHead>
                     {temPerda && <TableHead className="text-right">Perda</TableHead>}
+                    {temPerda && <TableHead className="text-right">Qtd. líq.</TableHead>}
                     <TableHead className="text-right">{order.tipo === 'VENDA' ? 'Preço de Venda' : 'Preço de Compra'}</TableHead>
                     <TableHead className="text-right">Desconto</TableHead>
-                    <TableHead className="text-right">Subtotal</TableHead>
+                    <TableHead className="text-right">{temPerda ? 'Total líquido' : 'Subtotal'}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -556,6 +557,7 @@ export function OrderViewDialog({
                       const desconto = item.desconto ? normalizeCurrency(item.desconto, false) : 0;
                       const perdaQuantidade = normalizeQuantity(item.perda_quantidade ?? 0);
                       const perdaValor = normalizeCurrency(item.perda_valor ?? 0, false);
+                      const quantidadeLiquida = Number((quantidade - perdaQuantidade).toFixed(3));
                       const subtotal = Math.max(0, quantidade * precoUnitario - perdaValor - desconto);
                       return (
                         <TableRow key={index}>
@@ -575,17 +577,13 @@ export function OrderViewDialog({
                             {quantidade}
                           </TableCell>
                           {temPerda && (
+                            <TableCell className="text-right text-amber-600 dark:text-amber-500">
+                              {perdaQuantidade > 0 ? perdaQuantidade : '--'}
+                            </TableCell>
+                          )}
+                          {temPerda && (
                             <TableCell className="text-right">
-                              {perdaQuantidade > 0 ? (
-                                <div>
-                                  <div>{perdaQuantidade}</div>
-                                  <div className="text-xs text-amber-600 dark:text-amber-500">
-                                    −{formatCurrency(perdaValor)}
-                                  </div>
-                                </div>
-                              ) : (
-                                '--'
-                              )}
+                              {quantidadeLiquida}
                             </TableCell>
                           )}
                           <TableCell className="text-right">
@@ -602,7 +600,7 @@ export function OrderViewDialog({
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={temPerda ? 6 : 5} className="text-center text-muted-foreground py-4">
+                      <TableCell colSpan={temPerda ? 7 : 5} className="text-center text-muted-foreground py-4">
                         Nenhum item encontrado
                       </TableCell>
                     </TableRow>
@@ -627,7 +625,14 @@ export function OrderViewDialog({
             </div>
 
             <div className="space-y-3">
-              {totalPerdas > 0 && (
+              {/* subtotal do pedido já vem líquido da perda; com perda, mostra o bruto e abate */}
+              <div className="flex justify-between">
+                <Label className="text-muted-foreground">{temPerda ? 'Subtotal bruto' : 'Subtotal'}</Label>
+                <div className="font-medium">
+                  {formatCurrency(normalizeCurrency(order.subtotal, false) + totalPerdas)}
+                </div>
+              </div>
+              {temPerda && (
                 <div className="flex justify-between">
                   <Label className="text-muted-foreground">Perda</Label>
                   <div className="font-medium text-amber-600 dark:text-amber-500">
@@ -635,10 +640,6 @@ export function OrderViewDialog({
                   </div>
                 </div>
               )}
-              <div className="flex justify-between">
-                <Label className="text-muted-foreground">Subtotal</Label>
-                <div className="font-medium">{formatCurrency(normalizeCurrency(order.subtotal, false))}</div>
-              </div>
               {order.desconto_valor > 0 && (
                 <div className="flex justify-between">
                   <Label className="text-muted-foreground">
