@@ -1,9 +1,13 @@
 import { CreateProdutoDto } from '@/services/produtos.service';
 import { toast } from 'sonner';
+import { montarTributacoesPayload, TributacoesForm } from './dadosFiscais';
 
-export type ProdutoFormData = Partial<CreateProdutoDto> & {
+export type ProdutoFormData = Omit<Partial<CreateProdutoDto>, 'origem' | 'tributacoes'> & {
   estoque_maximo?: number | string;
   localizacao?: string;
+  /** Código da origem (0–8) como texto do Select; vazio = não informado. */
+  origem?: string;
+  tributacoes: TributacoesForm;
 };
 
 export function prepararCriacaoProduto(form: ProdutoFormData): CreateProdutoDto | null {
@@ -52,7 +56,10 @@ export function prepararCriacaoProduto(form: ProdutoFormData): CreateProdutoDto 
   if (form.data_validade) produtoData.data_validade = form.data_validade;
   if (form.ncm) produtoData.ncm = form.ncm;
   if (form.cest) produtoData.cest = form.cest;
-  if (form.cfop) produtoData.cfop = form.cfop;
+  // CFOP agora vem da tributação de saída (o backend espelha em tb_produto.cfop)
+  if (form.origem) produtoData.origem = Number(form.origem);
+  const tributacoes = montarTributacoesPayload(form.tributacoes);
+  if (tributacoes) produtoData.tributacoes = tributacoes;
   if (form.observacoes) produtoData.observacoes = form.observacoes;
   if (form.peso) produtoData.peso = Number(form.peso);
   if (form.altura) produtoData.altura = Number(form.altura);

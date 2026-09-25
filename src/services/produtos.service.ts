@@ -1,4 +1,22 @@
 import { apiClient } from './api';
+import type { TipoOperacaoFiscal } from './fiscal.service';
+
+/** Regras tributárias do produto para uma operação (tb_produto_tributacao). */
+export interface ProdutoTributacao {
+  tipo_operacao: TipoOperacaoFiscal;
+  cfop_estadual: string | null;
+  cfop_interestadual: string | null;
+  icms_cst: string | null;
+  icms_csosn: string | null;
+  icms_aliquota: number | null;
+  ipi_cst: string | null;
+  ipi_aliquota: number | null;
+  ipi_enquadramento: string | null;
+  pis_cst: string | null;
+  pis_aliquota: number | null;
+  cofins_cst: string | null;
+  cofins_aliquota: number | null;
+}
 
 export interface Produto {
   id: number;
@@ -18,6 +36,10 @@ export interface Produto {
   ncm?: string;
   cest?: string;
   cfop?: string;
+  /** Origem da mercadoria (0–8). */
+  origem?: number | null;
+  /** Só vem em buscarPorId. */
+  tributacoes?: ProdutoTributacao[];
   observacoes?: string;
   peso?: number;
   altura?: number;
@@ -53,6 +75,9 @@ export interface CreateProdutoDto {
   ncm?: string;
   cest?: string;
   cfop?: string;
+  origem?: number | null;
+  /** Cada operação enviada substitui a regra gravada; as não enviadas ficam como estão. */
+  tributacoes?: ProdutoTributacao[];
   observacoes?: string;
   peso?: number;
   altura?: number;

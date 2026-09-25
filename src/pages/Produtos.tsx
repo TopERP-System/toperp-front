@@ -70,7 +70,6 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
     Categoria,
@@ -84,7 +83,7 @@ import {
     Fornecedor,
     fornecedoresService,
 } from "@/services/fornecedores.service";
-import { CreateProdutoDto, FiltrosProdutos, Produto, produtosService } from "@/services/produtos.service";
+import { FiltrosProdutos, Produto, produtosService } from "@/services/produtos.service";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -99,12 +98,9 @@ import {
     DollarSign,
     Edit,
     Eye,
-    FileCheck,
     FileText,
     Filter,
-    Hash,
     History,
-    Info,
     LayoutGrid,
     Loader2,
     Package,
@@ -145,33 +141,8 @@ const Produtos = () => {
   });
   const [categoriasDialogOpen, setCategoriasDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [historicoSheetOpen, setHistoricoSheetOpen] = useState(false);
   const [selectedProduto, setSelectedProduto] = useState<Produto | null>(null);
-  const [editingProduto, setEditingProduto] = useState<Partial<CreateProdutoDto> & { estoque_maximo?: number; localizacao?: string; fornecedorId?: number | null }>({
-    nome: "",
-    descricao: "",
-    sku: "",
-    preco_custo: 0,
-    preco_venda: 0,
-    preco_promocional: undefined,
-    estoque_atual: 0,
-    estoque_minimo: 0,
-    estoque_maximo: undefined,
-    unidade_medida: "UN",
-    statusProduto: "ATIVO",
-    categoriaId: undefined,
-    fornecedorId: undefined,
-    data_validade: undefined,
-    ncm: "",
-    cest: "",
-    cfop: "",
-    observacoes: "",
-    peso: undefined,
-    altura: undefined,
-    largura: undefined,
-    localizacao: undefined,
-  });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [produtoToDelete, setProdutoToDelete] = useState<number | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
@@ -417,53 +388,6 @@ const Produtos = () => {
 
   // Criação de produto movida para /produtos/novo
 
-  // Mutation para atualizar produto
-  const updateProdutoMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<CreateProdutoDto> }) =>
-      produtosService.atualizar(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["produtos"] });
-      queryClient.invalidateQueries({ queryKey: ["historico-estoque"], exact: false });
-      queryClient.invalidateQueries({ queryKey: ["movimentacoes"], exact: false });
-      setEditDialogOpen(false);
-      setEditingProduto({
-        nome: "",
-        descricao: "",
-        sku: "",
-        preco_custo: 0,
-        preco_venda: 0,
-        preco_promocional: undefined,
-        estoque_atual: 0,
-        estoque_minimo: 0,
-        estoque_maximo: undefined,
-        unidade_medida: "UN",
-        statusProduto: "ATIVO",
-        categoriaId: undefined,
-        fornecedorId: undefined,
-        data_validade: undefined,
-        ncm: "",
-        cest: "",
-        cfop: "",
-        observacoes: "",
-        peso: undefined,
-        altura: undefined,
-        largura: undefined,
-        localizacao: undefined,
-      });
-      setSelectedProduto(null);
-      toast.success("Produto atualizado com sucesso!");
-    },
-    onError: (error: any) => {
-      const msg = error?.response?.data?.message ?? error?.message ?? "Erro ao atualizar produto";
-      const msgStr = typeof msg === "string" ? msg : "Erro ao atualizar produto";
-      if (msgStr.toLowerCase().includes("usuário autenticado") && msgStr.toLowerCase().includes("obrigatório")) {
-        toast.error("É necessário estar logado para editar estoque do produto. Faça login e tente novamente.");
-      } else {
-        toast.error(msgStr);
-      }
-    },
-  });
-
   // Mutation para deletar produto
   const deleteProdutoMutation = useMutation({
     mutationFn: (id: number) => produtosService.deletar(id),
@@ -479,224 +403,7 @@ const Produtos = () => {
   });
 
   const handleEdit = (produto: Produto) => {
-    setSelectedProduto(produto);
-    
-    // Converter data_validade para formato YYYY-MM-DD se existir
-    let dataValidadeFormatada = "";
-    if (produto.data_validade) {
-      try {
-        const data = new Date(produto.data_validade);
-        if (!isNaN(data.getTime())) {
-          // Formato YYYY-MM-DD para input type="date"
-          const year = data.getFullYear();
-          const month = String(data.getMonth() + 1).padStart(2, "0");
-          const day = String(data.getDate()).padStart(2, "0");
-          dataValidadeFormatada = `${year}-${month}-${day}`;
-        }
-      } catch (error) {
-        console.error("Erro ao formatar data de validade:", error);
-      }
-    }
-    
-    setEditingProduto({
-      nome: produto.nome || "",
-      descricao: produto.descricao || "",
-      sku: produto.sku || "",
-      preco_custo: produto.preco_custo || 0,
-      preco_venda: produto.preco_venda || 0,
-      preco_promocional: produto.preco_promocional,
-      estoque_atual: produto.estoque_atual || 0,
-      estoque_minimo: produto.estoque_minimo || 0,
-      estoque_maximo: produto.estoque_maximo,
-      unidade_medida: produto.unidade_medida || "UN",
-      statusProduto: produto.statusProduto || "ATIVO",
-      categoriaId: produto.categoriaId,
-      fornecedorId: produto.fornecedorId,
-      data_validade: dataValidadeFormatada || undefined,
-      ncm: produto.ncm || "",
-      cest: produto.cest || "",
-      cfop: produto.cfop || "",
-      observacoes: produto.observacoes || "",
-      peso: produto.peso,
-      altura: produto.altura,
-      largura: produto.largura,
-      localizacao: produto.localizacao,
-    });
-    setEditDialogOpen(true);
-  };
-
-  const handleUpdate = () => {
-    if (!selectedProduto) {
-      toast.error("Selecione um produto");
-      return;
-    }
-    // Estoque não é editado aqui — só via Movimentações / pedidos
-    const produtoData: Partial<CreateProdutoDto> = {
-      nome: editingProduto.nome || undefined,
-      sku: editingProduto.sku || undefined,
-      preco_custo:
-        editingProduto.preco_custo !== undefined && editingProduto.preco_custo !== null
-          ? Number(editingProduto.preco_custo)
-          : undefined,
-      preco_venda:
-        editingProduto.preco_venda !== undefined && editingProduto.preco_venda !== null
-          ? Number(editingProduto.preco_venda)
-          : undefined,
-      unidade_medida: (editingProduto.unidade_medida as any) || "UN",
-      statusProduto: (editingProduto.statusProduto as any) || "ATIVO",
-      categoriaId: editingProduto.categoriaId,
-      fornecedorId: editingProduto.fornecedorId === null ? null : editingProduto.fornecedorId,
-    };
-
-    // ⭐ Lógica de detecção de remoção de campos opcionais
-    // Conforme GUIA_REMOÇÃO_CAMPOS_PRODUTO.md
-    // Compara valores originais com valores editados para detectar remoções
-    
-    // Função auxiliar para normalizar valores para comparação
-    const normalizeValue = (value: any): string | number | null | undefined => {
-      if (value === null || value === undefined) return null;
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        return trimmed === "" ? null : trimmed;
-      }
-      // Para números, converter string vazia para null
-      if (typeof value === "number") return value;
-      return value;
-    };
-
-    // Função auxiliar para normalizar valores numéricos
-    const normalizeNumericValue = (value: any): number | null => {
-      if (value === null || value === undefined) return null;
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (trimmed === "") return null;
-        const num = Number(trimmed);
-        return isNaN(num) ? null : num;
-      }
-      if (typeof value === "number") return value;
-      return null;
-    };
-
-    // Função auxiliar para verificar se um campo foi removido
-    const wasFieldRemoved = (originalValue: any, currentValue: any): boolean => {
-      const normalizedOriginal = normalizeValue(originalValue);
-      const normalizedCurrent = normalizeValue(currentValue);
-      // Campo tinha valor e agora está vazio/null
-      return normalizedOriginal !== null && normalizedCurrent === null;
-    };
-
-    // Função auxiliar para verificar se um campo numérico foi removido
-    const wasNumericFieldRemoved = (originalValue: any, currentValue: any): boolean => {
-      const normalizedOriginal = normalizeNumericValue(originalValue);
-      const normalizedCurrent = normalizeNumericValue(currentValue);
-      // Campo tinha valor numérico e agora está vazio/null
-      return normalizedOriginal !== null && normalizedCurrent === null;
-    };
-
-    // Função auxiliar para verificar se um campo foi modificado
-    const wasFieldModified = (originalValue: any, currentValue: any): boolean => {
-      const normalizedOriginal = normalizeValue(originalValue);
-      const normalizedCurrent = normalizeValue(currentValue);
-      return normalizedOriginal !== normalizedCurrent;
-    };
-
-    // Função auxiliar para verificar se um campo numérico foi modificado
-    const wasNumericFieldModified = (originalValue: any, currentValue: any): boolean => {
-      const normalizedOriginal = normalizeNumericValue(originalValue);
-      const normalizedCurrent = normalizeNumericValue(currentValue);
-      return normalizedOriginal !== normalizedCurrent;
-    };
-
-    // Campos de texto opcionais
-    const textFields: Array<keyof Produto> = ['descricao', 'ncm', 'cest', 'cfop', 'observacoes'];
-    textFields.forEach(field => {
-      const originalValue = selectedProduto[field];
-      const currentValue = editingProduto[field as keyof typeof editingProduto];
-      
-      if (wasFieldRemoved(originalValue, currentValue)) {
-        // Campo foi removido - enviar null explicitamente
-        produtoData[field as keyof CreateProdutoDto] = null as any;
-      } else if (wasFieldModified(originalValue, currentValue) && currentValue) {
-        // Campo foi modificado e tem novo valor
-        produtoData[field as keyof CreateProdutoDto] = currentValue as any;
-      }
-      // Se não foi modificado, não incluir no payload
-    });
-
-    // Campo localizacao (tratamento especial com trim e limite de 255 caracteres)
-    const originalLocalizacao = selectedProduto.localizacao;
-    const currentLocalizacao = editingProduto.localizacao;
-    if (wasFieldRemoved(originalLocalizacao, currentLocalizacao)) {
-      produtoData.localizacao = null as any;
-    } else if (wasFieldModified(originalLocalizacao, currentLocalizacao) && currentLocalizacao) {
-      const trimmedLocalizacao = typeof currentLocalizacao === 'string' 
-        ? currentLocalizacao.trim().substring(0, 255) 
-        : currentLocalizacao;
-      if (trimmedLocalizacao) {
-        produtoData.localizacao = trimmedLocalizacao;
-      }
-    }
-
-    // Campo data_validade (string especial)
-    const originalDataValidade = selectedProduto.data_validade;
-    const currentDataValidade = editingProduto.data_validade;
-    if (wasFieldRemoved(originalDataValidade, currentDataValidade)) {
-      produtoData.data_validade = null as any;
-    } else if (wasFieldModified(originalDataValidade, currentDataValidade) && currentDataValidade) {
-      produtoData.data_validade = currentDataValidade;
-    }
-
-    // Validação de preço promocional conforme GUIA_FRONTEND_CORRECOES_BACKEND.md
-    const precoVenda = editingProduto.preco_venda || selectedProduto.preco_venda;
-    const precoPromocional = editingProduto.preco_promocional;
-    if (precoPromocional !== undefined && precoPromocional !== null && precoVenda && precoPromocional > precoVenda) {
-      toast.error("O preço promocional não pode ser maior que o preço de venda");
-      return;
-    }
-
-    // Campos numéricos opcionais (sem estoque — alterado só em Movimentações)
-    const numericFields: Array<keyof Produto> = ['preco_promocional', 'peso', 'altura', 'largura'];
-    numericFields.forEach(field => {
-      const originalValue = selectedProduto[field];
-      const currentValue = editingProduto[field as keyof typeof editingProduto];
-      
-      if (wasNumericFieldRemoved(originalValue, currentValue)) {
-        // Campo foi removido - enviar null explicitamente
-        produtoData[field as keyof CreateProdutoDto] = null as any;
-      } else if (wasNumericFieldModified(originalValue, currentValue)) {
-        // Campo foi modificado - verificar se tem novo valor válido
-        const normalizedCurrent = normalizeNumericValue(currentValue);
-        if (normalizedCurrent !== null) {
-          produtoData[field as keyof CreateProdutoDto] = normalizedCurrent as any;
-        }
-      }
-      // Se não foi modificado, não incluir no payload
-    });
-
-    if (import.meta.env.DEV) {
-      console.log('[Produtos] Atualizando produto - Payload completo:', JSON.stringify(produtoData, null, 2));
-      console.log('[Produtos] Valores originais:', {
-        descricao: selectedProduto.descricao,
-        ncm: selectedProduto.ncm,
-        observacoes: selectedProduto.observacoes,
-        preco_promocional: selectedProduto.preco_promocional,
-        estoque_maximo: selectedProduto.estoque_maximo,
-        localizacao: selectedProduto.localizacao,
-      });
-      console.log('[Produtos] Valores editados:', {
-        descricao: editingProduto.descricao,
-        ncm: editingProduto.ncm,
-        observacoes: editingProduto.observacoes,
-        preco_promocional: editingProduto.preco_promocional,
-        estoque_maximo: editingProduto.estoque_maximo,
-        localizacao: editingProduto.localizacao,
-      });
-    }
-
-    updateProdutoMutation.mutate({
-      id: selectedProduto.id,
-      data: produtoData,
-    });
+    navigate(`/produtos/${produto.id}/editar`);
   };
 
   const handleDelete = (id: number) => {
@@ -735,6 +442,29 @@ const Produtos = () => {
     setUpdatingStatusId(id);
     updateStatusMutation.mutate({ id, status: novoStatus });
   };
+
+  // Detalhe do produto na visualização (a listagem não traz as tributações)
+  const { data: produtoDetalhe } = useQuery({
+    queryKey: ["produtos", "detalhe", selectedProduto?.id],
+    queryFn: () => produtosService.buscarPorId(selectedProduto!.id),
+    enabled: viewDialogOpen && !!selectedProduto?.id,
+  });
+  const tributacaoSaida = produtoDetalhe?.tributacoes?.find((t) => t.tipo_operacao === "SAIDA");
+  const resumoTributacaoSaida = tributacaoSaida
+    ? [
+        tributacaoSaida.icms_csosn
+          ? `ICMS CSOSN ${tributacaoSaida.icms_csosn}`
+          : tributacaoSaida.icms_cst
+            ? `ICMS CST ${tributacaoSaida.icms_cst}`
+            : null,
+        tributacaoSaida.icms_aliquota != null ? `${tributacaoSaida.icms_aliquota}%` : null,
+        tributacaoSaida.ipi_cst ? `IPI ${tributacaoSaida.ipi_cst}` : null,
+        tributacaoSaida.pis_cst ? `PIS ${tributacaoSaida.pis_cst}` : null,
+        tributacaoSaida.cofins_cst ? `COFINS ${tributacaoSaida.cofins_cst}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   // Query para buscar histórico de movimentações
   const { data: historicoData, isLoading: isLoadingHistorico } = useQuery({
@@ -1918,8 +1648,22 @@ const Produtos = () => {
                         <p className="font-medium text-base font-mono">{selectedProduto.cest || "--"}</p>
                       </div>
                       <div className="space-y-3">
-                        <Label className="text-sm text-muted-foreground">CFOP</Label>
-                        <p className="font-medium text-base">{selectedProduto.cfop || "--"}</p>
+                        <Label className="text-sm text-muted-foreground">Origem</Label>
+                        <p className="font-medium text-base">
+                          {produtoDetalhe?.origem != null ? produtoDetalhe.origem : "--"}
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        <Label className="text-sm text-muted-foreground">CFOP venda (estadual / interestadual)</Label>
+                        <p className="font-medium text-base font-mono">
+                          {tributacaoSaida?.cfop_estadual || selectedProduto.cfop || "--"}
+                          {" / "}
+                          {tributacaoSaida?.cfop_interestadual || "--"}
+                        </p>
+                      </div>
+                      <div className="space-y-3 col-span-2">
+                        <Label className="text-sm text-muted-foreground">Tributação de saída</Label>
+                        <p className="font-medium text-base">{resumoTributacaoSaida || "--"}</p>
                       </div>
                       <div className="space-y-3">
                         <Label className="text-sm text-muted-foreground">Data de Validade</Label>
@@ -1993,548 +1737,6 @@ const Produtos = () => {
                 </Button>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog de Edição de Produto */}
-        <Dialog 
-          open={editDialogOpen} 
-          onOpenChange={(open) => {
-            setEditDialogOpen(open);
-            if (!open) {
-              setSelectedProduto(null);
-              setEditingProduto({
-                nome: "",
-                descricao: "",
-                sku: "",
-                preco_custo: 0,
-                preco_venda: 0,
-                preco_promocional: undefined,
-                estoque_atual: 0,
-                estoque_minimo: 0,
-                unidade_medida: "UN",
-                statusProduto: "ATIVO",
-                categoriaId: undefined,
-                fornecedorId: undefined,
-                data_validade: undefined,
-                ncm: "",
-                cest: "",
-                cfop: "",
-                observacoes: "",
-                peso: undefined,
-                altura: undefined,
-                largura: undefined,
-              });
-            }
-          }}
-        >
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold">
-                Editar Produto
-              </DialogTitle>
-              <DialogDescription className="mt-1">
-                Atualize as informações do produto no sistema
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-8 pt-6">
-              {/* Seção: Informações Básicas */}
-              <div className="bg-card border rounded-lg p-6 space-y-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-lg bg-orange-500/10">
-                    <Package className="w-5 h-5 text-orange-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Informações Básicas
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Dados principais do produto
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-muted-foreground" />
-                      Nome do Produto *
-                    </Label>
-                    <Input 
-                      placeholder="Ex: Notebook Dell Inspiron"
-                      value={editingProduto.nome || ""}
-                      onChange={(e) =>
-                        setEditingProduto({ ...editingProduto, nome: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-muted-foreground" />
-                      Descrição
-                    </Label>
-                    <Textarea
-                      placeholder="Descrição detalhada do produto"
-                      value={editingProduto.descricao || ""}
-                      onChange={(e) =>
-                        setEditingProduto({ ...editingProduto, descricao: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Hash className="w-4 h-4 text-muted-foreground" />
-                      SKU *
-                    </Label>
-                    <Input 
-                      placeholder="Ex: NB-DELL-001"
-                      value={editingProduto.sku || ""}
-                      onChange={(e) =>
-                        setEditingProduto({ ...editingProduto, sku: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção: Categorização */}
-              <div className="bg-card border rounded-lg p-6 space-y-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-lg bg-blue-500/10">
-                    <LayoutGrid className="w-5 h-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Categorização
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Categoria e fornecedor do produto
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <LayoutGrid className="w-4 h-4 text-muted-foreground" />
-                        Categoria *
-                      </Label>
-                      <Select
-                        value={editingProduto.categoriaId?.toString() || undefined}
-                        onValueChange={(value) =>
-                          setEditingProduto({
-                            ...editingProduto,
-                            categoriaId: Number(value),
-                          })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione uma categoria" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categorias.length === 0 ? (
-                            <div className="py-6 px-4 text-center text-sm text-muted-foreground">
-                              <LayoutGrid className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                              <p className="font-medium text-foreground">Nenhuma categoria cadastrada</p>
-                              <p className="mt-1 text-xs">Cadastre uma categoria antes de editar o produto.</p>
-                            </div>
-                          ) : (
-                            categorias.map((cat) => (
-                              <SelectItem key={cat.id} value={cat.id.toString()}>
-                                {cat.nome}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Truck className="w-4 h-4 text-muted-foreground" />
-                        Fornecedor (opcional)
-                      </Label>
-                      <Select
-                        value={editingProduto.fornecedorId != null ? editingProduto.fornecedorId.toString() : "none"}
-                        onValueChange={(value) =>
-                          setEditingProduto({
-                            ...editingProduto,
-                            fornecedorId: value === "none" ? null : Number(value),
-                          })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um fornecedor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Nenhum</SelectItem>
-                          {fornecedores.map((forn) => (
-                            <SelectItem key={forn.id} value={forn.id.toString()}>
-                              {forn.nome_fantasia}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção: Preços */}
-              <div className="bg-card border rounded-lg p-6 space-y-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-lg bg-green-500/10">
-                    <DollarSign className="w-5 h-5 text-green-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Preços
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Valores de custo e venda
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <DollarSign className="w-4 h-4 text-muted-foreground" />
-                        Preço de Custo *
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={editingProduto.preco_custo || ""}
-                        onChange={(e) =>
-                          setEditingProduto({
-                            ...editingProduto,
-                            preco_custo: e.target.value ? Number(e.target.value) : 0,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <DollarSign className="w-4 h-4 text-muted-foreground" />
-                        Preço de Venda *
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={editingProduto.preco_venda || ""}
-                        onChange={(e) =>
-                          setEditingProduto({
-                            ...editingProduto,
-                            preco_venda: e.target.value ? Number(e.target.value) : 0,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <DollarSign className="w-4 h-4 text-muted-foreground" />
-                        Preço Promocional
-                      </Label>
-                      <Input 
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={editingProduto.preco_promocional || ""}
-                        onChange={(e) =>
-                          setEditingProduto({
-                            ...editingProduto,
-                            preco_promocional: e.target.value ? Number(e.target.value) : undefined,
-                          })
-                        }
-                        className={editingProduto.preco_promocional && editingProduto.preco_venda && editingProduto.preco_promocional > editingProduto.preco_venda ? "border-destructive" : ""}
-                      />
-                      {editingProduto.preco_promocional && editingProduto.preco_venda && editingProduto.preco_promocional > editingProduto.preco_venda && (
-                        <p className="text-sm text-destructive">O preço promocional não pode ser maior que o preço de venda</p>
-                      )}
-                      {editingProduto.preco_promocional && editingProduto.preco_venda && editingProduto.preco_promocional <= editingProduto.preco_venda && (
-                        <p className="text-sm text-muted-foreground">
-                          Desconto: {((1 - editingProduto.preco_promocional / editingProduto.preco_venda) * 100).toFixed(1)}%
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção: Estoque */}
-              <div className="bg-card border rounded-lg p-6 space-y-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-lg bg-purple-500/10">
-                    <Package className="w-5 h-5 text-purple-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Estoque
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Unidade de medida. Quantidades só por movimentação ou pedido.
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-2 max-w-xs">
-                  <Label>Unidade de Medida *</Label>
-                  <Select
-                    value={editingProduto.unidade_medida || "UN"}
-                    onValueChange={(value: "UN" | "KG" | "LT" | "CX") =>
-                      setEditingProduto({
-                        ...editingProduto,
-                        unidade_medida: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="UN">Unidade (UN)</SelectItem>
-                      <SelectItem value="KG">Quilograma (KG)</SelectItem>
-                      <SelectItem value="LT">Litro (LT)</SelectItem>
-                      <SelectItem value="CX">Caixa (CX)</SelectItem>
-                      <SelectItem value="SC">Saco (SC)</SelectItem>
-                      <SelectItem value="ARROBA">Arroba (ARROBA)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Seção: Informações Fiscais */}
-              <div className="bg-card border rounded-lg p-6 space-y-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-lg bg-indigo-500/10">
-                    <FileCheck className="w-5 h-5 text-indigo-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Informações Fiscais
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Códigos fiscais e tributários
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Hash className="w-4 h-4 text-muted-foreground" />
-                        NCM
-                      </Label>
-                      <Input
-                        placeholder="Ex: 8517.12.00"
-                        maxLength={20}
-                        value={editingProduto.ncm || ""}
-                        onChange={(e) =>
-                          setEditingProduto({ ...editingProduto, ncm: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Hash className="w-4 h-4 text-muted-foreground" />
-                        CEST
-                      </Label>
-                      <Input
-                        placeholder="Ex: 0100100"
-                        maxLength={20}
-                        value={editingProduto.cest || ""}
-                        onChange={(e) =>
-                          setEditingProduto({ ...editingProduto, cest: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Hash className="w-4 h-4 text-muted-foreground" />
-                        CFOP
-                      </Label>
-                      <Input
-                        placeholder="Ex: 5102"
-                        maxLength={20}
-                        value={editingProduto.cfop || ""}
-                        onChange={(e) =>
-                          setEditingProduto({ ...editingProduto, cfop: e.target.value })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção: Dimensões e Peso */}
-              <div className="bg-card border rounded-lg p-6 space-y-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-lg bg-teal-500/10">
-                    <Ruler className="w-5 h-5 text-teal-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Dimensões e Peso
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Medidas físicas do produto
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Ruler className="w-4 h-4 text-muted-foreground" />
-                        Peso (kg)
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.001"
-                        placeholder="0.000"
-                        value={editingProduto.peso || ""}
-                        onChange={(e) =>
-                          setEditingProduto({
-                            ...editingProduto,
-                            peso: e.target.value ? Number(e.target.value) : undefined,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Ruler className="w-4 h-4 text-muted-foreground" />
-                        Altura (cm)
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={editingProduto.altura || ""}
-                        onChange={(e) =>
-                          setEditingProduto({
-                            ...editingProduto,
-                            altura: e.target.value ? Number(e.target.value) : undefined,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Ruler className="w-4 h-4 text-muted-foreground" />
-                        Largura (cm)
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={editingProduto.largura || ""}
-                        onChange={(e) =>
-                          setEditingProduto({
-                            ...editingProduto,
-                            largura: e.target.value ? Number(e.target.value) : undefined,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        Data de Validade
-                      </Label>
-                      <Input
-                        type="date"
-                        value={editingProduto.data_validade || ""}
-                        onChange={(e) =>
-                          setEditingProduto({ ...editingProduto, data_validade: e.target.value || undefined })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seção: Outros */}
-              <div className="bg-card border rounded-lg p-6 space-y-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-lg bg-gray-500/10">
-                    <Info className="w-5 h-5 text-gray-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">
-                      Outros
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Observações e status do produto
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-muted-foreground" />
-                      Observações
-                    </Label>
-                    <Textarea
-                      placeholder="Observações adicionais sobre o produto"
-                      value={editingProduto.observacoes || ""}
-                      onChange={(e) =>
-                        setEditingProduto({ ...editingProduto, observacoes: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold">Status</Label>
-                    <div className="grid grid-cols-2 gap-4">
-                      {(["ATIVO", "INATIVO"] as const).map((status) => (
-                        <button
-                          key={status}
-                          type="button"
-                          onClick={() =>
-                            setEditingProduto({
-                              ...editingProduto,
-                              statusProduto: status,
-                            })
-                          }
-                          className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
-                            editingProduto.statusProduto === status
-                              ? "border-primary bg-primary/5"
-                              : "border-border bg-card hover:border-primary/50"
-                          }`}
-                        >
-                          <Circle
-                            className={`w-4 h-4 ${
-                              editingProduto.statusProduto === status
-                                ? status === "ATIVO"
-                                  ? "text-green-500 fill-green-500"
-                                  : "text-muted-foreground fill-muted-foreground"
-                                : "text-muted-foreground"
-                            }`}
-                          />
-                          <span className="font-medium">{status}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                onClick={handleUpdate}
-                className="w-full"
-                variant="gradient"
-                disabled={updateProdutoMutation.isPending}
-              >
-                {updateProdutoMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Atualizando...
-                  </>
-                ) : (
-                  "Atualizar Produto"
-                )}
-              </Button>
-            </div>
           </DialogContent>
         </Dialog>
 
