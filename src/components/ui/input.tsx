@@ -2,6 +2,16 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Sem `max`, o navegador aceita ano com até 6 dígitos (ex.: 202655).
+ * O limite padrão restringe o ano a 4 dígitos; um `max` informado pela tela prevalece.
+ */
+const MAX_PADRAO_DATA: Partial<Record<string, string>> = {
+  date: "9999-12-31",
+  "datetime-local": "9999-12-31T23:59",
+  month: "9999-12",
+};
+
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, type, ...props }, ref) => {
     return (
@@ -13,6 +23,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         )}
         ref={ref}
         {...props}
+        max={props.max ?? (type ? MAX_PADRAO_DATA[type] : undefined)}
       />
     );
   },
