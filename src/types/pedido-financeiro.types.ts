@@ -78,4 +78,8 @@ export interface RegistrarPagamentoBody {
   tipo_lancamento?: string;
   /** Dados do cheque (obrigatório quando forma_pagamento = CHEQUE) */
   cheque?: ChequeRegistro;
+  /** Juros da conta selecionada (valor final; substitui o atual) */
+  juros?: number;
+  /** Desconto da conta selecionada (valor final; substitui o atual) */
+  desconto?: number;
 }

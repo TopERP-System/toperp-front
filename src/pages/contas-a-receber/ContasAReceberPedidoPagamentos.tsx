@@ -1,4 +1,5 @@
 import AppLayout from '@/components/layout/AppLayout';
+import { AjusteJurosDescontoPagamento } from '@/components/financeiro/AjusteJurosDescontoPagamento';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +11,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { calcularValorTotalConta } from '@/lib/conta-financeira-edicao';
 import { formatCurrency, formatarFormaPagamento } from '@/lib/utils';
 import { financeiroService } from '@/services/financeiro.service';
 import { contasBancariasService } from '@/services/contas-bancarias.service';
@@ -124,6 +126,57 @@ const ContasAReceberPedidoPagamentos = () => {
     [contasDoPedido],
   );
 
+  // Juros/desconto da conta selecionada: começam com os valores atuais da conta e,
+  // se alterados, substituem os da conta ao registrar (o valor total do pedido não muda).
+  const contaSelecionada = contasDoPedido.find((c) => String(c.id) === contaFinanceiraId);
+  const permiteAjusteJurosDesconto = !!contaSelecionada && !ehPagamentoAdiantamento;
+  const jurosAtual = Number(contaSelecionada?.juros ?? 0) || 0;
+  const descontoAtual = Number(contaSelecionada?.desconto ?? 0) || 0;
+  const valorOriginalConta =
+    Number(
+      contaSelecionada?.valor_original ??
+        Number(contaSelecionada?.valor_total ?? 0) - jurosAtual + descontoAtual,
+    ) || 0;
+  const valorPagoConta = Number(contaSelecionada?.valor_pago ?? 0) || 0;
+  const [jurosAjuste, setJurosAjuste] = useState<number | ''>('');
+  const [descontoAjuste, setDescontoAjuste] = useState<number | ''>('');
+  useEffect(() => {
+    setJurosAjuste(jurosAtual);
+    setDescontoAjuste(descontoAtual);
+  }, [contaFinanceiraId, jurosAtual, descontoAtual]);
+  const jurosDescontoAlterados =
+    permiteAjusteJurosDesconto &&
+    (Math.abs((Number(jurosAjuste) || 0) - jurosAtual) > 0.001 ||
+      Math.abs((Number(descontoAjuste) || 0) - descontoAtual) > 0.001);
+  const valorTotalContaAjustado = calcularValorTotalConta(
+    valorOriginalConta,
+    jurosAjuste,
+    descontoAjuste,
+  );
+  const valorEmAbertoContaAjustado = Math.max(
+    0,
+    Math.round((valorTotalContaAjustado - valorPagoConta) * 100) / 100,
+  );
+  // O ajuste (juros − desconto) entra no saldo do pedido.
+  const deltaAjuste = jurosDescontoAlterados
+    ? (Number(jurosAjuste) || 0) - jurosAtual - ((Number(descontoAjuste) || 0) - descontoAtual)
+    : 0;
+  const valorEmAbertoAjustado = Math.max(
+    0,
+    Math.round((valorEmAberto + deltaAjuste) * 100) / 100,
+  );
+  const descontoInvalido = jurosDescontoAlterados && valorTotalContaAjustado < 0;
+
+  const usuarioEditouValor = useRef(false);
+  /** Com juros/desconto alterados, sugere o novo em aberto da conta (se o valor não foi digitado). */
+  const ajustarJurosDesconto = (juros: number | '', desconto: number | '') => {
+    setJurosAjuste(juros);
+    setDescontoAjuste(desconto);
+    if (usuarioEditouValor.current || !contaSelecionada) return;
+    const total = calcularValorTotalConta(valorOriginalConta, juros, desconto);
+    setValorPago(Math.max(0, Math.round((total - valorPagoConta) * 100) / 100));
+  };
+
   const formasDoPedido = useMemo(() => {
     const doPlano = (pedido?.formas_pagamento ?? [])
       .map((fp) => String(fp.forma_pagamento || ''))
@@ -194,6 +247,7 @@ const ContasAReceberPedidoPagamentos = () => {
 
   const selecionarConta = (contaIdStr: string) => {
     setContaFinanceiraId(contaIdStr);
+    usuarioEditouValor.current = false;
     const conta = contasAbertas.find((c) => String(c.id) === contaIdStr);
     if (!conta) return;
     if (conta.forma_pagamento) {
@@ -212,9 +266,20 @@ const ContasAReceberPedidoPagamentos = () => {
       const valor = Number(valorPago);
       if (!valor || valor <= 0) throw new Error('Informe o valor pago');
       if (!formaPagamento) throw new Error('Selecione a forma de pagamento');
-      if (valor > valorEmAberto) throw new Error('Valor não pode ser maior que o valor em aberto');
+      if (descontoInvalido) {
+        throw new Error('O desconto não pode ser maior que o valor original somado aos juros.');
+      }
+      if (valor > valorEmAbertoAjustado + 0.009) {
+        throw new Error('Valor não pode ser maior que o valor em aberto');
+      }
+      if (jurosDescontoAlterados && valor > valorEmAbertoContaAjustado + 0.009) {
+        throw new Error('Valor não pode ser maior que o valor em aberto da conta');
+      }
       return pedidosService.registrarPagamentoPedido(id, {
         valor,
+        ...(jurosDescontoAlterados
+          ? { juros: Number(jurosAjuste) || 0, desconto: Number(descontoAjuste) || 0 }
+          : {}),
         forma_pagamento: formaPagamento,
         data_pagamento: dataPagamento,
         ...(contaFinanceiraId ? { conta_financeira_id: Number(contaFinanceiraId) } : {}),
@@ -244,7 +309,10 @@ const ContasAReceberPedidoPagamentos = () => {
       setTimeout(() => navigate(`/financeiro/contas-receber/${pedidoId}`), 1000);
     },
     onError: (error: any) => {
-      if (error?.response?.status === 404 || error?.response?.status === 501) {
+      if (
+        (error?.response?.status === 404 || error?.response?.status === 501) &&
+        !jurosDescontoAlterados
+      ) {
         registrarFallback.mutate();
         return;
       }
@@ -397,19 +465,37 @@ const ContasAReceberPedidoPagamentos = () => {
               </div>
             )}
 
+            {permiteAjusteJurosDesconto ? (
+              <AjusteJurosDescontoPagamento
+                valorOriginal={valorOriginalConta}
+                valorPagoAtual={valorPagoConta}
+                juros={jurosAjuste}
+                desconto={descontoAjuste}
+                jurosAtual={jurosAtual}
+                descontoAtual={descontoAtual}
+                onJurosChange={(v) => ajustarJurosDesconto(v, descontoAjuste)}
+                onDescontoChange={(v) => ajustarJurosDesconto(jurosAjuste, v)}
+                labelPago="Já recebido"
+              />
+            ) : null}
+
             <div className="space-y-2">
               <Label>Valor *</Label>
               <Input
                 type="number"
                 step="0.01"
                 min="0"
-                max={valorEmAberto}
+                max={valorEmAbertoAjustado}
                 value={valorPago === '' ? '' : valorPago}
-                onChange={(e) => setValorPago(e.target.value ? Number(e.target.value) : '')}
+                onChange={(e) => {
+                  usuarioEditouValor.current = true;
+                  setValorPago(e.target.value ? Number(e.target.value) : '');
+                }}
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Valor em aberto: {formatCurrency(valorEmAberto)}. Permite pagamento parcial.
+                Valor em aberto{jurosDescontoAlterados ? ' (com juros/desconto)' : ''}:{' '}
+                {formatCurrency(valorEmAbertoAjustado)}. Permite pagamento parcial.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -489,7 +575,7 @@ const ContasAReceberPedidoPagamentos = () => {
               <Button type="button" variant="outline" onClick={() => navigate(`/financeiro/contas-receber/${pedidoId}`)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isPending || !formaPagamento || !valorPago || Number(valorPago) <= 0}>
+              <Button type="submit" disabled={isPending || descontoInvalido || !formaPagamento || !valorPago || Number(valorPago) <= 0}>
                 {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Registrando...</> : <><DollarSign className="w-4 h-4 mr-2" />Registrar Pagamento</>}
               </Button>
             </div>
