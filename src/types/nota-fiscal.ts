@@ -168,6 +168,8 @@ export interface NotaFiscalPreEmissao {
   cliente: NotaFiscalPreEmissaoCliente | null;
   itens: NotaFiscalPreEmissaoItem[];
   campos_faltantes: CampoFaltanteNotaFiscal[];
+  /** Avisos que não bloqueiam a emissão (ex.: produto sem tributação própria). */
+  avisos?: string[];
   pode_emitir: boolean;
 }
 
