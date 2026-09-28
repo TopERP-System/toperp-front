@@ -1,10 +1,15 @@
+import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Testes E2E do frontend (pasta e2e/).
+ * Testes E2E do frontend (pasta e2e/) — como rodar: e2e/README.md.
  * Sobe o Vite na porta 8080 ou reaproveita o que já estiver rodando.
  * Testes que precisam de login usam E2E_EMAIL e E2E_SENHA (ver e2e/helpers/login.ts).
  */
+
+// Credenciais locais dos testes (fora do git); variáveis já definidas no terminal têm prioridade
+if (existsSync(".env.e2e")) process.loadEnvFile(".env.e2e");
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
