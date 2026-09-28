@@ -1,5 +1,8 @@
 export type TipoPedido = 'VENDA' | 'COMPRA';
 
+/** Modelo do PDF individual do pedido (query `campos` de GET /pedidos/:id/relatorio/pdf). */
+export type RelatorioPedidoModelo = 'completo' | 'principais' | 'expedicao' | 'producao';
+
 /**
  * Status operacional do pedido (atendimento).
  * ABERTO → sem contas e sem estoque

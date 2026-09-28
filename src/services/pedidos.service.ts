@@ -7,6 +7,7 @@ import {
     FiltrosPedidos,
     Pedido,
     PedidosResponse,
+    RelatorioPedidoModelo,
 } from '@/types/pedido';
 import type { ItemHistoricoPagamento, RegistrarPagamentoBody, ResumoFinanceiroPedido } from '@/types/pedido-financeiro.types';
 import { apiClient } from './api';
@@ -474,20 +475,26 @@ class PedidosService {
   async downloadRelatorioPedidoPdf(
     pedidoId: number,
     numeroPedido?: string,
-    campos: 'completo' | 'principais' = 'completo',
+    campos: RelatorioPedidoModelo = 'completo',
   ): Promise<void> {
     const q = new URLSearchParams();
-    if (campos === 'principais') q.append('campos', 'principais');
+    if (campos !== 'completo') q.append('campos', campos);
     const query = q.toString();
     const blob = await apiClient.getBlob(
       `/pedidos/${pedidoId}/relatorio/pdf${query ? `?${query}` : ''}`,
     );
     const safeNumero =
       numeroPedido?.replace(/[^\w-]+/g, '_') || String(pedidoId);
+    const prefixo: Record<RelatorioPedidoModelo, string> = {
+      completo: 'pedido',
+      principais: 'pedido',
+      expedicao: 'ordem-expedicao',
+      producao: 'ordem-producao',
+    };
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pedido-${safeNumero}.pdf`;
+    a.download = `${prefixo[campos]}-${safeNumero}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -499,10 +506,10 @@ class PedidosService {
    */
   async printRelatorioPedidoPdf(
     pedidoId: number,
-    campos: 'completo' | 'principais' = 'completo',
+    campos: RelatorioPedidoModelo = 'completo',
   ): Promise<void> {
     const q = new URLSearchParams();
-    if (campos === 'principais') q.append('campos', 'principais');
+    if (campos !== 'completo') q.append('campos', campos);
     const query = q.toString();
     const blob = await apiClient.getBlob(
       `/pedidos/${pedidoId}/relatorio/pdf${query ? `?${query}` : ''}`,

@@ -48,7 +48,21 @@ import { useRotuloRoca } from '@/hooks/useRotuloRoca';
 import { formatCurrency, normalizeCurrency } from '@/lib/utils';
 import { controleRocaService } from '@/services/controle-roca.service';
 import { pedidosService } from '@/services/pedidos.service';
-import { FiltrosPedidos, Pedido, StatusPedido, TipoPedido } from '@/types/pedido';
+import {
+  FiltrosPedidos,
+  Pedido,
+  RelatorioPedidoModelo,
+  StatusPedido,
+  TipoPedido,
+} from '@/types/pedido';
+
+/** Nome e gênero (para concordância no toast) de cada modelo do PDF individual. */
+const NOME_RELATORIO_PEDIDO: Record<RelatorioPedidoModelo, { nome: string; feminino: boolean }> = {
+  completo: { nome: 'Relatório', feminino: false },
+  principais: { nome: 'Relatório', feminino: false },
+  expedicao: { nome: 'Ordem de expedição', feminino: true },
+  producao: { nome: 'Ordem de produção', feminino: true },
+};
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Calendar,
@@ -125,7 +139,7 @@ export default function Pedidos() {
   const [camposRelPed, setCamposRelPed] = useState<RelatorioPedidoCampos>('completo');
   const [relatorioIndividualDialogOpen, setRelatorioIndividualDialogOpen] = useState(false);
   const [relatorioIndividualOrder, setRelatorioIndividualOrder] = useState<Pedido | null>(null);
-  const [camposRelIndividual, setCamposRelIndividual] = useState<RelatorioPedidoCampos>('completo');
+  const [camposRelIndividual, setCamposRelIndividual] = useState<RelatorioPedidoModelo>('completo');
   const [relIndividualLoadingAction, setRelIndividualLoadingAction] = useState<'download' | 'print' | null>(null);
   const [relatoriosDialogOpen, setRelatoriosDialogOpen] = useState(false);
   const [notaFiscalDialogOpen, setNotaFiscalDialogOpen] = useState(false);
@@ -191,7 +205,7 @@ export default function Pedidos() {
 
   const handleDownloadRelatorioPedido = async (
     order: Pedido,
-    campos: RelatorioPedidoCampos = camposRelIndividual,
+    campos: RelatorioPedidoModelo = camposRelIndividual,
   ) => {
     setReportingOrderId(order.id);
     try {
@@ -200,7 +214,8 @@ export default function Pedidos() {
         order.numero_pedido,
         campos,
       );
-      toast.success(`Relatório do pedido ${order.numero_pedido} baixado.`);
+      const { nome, feminino } = NOME_RELATORIO_PEDIDO[campos];
+      toast.success(`${nome} do pedido ${order.numero_pedido} ${feminino ? 'baixada' : 'baixado'}.`);
       setRelatorioIndividualDialogOpen(false);
     } catch (err: unknown) {
       const message =
@@ -213,12 +228,15 @@ export default function Pedidos() {
 
   const handlePrintRelatorioPedido = async (
     order: Pedido,
-    campos: RelatorioPedidoCampos = camposRelIndividual,
+    campos: RelatorioPedidoModelo = camposRelIndividual,
   ) => {
     setReportingOrderId(order.id);
     try {
       await pedidosService.printRelatorioPedidoPdf(order.id, campos);
-      toast.success(`Relatório do pedido ${order.numero_pedido} aberto para impressão.`);
+      const { nome, feminino } = NOME_RELATORIO_PEDIDO[campos];
+      toast.success(
+        `${nome} do pedido ${order.numero_pedido} ${feminino ? 'aberta' : 'aberto'} para impressão.`,
+      );
       setRelatorioIndividualDialogOpen(false);
     } catch (err: unknown) {
       const message =
@@ -1094,7 +1112,7 @@ export default function Pedidos() {
                 ? `Relatório — ${relatorioIndividualOrder.numero_pedido}`
                 : 'Relatório de pedido'
             }
-            description="Escolha quais informações incluir no PDF."
+            description="Escolha o tipo de relatório."
             footer={
               relatorioIndividualOrder ? (
                 <RelatorioAcoesFooter

@@ -149,8 +149,8 @@ export function OrderList({
               className="gap-2"
               title={
                 pedidoVinculadoRoca(order)
-                  ? 'Relatório PDF com itens (sem endereço/contato da roça)'
-                  : 'Relatório PDF com itens e endereço'
+                  ? 'Relatório PDF com itens (sem endereço/contato da roça), ordem de produção ou de expedição'
+                  : 'Relatório PDF com itens e endereço, ordem de produção ou de expedição'
               }
             >
               {reportingOrderId === order.id ? (
