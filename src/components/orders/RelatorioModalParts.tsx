@@ -249,18 +249,18 @@ export type RelatorioPedidoCampos = 'completo' | 'principais';
 const OPCOES_MODELO_PEDIDO: { value: RelatorioPedidoModelo; titulo: string; descricao: string }[] = [
   {
     value: 'completo',
-    titulo: 'Todos os campos',
-    descricao: 'Inclui endereço e contato do cliente ou fornecedor.',
+    titulo: 'Pedido completo',
+    descricao: 'Impressão do pedido com endereço e contato do cliente ou fornecedor.',
   },
   {
     value: 'principais',
-    titulo: 'Apenas campos principais',
-    descricao: 'Omite endereço e contato; mantém cliente, detalhes do pedido e itens.',
+    titulo: 'Pedido resumido',
+    descricao: 'Impressão do pedido sem endereço e contato; mantém cliente, detalhes e itens.',
   },
   {
     value: 'expedicao',
     titulo: 'Ordem de expedição',
-    descricao: 'Igual aos campos principais, com título de Ordem de Expedição e data de entrega.',
+    descricao: 'Igual ao pedido resumido, com título de Ordem de Expedição e data de entrega.',
   },
   {
     value: 'producao',
@@ -282,7 +282,7 @@ export function RelatorioPedidoCamposSection({
   hint?: string;
 }) {
   return (
-    <RelatorioSectionCard title="Tipo de relatório" icon={FileText}>
+    <RelatorioSectionCard title="O que imprimir?" icon={FileText}>
       <RadioGroup
         value={value}
         onValueChange={(v) => onChange(v as RelatorioPedidoModelo)}

@@ -996,7 +996,7 @@ export default function Pedidos() {
 
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-[#1A3B70]">
-                    Conteúdo do relatório
+                    O que imprimir?
                   </Label>
                   <RadioGroup
                     value={camposRelPed}
@@ -1014,10 +1014,10 @@ export default function Pedidos() {
                         className="cursor-pointer space-y-0.5 font-normal"
                       >
                         <span className="block text-sm font-medium text-[#1A3B70]">
-                          Todos os campos
+                          Pedidos completos
                         </span>
                         <span className="block text-xs text-muted-foreground">
-                          Inclui endereço e contato do cliente ou fornecedor.
+                          Impressão dos pedidos com endereço e contato do cliente ou fornecedor.
                         </span>
                       </Label>
                     </div>
@@ -1032,10 +1032,10 @@ export default function Pedidos() {
                         className="cursor-pointer space-y-0.5 font-normal"
                       >
                         <span className="block text-sm font-medium text-[#1A3B70]">
-                          Apenas campos principais
+                          Pedidos resumidos
                         </span>
                         <span className="block text-xs text-muted-foreground">
-                          Omite endereço e contato; mantém cliente, detalhes e itens.
+                          Impressão dos pedidos sem endereço e contato; mantém cliente, detalhes e itens.
                         </span>
                       </Label>
                     </div>
