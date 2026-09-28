@@ -260,7 +260,7 @@ const OPCOES_MODELO_PEDIDO: { value: RelatorioPedidoModelo; titulo: string; desc
   {
     value: 'expedicao',
     titulo: 'Ordem de expedição',
-    descricao: 'Igual ao pedido resumido, com título de Ordem de Expedição e data de entrega.',
+    descricao: 'Pré-aviso de entrega: quantidade bruta (sem perda), data de entrega e assinaturas do conferente e do transportador.',
   },
   {
     value: 'producao',
