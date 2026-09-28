@@ -175,6 +175,8 @@ export function OrderForm({
   const [dataPedido, setDataPedido] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
+  /** Data de entrega prevista (opcional) — usada nas ordens de produção/expedição. */
+  const [dataEntregaPrevista, setDataEntregaPrevista] = useState<string>('');
   const minDataVencimento = useMemo(() => {
     const hojeStr = new Date().toISOString().split('T')[0];
     const hoje = parseDataLocal(hojeStr);
@@ -395,6 +397,7 @@ export function OrderForm({
     setTransportadoraId(undefined);
     setRocaId(undefined);
     setDataPedido(new Date().toISOString().split('T')[0]);
+    setDataEntregaPrevista('');
     setFormaPagamento(undefined);
     setFormaPagamentoEstrutural(undefined);
     setFormaPagamentoSelecionada(undefined);
@@ -444,6 +447,7 @@ export function OrderForm({
         const dataVencimentoOnly = order.data_vencimento_base?.split('T')[0].split(' ')[0] || '';
 
         setDataPedido(dataPedidoOnly);
+        setDataEntregaPrevista(order.data_entrega_prevista?.split('T')[0].split(' ')[0] ?? '');
         setFormaPagamento(order.forma_pagamento);
         const formaEstruturalOrder = (order as any).forma_pagamento_estrutural;
         const formaSelecionada =
@@ -566,6 +570,7 @@ export function OrderForm({
     const hoje = new Date().toISOString().split('T')[0];
     if (dataPrev) {
       setDataPedido(dataPrev);
+      setDataEntregaPrevista(dataPrev);
       setDataVencimento(dataPrev);
     } else {
       setDataPedido(hoje);
@@ -891,6 +896,15 @@ export function OrderForm({
     const pedidoRetrospectivo = dataPedidoDate.getTime() < hoje.getTime();
     const limiteMinimoVencimento = pedidoRetrospectivo ? dataPedidoDate : hoje;
 
+    if (dataEntregaPrevista) {
+      const dataEntregaDate = parseDataLocal(dataEntregaPrevista);
+      dataEntregaDate.setHours(0, 0, 0, 0);
+      if (dataEntregaDate.getTime() < dataPedidoDate.getTime()) {
+        toast.error('A data de entrega não pode ser anterior à data do pedido.');
+        return;
+      }
+    }
+
     const validarDataVencimento = (dataStr: string, contexto: string): boolean => {
       if (!dataStr?.trim()) {
         toast.error(contexto);
@@ -1029,6 +1043,8 @@ export function OrderForm({
     const pedidoData: CreatePedidoDto = {
       tipo,
       data_pedido: dataPedido,
+      // Na edição, null permite limpar a data; '' seria rejeitado pelo DTO
+      data_entrega_prevista: dataEntregaPrevista || (order ? null : undefined),
       cliente_id: tipo === 'VENDA' ? clienteId : undefined,
       fornecedor_id: tipo === 'COMPRA' ? fornecedorId : undefined,
       transportadora_id: transportadoraId,
@@ -1309,6 +1325,16 @@ export function OrderForm({
                     value={dataPedido}
                     onChange={(e) => setDataPedido(e.target.value)}
                     required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data de Entrega</Label>
+                  <Input
+                    type="date"
+                    className={inputClass}
+                    min={dataPedido}
+                    value={dataEntregaPrevista}
+                    onChange={(e) => setDataEntregaPrevista(e.target.value)}
                   />
                 </div>
               </div>
@@ -1889,7 +1915,19 @@ export function OrderForm({
                     type="number"
                     min="0"
                     value={prazoEntregaDias || ''}
-                    onChange={(e) => setPrazoEntregaDias(e.target.value ? Number(e.target.value) : undefined)}
+                    onChange={(e) => {
+                      const prazo = e.target.value ? Number(e.target.value) : undefined;
+                      setPrazoEntregaDias(prazo);
+                      // Sugere a data de entrega a partir do prazo, sem sobrescrever o que o usuário informou
+                      if (prazo != null && prazo >= 0 && !dataEntregaPrevista && dataPedido) {
+                        const sugerida = parseDataLocal(dataPedido);
+                        sugerida.setDate(sugerida.getDate() + prazo);
+                        const y = sugerida.getFullYear();
+                        const m = String(sugerida.getMonth() + 1).padStart(2, '0');
+                        const d = String(sugerida.getDate()).padStart(2, '0');
+                        setDataEntregaPrevista(`${y}-${m}-${d}`);
+                      }
+                    }}
                   />
                 </div>
 

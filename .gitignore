@@ -23,8 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.e2e
 
 # Playwright
+.env.e2e
 /test-results/
 /playwright-report/
 /blob-report/

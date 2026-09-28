@@ -1,5 +1,8 @@
 export type TipoPedido = 'VENDA' | 'COMPRA';
 
+/** Modelo do PDF individual do pedido (query `campos` de GET /pedidos/:id/relatorio/pdf). */
+export type RelatorioPedidoModelo = 'completo' | 'principais' | 'expedicao' | 'producao';
+
 /**
  * Status operacional do pedido (atendimento).
  * ABERTO → sem contas e sem estoque
@@ -122,7 +125,7 @@ export interface CreatePedidoDto {
   /** Roça vinculada (opcional). */
   roca_id?: number;
   data_pedido: string;
-  data_entrega_prevista?: string;
+  data_entrega_prevista?: string | null;
   condicao_pagamento?: string;
   data_vencimento?: string; // Data de vencimento para as contas financeiras do pedido
   data_vencimento_base?: string; // Data base para primeiro vencimento (parcelas mensais)

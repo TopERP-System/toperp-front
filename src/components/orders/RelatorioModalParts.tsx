@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import type { RelatorioPedidoModelo } from '@/types/pedido';
 import {
   CalendarRange,
   Download,
@@ -242,45 +243,73 @@ export function RelatorioCampoFiltro({
   );
 }
 
+/** Conteúdo do relatório consolidado (hub "Relatórios"). */
 export type RelatorioPedidoCampos = 'completo' | 'principais';
 
+const OPCOES_MODELO_PEDIDO: { value: RelatorioPedidoModelo; titulo: string; descricao: string }[] = [
+  {
+    value: 'completo',
+    titulo: 'Pedido completo',
+    descricao: 'Impressão do pedido com endereço e contato do cliente ou fornecedor.',
+  },
+  {
+    value: 'principais',
+    titulo: 'Pedido resumido',
+    descricao: 'Impressão do pedido sem endereço e contato; mantém cliente, detalhes e itens.',
+  },
+  {
+    value: 'expedicao',
+    titulo: 'Ordem de expedição',
+    descricao: 'Igual ao pedido resumido, com título de Ordem de Expedição e data de entrega.',
+  },
+  {
+    value: 'producao',
+    titulo: 'Ordem de produção',
+    descricao: 'Destaque para produtos e quantidades, sem valores. Para separação e embalagem.',
+  },
+];
+
+/** Seletor do modelo do PDF individual do pedido (menu ⋮ → Relatório PDF). */
 export function RelatorioPedidoCamposSection({
   value,
   onChange,
   disabled = false,
   hint,
 }: {
-  value: RelatorioPedidoCampos;
-  onChange: (value: RelatorioPedidoCampos) => void;
+  value: RelatorioPedidoModelo;
+  onChange: (value: RelatorioPedidoModelo) => void;
   disabled?: boolean;
   hint?: string;
 }) {
   return (
-    <RelatorioSectionCard title="Conteúdo do relatório" icon={FileText}>
+    <RelatorioSectionCard title="O que imprimir?" icon={FileText}>
       <RadioGroup
         value={value}
-        onValueChange={(v) => onChange(v as RelatorioPedidoCampos)}
+        onValueChange={(v) => onChange(v as RelatorioPedidoModelo)}
         className="space-y-2"
         disabled={disabled}
       >
-        <div className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-background/80 px-3 py-3">
-          <RadioGroupItem value="completo" id="rel-ped-campos-completo" className="mt-0.5" />
-          <Label htmlFor="rel-ped-campos-completo" className="cursor-pointer space-y-0.5 font-normal">
-            <span className="block text-sm font-medium text-foreground">Todos os campos</span>
-            <span className="block text-xs text-muted-foreground leading-relaxed">
-              Inclui endereço e contato do cliente ou fornecedor.
-            </span>
-          </Label>
-        </div>
-        <div className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-background/80 px-3 py-3">
-          <RadioGroupItem value="principais" id="rel-ped-campos-principais" className="mt-0.5" />
-          <Label htmlFor="rel-ped-campos-principais" className="cursor-pointer space-y-0.5 font-normal">
-            <span className="block text-sm font-medium text-foreground">Apenas campos principais</span>
-            <span className="block text-xs text-muted-foreground leading-relaxed">
-              Omite endereço e contato; mantém cliente, detalhes do pedido e itens.
-            </span>
-          </Label>
-        </div>
+        {OPCOES_MODELO_PEDIDO.map((opcao) => (
+          <div
+            key={opcao.value}
+            className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-background/80 px-3 py-3"
+          >
+            <RadioGroupItem
+              value={opcao.value}
+              id={`rel-ped-campos-${opcao.value}`}
+              className="mt-0.5"
+            />
+            <Label
+              htmlFor={`rel-ped-campos-${opcao.value}`}
+              className="cursor-pointer space-y-0.5 font-normal"
+            >
+              <span className="block text-sm font-medium text-foreground">{opcao.titulo}</span>
+              <span className="block text-xs text-muted-foreground leading-relaxed">
+                {opcao.descricao}
+              </span>
+            </Label>
+          </div>
+        ))}
       </RadioGroup>
       {hint ? (
         <p className="text-xs text-muted-foreground leading-relaxed pt-1">{hint}</p>
