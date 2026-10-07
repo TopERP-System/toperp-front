@@ -166,15 +166,16 @@ const ContasAPagarPedidoPagamentos = () => {
     }
   }, [valorEmAberto, valorPago, ehPagamentoAdiantamento, valorAdiantadoResumo, contasAbertas]);
 
+  // Só decide depois que as contas do pedido carregaram: se o pedido chegar antes,
+  // o fallback pela forma do pedido não pode impedir a seleção da conta.
+  const contasCarregadas = contasQuery.isSuccess || contasQuery.isError;
+
   useEffect(() => {
     if (autoFilledFormaRef.current) return;
-    if (formaPagamento) {
-      autoFilledFormaRef.current = true;
-      return;
-    }
+    if (!contasCarregadas) return;
     if (contasAbertas.length >= 1) {
       const primeira = contasAbertas[0];
-      if (primeira.forma_pagamento) {
+      if (!formaPagamento && primeira.forma_pagamento) {
         setFormaPagamento(String(primeira.forma_pagamento));
       }
       setContaFinanceiraId(String(primeira.id));
@@ -189,6 +190,10 @@ const ContasAPagarPedidoPagamentos = () => {
       autoFilledFormaRef.current = true;
       return;
     }
+    if (formaPagamento) {
+      autoFilledFormaRef.current = true;
+      return;
+    }
     const formaPedido =
       pedido?.formas_pagamento?.[0]?.forma_pagamento ||
       pedido?.forma_pagamento ||
@@ -197,7 +202,7 @@ const ContasAPagarPedidoPagamentos = () => {
       setFormaPagamento(String(formaPedido));
       autoFilledFormaRef.current = true;
     }
-  }, [contasAbertas, pedido, formaPagamento]);
+  }, [contasCarregadas, contasAbertas, pedido, formaPagamento]);
 
   const selecionarConta = (contaIdStr: string) => {
     setContaFinanceiraId(contaIdStr);
