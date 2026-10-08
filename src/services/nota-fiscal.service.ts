@@ -88,6 +88,13 @@ class NotaFiscalService {
     return nota;
   }
 
+  /** Cancela a NF-e autorizada do pedido. O motivo (15 a 255 caracteres) vai para a SEFAZ. */
+  async cancelar(pedidoId: number, motivo: string): Promise<NotaFiscal> {
+    return apiClient.delete<NotaFiscal>(`/pedidos/${pedidoId}/nota-fiscal`, {
+      motivo,
+    });
+  }
+
   async baixarPdf(pedidoId: number, numeroPedido?: string): Promise<void> {
     const blob = await apiClient.getBlob(`/pedidos/${pedidoId}/nota-fiscal/pdf`);
     const safe = numeroPedido?.replace(/[^\w-]+/g, '_') || String(pedidoId);

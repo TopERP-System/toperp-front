@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { canManageNotaFiscal } from '@/lib/role-access';
 import { extractApiErrorMessage } from '@/lib/api-error-message';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime } from '@/lib/utils';
 import { notaFiscalService } from '@/services/nota-fiscal.service';
 import {
   STATUS_NOTA_BLOQUEIA_REEMISSAO,
@@ -17,6 +17,7 @@ import { Pedido, StatusPedido, TipoPedido } from '@/types/pedido';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Ban,
   Download,
   FileCheck2,
   FileJson,
@@ -26,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { EmitirNotaFiscalDialog } from './EmitirNotaFiscalDialog';
+import { CancelarNotaFiscalDialog } from './CancelarNotaFiscalDialog';
 import { NotaFiscalDiagnosticoDialog } from './NotaFiscalDiagnosticoDialog';
 import { useState } from 'react';
 
@@ -76,6 +78,7 @@ export function PedidoNotaFiscalSection({
   const podeGerenciar = canManageNotaFiscal(user?.role);
   const [emitirDialogOpen, setEmitirDialogOpen] = useState(false);
   const [diagnosticoOpen, setDiagnosticoOpen] = useState(false);
+  const [cancelarOpen, setCancelarOpen] = useState(false);
   const isVenda = tipo === 'VENDA';
   const pedidoCancelado = status === 'CANCELADO';
 
@@ -129,6 +132,13 @@ export function PedidoNotaFiscalSection({
     !pedidoCancelado &&
     (!nota || notaStatus === 'rejected');
   const podeConsultar = podeGerenciar && !!nota;
+  const podeCancelarNota = podeGerenciar && notaStatus === 'authorized';
+  const canceladaEm = nota
+    ? pickNotaField<string>(nota, 'cancelada_em', 'canceladaEm')
+    : null;
+  const motivoCancelamento = nota
+    ? pickNotaField<string>(nota, 'motivo_cancelamento', 'motivoCancelamento')
+    : null;
   const temNotaNaSpedy = !!pickNotaField<string>(
     nota ?? {},
     'spedy_invoice_id',
@@ -231,6 +241,18 @@ export function PedidoNotaFiscalSection({
                   </Button>
                 </>
               )}
+              {podeCancelarNota && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  disabled={busy}
+                  onClick={() => setCancelarOpen(true)}
+                >
+                  <Ban className="w-4 h-4 mr-2" />
+                  Cancelar nota
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -294,6 +316,26 @@ export function PedidoNotaFiscalSection({
                 </p>
               </div>
             )}
+            {notaStatus === 'canceled' && (canceladaEm || motivoCancelamento) && (
+              <div className="md:col-span-2">
+                <Label className="text-muted-foreground text-xs">
+                  Cancelamento
+                  {canceladaEm ? ` em ${formatDateTime(canceladaEm)}` : ''}
+                </Label>
+                <p>{motivoCancelamento || 'Motivo não registrado.'}</p>
+              </div>
+            )}
+            {notaStatus === 'authorized' && motivoCancelamento && (
+              <div className="md:col-span-2">
+                <Label className="text-muted-foreground text-xs">
+                  Cancelamento solicitado
+                </Label>
+                <p className="text-muted-foreground">
+                  Aguardando confirmação da SEFAZ. Use "Consultar status" para
+                  atualizar.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -321,6 +363,22 @@ export function PedidoNotaFiscalSection({
         invalidate();
       }}
     />
+    {cancelarOpen && nota && (
+      <CancelarNotaFiscalDialog
+        nota={{
+          pedidoId,
+          numeroPedido,
+          numeroNf: pickNotaField<number>(nota, 'numero_nf', 'numeroNf'),
+          emitidaEm: pickNotaField<string>(nota, 'emitida_em', 'emitidaEm'),
+        }}
+        onClose={() => setCancelarOpen(false)}
+        onSuccess={(result) => {
+          queryClient.setQueryData(queryKey, result);
+          invalidate();
+          queryClient.invalidateQueries({ queryKey: ['notas-fiscais'] });
+        }}
+      />
+    )}
     <NotaFiscalDiagnosticoDialog
       open={diagnosticoOpen}
       onOpenChange={setDiagnosticoOpen}

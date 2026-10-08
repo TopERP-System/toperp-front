@@ -39,6 +39,10 @@ export interface NotaFiscal {
   valorTotal?: number | null;
   emitida_em?: string | null;
   emitidaEm?: string | null;
+  cancelada_em?: string | null;
+  canceladaEm?: string | null;
+  motivo_cancelamento?: string | null;
+  motivoCancelamento?: string | null;
 }
 
 export const STATUS_NOTA_FISCAL_LABELS: Record<StatusNotaFiscal, string> = {
@@ -201,6 +205,8 @@ export interface NotaFiscalListItem {
   mensagem_processamento: string | null;
   data_emissao: string;
   emitida_em: string | null;
+  cancelada_em: string | null;
+  motivo_cancelamento: string | null;
   created_at: string;
   updated_at: string;
 }
