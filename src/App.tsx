@@ -10,6 +10,7 @@ import { CentroCustosProvider } from "@/contexts/CentroCustosContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import AdminPanel from "./pages/AdminPanel";
+import AdminSpedy from "./pages/admin/AdminSpedy";
 import CentroCustos from "./pages/CentroCustos";
 import NovaDespesa from "./pages/centro-custos/NovaDespesa";
 import Clientes from "./pages/Clientes";
@@ -134,6 +135,14 @@ const App = () => (
                   <AdminPanel />
                 </AdminRoute>
               } 
+            />
+            <Route
+              path="/admin/spedy"
+              element={
+                <AdminRoute>
+                  <AdminSpedy />
+                </AdminRoute>
+              }
             />
             <Route 
               path="/dashboard" 
