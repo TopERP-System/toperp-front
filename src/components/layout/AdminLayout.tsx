@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   Shield,
+  FileText,
   LogOut,
   Menu,
   X,
@@ -41,6 +42,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
 
   const menuItems = [
     { icon: Shield, label: "Painel Admin", href: "/admin" },
+    { icon: FileText, label: "Spedy", href: "/admin/spedy" },
   ];
 
   return (

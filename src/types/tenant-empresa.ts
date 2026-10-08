@@ -71,7 +71,6 @@ export interface UpdateTenantEmpresaDto {
   isFinalCustomer?: boolean;
   serieNfe?: string;
   proximoNumeroNfe?: number;
-  spedyApiKey?: string;
   spedyAmbiente?: SpedyAmbiente;
   sendEmailToCustomer?: boolean;
 }
@@ -100,7 +99,6 @@ export const EMPRESA_FORM_PADRAO: UpdateTenantEmpresaDto = {
   isFinalCustomer: true,
   serieNfe: '1',
   proximoNumeroNfe: 1,
-  spedyApiKey: '',
   spedyAmbiente: 'homologacao',
   sendEmailToCustomer: true,
 };
@@ -145,7 +143,6 @@ export function tenantParaFormEmpresa(tenant: {
       fiscal.proximoNumeroNfe != null && Number(fiscal.proximoNumeroNfe) >= 1
         ? Number(fiscal.proximoNumeroNfe)
         : 1,
-    spedyApiKey: spedy.apiKey || '',
     spedyAmbiente: spedy.ambiente || 'homologacao',
     sendEmailToCustomer: spedy.sendEmailToCustomer ?? true,
   };

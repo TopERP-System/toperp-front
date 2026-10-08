@@ -27,7 +27,6 @@ import {
   Building2,
   FileText,
   Globe,
-  KeyRound,
   Loader2,
   MapPin,
   Receipt,
@@ -63,7 +62,6 @@ export function EmpresaConfigSection({
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [certificadoFile, setCertificadoFile] = useState<File | null>(null);
   const [senhaCertificado, setSenhaCertificado] = useState('');
-  const [ativandoSpedy, setAtivandoSpedy] = useState(false);
   const [atualizandoCertificado, setAtualizandoCertificado] = useState(false);
   const numeracaoAplicadaRef = useRef(false);
 
@@ -78,18 +76,16 @@ export function EmpresaConfigSection({
         throw err;
       }
     },
-    enabled: canEdit && !loading,
+    enabled: !loading,
     retry: false,
   });
 
-  const integracaoAtivaQuery =
-    spedyStatus?.integracao_ativa ||
-    Boolean(tenantInfo?.configuracoes?.spedy?.apiKey);
+  const integracaoAtiva = Boolean(spedyStatus?.integracao_ativa);
 
   const { data: numeracaoNfe } = useQuery({
     queryKey: ['spedy-numeracao-nfe'],
     queryFn: () => spedyService.obterNumeracaoNfe(),
-    enabled: canEdit && !loading && !!integracaoAtivaQuery,
+    enabled: canEdit && !loading && integracaoAtiva,
     retry: false,
   });
 
@@ -188,47 +184,6 @@ export function EmpresaConfigSection({
     return null;
   };
 
-  const handleAtivarSpedy = async () => {
-    const erro = validarFormularioEmpresa();
-    if (erro) {
-      toast.error(erro);
-      return;
-    }
-
-    const ambiente = form.spedyAmbiente || 'homologacao';
-    if (ambiente === 'producao' && !certificadoFile) {
-      toast.error('Certificado digital (.pfx) é obrigatório para produção.');
-      return;
-    }
-    if (certificadoFile && !senhaCertificado.trim()) {
-      toast.error('Informe a senha do certificado digital.');
-      return;
-    }
-
-    setAtivandoSpedy(true);
-    try {
-      const result = await spedyService.ativar(
-        form,
-        certificadoFile ?? undefined,
-        senhaCertificado.trim() || undefined,
-      );
-      toast.success(result.message);
-      setCertificadoFile(null);
-      setSenhaCertificado('');
-      if (certInputRef.current) certInputRef.current.value = '';
-      await queryClient.invalidateQueries({ queryKey: ['tenant-me'] });
-      await queryClient.invalidateQueries({ queryKey: ['spedy-tenant-status'] });
-    } catch (err) {
-      toast.error(extractApiErrorMessage(err));
-    } finally {
-      setAtivandoSpedy(false);
-    }
-  };
-
-  const integracaoAtiva =
-    spedyStatus?.integracao_ativa ||
-    Boolean(tenantInfo?.configuracoes?.spedy?.apiKey);
-
   const emissorCadastrado = Boolean(
     spedyStatus?.emissor_cadastrado || spedyStatus?.company_id,
   );
@@ -260,11 +215,6 @@ export function EmpresaConfigSection({
       setAtualizandoCertificado(false);
     }
   };
-
-  const podeMostrarAtivacao =
-    canEdit &&
-    spedyStatus?.cadastro_automatico_disponivel &&
-    spedyStatus?.pode_ativar;
 
   const podeMostrarAtualizarCertificado =
     canEdit &&
@@ -680,133 +630,33 @@ export function EmpresaConfigSection({
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <KeyRound className="h-4 w-4" />
-            Integração NF-e (Spedy)
+            <ShieldCheck className="h-4 w-4" />
+            Emissão de notas fiscais
           </CardTitle>
-          <CardDescription>Credenciais e ambiente para emissão de notas</CardDescription>
+          <CardDescription>
+            Situação da emissão de NF-e desta empresa
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           {!loadingSpedyStatus && (
-            <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
-              {integracaoAtiva ? (
-                <Badge variant="default" className="bg-green-600/90">
-                  Integração ativa
-                </Badge>
-              ) : (
-                <Badge variant="secondary">Não configurada</Badge>
-              )}
-              {spedyStatus?.ambiente && (
-                <Badge variant="outline">
-                  {spedyStatus.ambiente === 'producao' ? 'Produção' : 'Homologação'}
-                </Badge>
-              )}
-              {emissorCadastrado ? (
-                <span className="text-xs text-muted-foreground">
-                  Emissor: {spedyStatus?.company_id}
-                </span>
-              ) : (
-                <Badge variant="destructive" className="font-normal">
-                  Emissor não cadastrado na Spedy
-                </Badge>
-              )}
-            </div>
-          )}
-
-          {podeMostrarAtivacao && (
-            <div className="sm:col-span-2 rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-4">
-              <div className="flex items-start gap-3">
-                <ShieldCheck className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">
-                    {integracaoAtiva
-                      ? 'Cadastrar empresa (emissor) na Spedy'
-                      : 'Ativar emissão de NF-e na Spedy'}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Cria o emissor na Spedy via POST /companies com os dados desta
-                    tela (razão social, CPF/CNPJ, IE, endereço e fiscal). Em seguida
-                    grava a API Key gerada. Se o CPF/CNPJ já existir na conta Spedy,
-                    o sistema tenta reaproveitar o cadastro. Em homologação o
-                    certificado é opcional; em produção é obrigatório.
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Certificado digital (.pfx)</Label>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      ref={certInputRef}
-                      type="file"
-                      accept=".pfx"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        setCertificadoFile(file);
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => certInputRef.current?.click()}
-                      disabled={disabled || ativandoSpedy}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      {certificadoFile ? certificadoFile.name : 'Selecionar .pfx'}
-                    </Button>
-                    {certificadoFile && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setCertificadoFile(null);
-                          if (certInputRef.current) certInputRef.current.value = '';
-                        }}
-                        disabled={ativandoSpedy}
-                      >
-                        Remover
-                      </Button>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {form.spedyAmbiente === 'producao'
-                      ? `Obrigatório em produção. Use certificado ${emitenteCpf ? 'e-CPF' : 'e-CNPJ'} do emitente.`
-                      : `Opcional em homologação (notas podem ficar rejeitadas sem certificado válido). Use ${emitenteCpf ? 'e-CPF' : 'e-CNPJ'} quando informado.`}
-                    {' '}O nome original do arquivo não importa; evite colocar a senha no nome do .pfx.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Senha do certificado</Label>
-                  <Input
-                    type="password"
-                    value={senhaCertificado}
-                    onChange={(e) => setSenhaCertificado(e.target.value)}
-                    disabled={disabled || ativandoSpedy}
-                    placeholder="Senha do .pfx"
-                  />
-                </div>
-              </div>
-              <Button
-                type="button"
-                onClick={handleAtivarSpedy}
-                disabled={disabled || ativandoSpedy}
-              >
-                {ativandoSpedy ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Cadastrando na Spedy...
-                  </>
+            <div className="sm:col-span-2 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {integracaoAtiva ? (
+                  <Badge variant="default" className="bg-green-600/90">
+                    Emissão ativa
+                  </Badge>
                 ) : (
-                  <>
-                    <ShieldCheck className="h-4 w-4 mr-2" />
-                    {integracaoAtiva
-                      ? 'Cadastrar empresa na Spedy'
-                      : 'Ativar emissão de NF-e'}
-                  </>
+                  <Badge variant="secondary">Emissão não ativada</Badge>
                 )}
-              </Button>
+                {integracaoAtiva && spedyStatus?.ambiente === 'homologacao' && (
+                  <Badge variant="outline">Homologação (notas de teste)</Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {integracaoAtiva
+                  ? 'A ativação e o ambiente de emissão são gerenciados pela TopERP.'
+                  : 'A emissão de notas fiscais ainda não está ativada para esta empresa. Entre em contato com o suporte TopERP para ativar.'}
+              </p>
             </div>
           )}
 
@@ -893,57 +743,13 @@ export function EmpresaConfigSection({
             </div>
           )}
 
-          {!loadingSpedyStatus &&
-            canEdit &&
-            spedyStatus &&
-            !spedyStatus.cadastro_automatico_disponivel &&
-            !emissorCadastrado && (
-              <p className="text-xs text-amber-700 dark:text-amber-400 sm:col-span-2">
-                Cadastro automático indisponível no servidor (falta SPEDY_MASTER_API_KEY).
-                Cadastre a empresa no painel Spedy e cole a API Key abaixo, ou configure a
-                chave master no backend para habilitar o botão de criar emissor.
-              </p>
-            )}
-
-          <div className="space-y-2 sm:col-span-2">
-            <Label>API Key</Label>
-            <Input
-              type="password"
-              value={form.spedyApiKey}
-              onChange={(e) => setField('spedyApiKey', e.target.value)}
-              disabled={disabled}
-              placeholder={canEdit ? 'Cole a chave da Spedy' : '••••••••'}
-            />
-            {canEdit && (
-              <p className="text-xs text-muted-foreground">
-                {integracaoAtiva
-                  ? 'Chave gerada automaticamente pela Spedy. Deixe em branco ou mantenha os pontos para não alterar.'
-                  : 'Deixe em branco ou mantenha os pontos para não alterar a chave já salva.'}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>Ambiente</Label>
-            <Select
-              value={form.spedyAmbiente}
-              onValueChange={(v) =>
-                setField('spedyAmbiente', v as UpdateTenantEmpresaDto['spedyAmbiente'])
-              }
-              disabled={disabled}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="homologacao">Homologação</SelectItem>
-                <SelectItem value="producao">Produção</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {integracaoAtiva && (
           <div className="flex items-center justify-between rounded-lg border p-3 sm:col-span-2">
             <div>
               <Label className="text-sm font-medium">Enviar DANFE por e-mail</Label>
-              <p className="text-xs text-muted-foreground">Padrão ao emitir NF-e (sendEmailToCustomer)</p>
+              <p className="text-xs text-muted-foreground">
+                Envia a nota ao cliente por e-mail assim que ela é emitida
+              </p>
             </div>
             <Switch
               checked={!!form.sendEmailToCustomer}
@@ -951,6 +757,7 @@ export function EmpresaConfigSection({
               disabled={disabled}
             />
           </div>
+          )}
         </CardContent>
       </Card>
 

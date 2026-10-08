@@ -32,6 +32,23 @@ export interface SpedyNumeracaoNfe {
   message?: string;
 }
 
+/** Item da listagem de empresas no painel admin (GET /admin/spedy/tenants). */
+export interface SpedyAdminTenantResumo {
+  tenant_id: string;
+  codigo: string;
+  nome: string;
+  cnpj: string | null;
+  status: 'ATIVO' | 'INATIVO' | 'SUSPENSO';
+  integracao_ativa: boolean;
+  emissor_cadastrado: boolean;
+  company_id: string | null;
+  ambiente: 'homologacao' | 'producao';
+  pode_ativar: boolean;
+  pode_atualizar_certificado: boolean;
+  dados_completos: boolean;
+  pendencias: string[];
+}
+
 function formParaAtivarSpedy(
   form: UpdateTenantEmpresaDto,
   senhaCertificado?: string,
@@ -69,6 +86,36 @@ function formParaAtivarSpedy(
   return fd;
 }
 
+/** Campos cadastrais aceitos por PUT /admin/spedy/tenants/:id/empresa. */
+const CAMPOS_EMPRESA_ADMIN = [
+  'nome',
+  'nomeFantasia',
+  'cnpj',
+  'inscricaoEstadual',
+  'cnae',
+  'email',
+  'telefone',
+  'cep',
+  'logradouro',
+  'numero',
+  'complemento',
+  'bairro',
+  'cidade',
+  'estado',
+  'codigoIbge',
+  'regimeTributario',
+] as const satisfies readonly (keyof UpdateTenantEmpresaDto)[];
+
+export interface SpedyAtualizarEmpresaResult {
+  spedy_sync: {
+    synced: boolean;
+    skipped?: boolean;
+    reason?: string;
+    company_id?: string;
+    message: string;
+  };
+}
+
 /** Evita bloqueio de WAF/proxy por nomes de arquivo com "senha" ou caracteres especiais. */
 function anexarCertificadoSeguro(fd: FormData, certificado: File): void {
   fd.append('certificado', certificado, 'certificado.pfx');
@@ -77,18 +124,6 @@ function anexarCertificadoSeguro(fd: FormData, certificado: File): void {
 export const spedyService = {
   obterStatus(): Promise<SpedyTenantStatus> {
     return apiClient.get<SpedyTenantStatus>('/tenant/me/spedy/status');
-  },
-
-  ativar(
-    form: UpdateTenantEmpresaDto,
-    certificado?: File,
-    senhaCertificado?: string,
-  ): Promise<SpedyAtivarResult> {
-    const fd = formParaAtivarSpedy(form, senhaCertificado);
-    if (certificado) {
-      anexarCertificadoSeguro(fd, certificado);
-    }
-    return apiClient.postForm<SpedyAtivarResult>('/tenant/me/spedy/ativar', fd);
   },
 
   atualizarCertificado(certificado: File, senhaCertificado: string): Promise<SpedyCertificadoResult> {
@@ -107,5 +142,67 @@ export const spedyService = {
     proximoNumero?: number;
   }): Promise<SpedyNumeracaoNfe> {
     return apiClient.put<SpedyNumeracaoNfe>('/tenant/me/spedy/numeracao-nfe', data);
+  },
+
+  /** Painel admin (SUPER_ADMIN): situação Spedy de todas as empresas. */
+  listarTenantsAdmin(): Promise<SpedyAdminTenantResumo[]> {
+    return apiClient.get<SpedyAdminTenantResumo[]>('/admin/spedy/tenants');
+  },
+
+  /** Painel admin (SUPER_ADMIN): cadastra a empresa informada como emissora na Spedy. */
+  ativarAdmin(
+    tenantId: string,
+    form: UpdateTenantEmpresaDto,
+    certificado?: File,
+    senhaCertificado?: string,
+  ): Promise<SpedyAtivarResult> {
+    const fd = formParaAtivarSpedy(form, senhaCertificado);
+    if (certificado) {
+      anexarCertificadoSeguro(fd, certificado);
+    }
+    return apiClient.postForm<SpedyAtivarResult>(
+      `/admin/spedy/tenants/${tenantId}/ativar`,
+      fd,
+    );
+  },
+
+  /** Painel admin (SUPER_ADMIN): vincula a empresa a um emissor já existente na Spedy. */
+  definirIntegracaoAdmin(
+    tenantId: string,
+    dados: { apiKey: string; ambiente: 'homologacao' | 'producao' },
+  ): Promise<SpedyAtivarResult> {
+    return apiClient.put<SpedyAtivarResult>(
+      `/admin/spedy/tenants/${tenantId}/integracao`,
+      dados,
+    );
+  },
+
+  /** Painel admin (SUPER_ADMIN): corrige os dados da empresa e sincroniza o emissor na Spedy. */
+  atualizarEmpresaAdmin(
+    tenantId: string,
+    form: UpdateTenantEmpresaDto,
+  ): Promise<SpedyAtualizarEmpresaResult> {
+    const dados = Object.fromEntries(
+      CAMPOS_EMPRESA_ADMIN.map((campo) => [campo, form[campo]]),
+    );
+    return apiClient.put<SpedyAtualizarEmpresaResult>(
+      `/admin/spedy/tenants/${tenantId}/empresa`,
+      dados,
+    );
+  },
+
+  /** Painel admin (SUPER_ADMIN): envia/atualiza o certificado da empresa informada. */
+  atualizarCertificadoAdmin(
+    tenantId: string,
+    certificado: File,
+    senhaCertificado: string,
+  ): Promise<SpedyCertificadoResult> {
+    const fd = new FormData();
+    anexarCertificadoSeguro(fd, certificado);
+    fd.append('senhaCertificado', senhaCertificado.trim());
+    return apiClient.postForm<SpedyCertificadoResult>(
+      `/admin/spedy/tenants/${tenantId}/certificado`,
+      fd,
+    );
   },
 };
