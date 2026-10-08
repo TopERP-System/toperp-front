@@ -1,5 +1,6 @@
 import { apiClient } from './api';
 import type {
+  CartaCorrecaoItem,
   EmitirNotaFiscalPayload,
   ListarNotasFiscaisFiltros,
   ListarNotasFiscaisResponse,
@@ -86,6 +87,27 @@ class NotaFiscalService {
     }
 
     return nota;
+  }
+
+  /** Cancela a NF-e autorizada do pedido. O motivo (15 a 255 caracteres) vai para a SEFAZ. */
+  async cancelar(pedidoId: number, motivo: string): Promise<NotaFiscal> {
+    return apiClient.delete<NotaFiscal>(`/pedidos/${pedidoId}/nota-fiscal`, {
+      motivo,
+    });
+  }
+
+  /** Envia carta de correção (15 a 1000 caracteres) para a NF-e autorizada do pedido. */
+  async cartaCorrecao(pedidoId: number, carta: string): Promise<NotaFiscal> {
+    return apiClient.post<NotaFiscal>(
+      `/pedidos/${pedidoId}/nota-fiscal/carta-correcao`,
+      { carta },
+    );
+  }
+
+  async listarCartasCorrecao(pedidoId: number): Promise<CartaCorrecaoItem[]> {
+    return apiClient.get<CartaCorrecaoItem[]>(
+      `/pedidos/${pedidoId}/nota-fiscal/cartas-correcao`,
+    );
   }
 
   async baixarPdf(pedidoId: number, numeroPedido?: string): Promise<void> {

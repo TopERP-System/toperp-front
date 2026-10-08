@@ -33,9 +33,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  CancelarNotaFiscalDialog,
+  NotaParaCancelar,
+} from '@/components/orders/CancelarNotaFiscalDialog';
+import {
+  CartaCorrecaoDialog,
+  NotaParaCartaCorrecao,
+} from '@/components/orders/CartaCorrecaoDialog';
 import { NotaFiscalDiagnosticoDialog } from '@/components/orders/NotaFiscalDiagnosticoDialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { extractApiErrorMessage } from '@/lib/api-error-message';
-import { cn, formatCurrency, formatDate } from '@/lib/utils';
+import { canManageNotaFiscal } from '@/lib/role-access';
+import { cn, formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { notaFiscalService } from '@/services/nota-fiscal.service';
 import {
   STATUS_NOTA_FISCAL_LABELS,
@@ -43,7 +53,7 @@ import {
   type StatusNotaFiscal,
 } from '@/types/nota-fiscal';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, FileCode2, FileJson, Loader2, Receipt, RefreshCw, Search } from 'lucide-react';
+import { Ban, Download, FileCode2, FilePenLine, FileJson, Loader2, Receipt, RefreshCw, Search } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -77,6 +87,8 @@ function statusBadgeClass(status: StatusNotaFiscal): string {
 
 export default function NotasFiscais() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const podeCancelar = canManageNotaFiscal(user?.role);
   const [page, setPage] = useState(1);
   const [busca, setBusca] = useState('');
   const [buscaInput, setBuscaInput] = useState('');
@@ -115,6 +127,10 @@ export default function NotasFiscais() {
 
   const [baixandoPdf, setBaixandoPdf] = useState<number | null>(null);
   const [baixandoXml, setBaixandoXml] = useState<number | null>(null);
+  const [notaParaCarta, setNotaParaCarta] =
+    useState<NotaParaCartaCorrecao | null>(null);
+  const [notaParaCancelar, setNotaParaCancelar] =
+    useState<NotaParaCancelar | null>(null);
   const [diagnosticoPedido, setDiagnosticoPedido] = useState<{
     id: number;
     numero: string;
@@ -237,7 +253,23 @@ export default function NotasFiscais() {
                   </TableHeader>
                   <TableBody>
                     {data.items.map((item) => {
-                      const podeBaixar = item.status === 'authorized';
+                      const podeBaixar =
+                        item.status === 'authorized' || item.status === 'canceled';
+                      const aguardandoCancelamento =
+                        item.status === 'authorized' &&
+                        !!item.cancelamento_solicitado_em;
+                      const detalhe =
+                        item.status === 'canceled' && item.motivo_cancelamento
+                          ? `Cancelada${
+                              item.cancelada_em
+                                ? ` em ${formatDateTime(item.cancelada_em)}`
+                                : ''
+                            }: ${item.motivo_cancelamento}`
+                          : aguardandoCancelamento
+                            ? 'Cancelamento solicitado, aguardando a SEFAZ. Atualize o status.'
+                            : item.status === 'authorized' && item.cancelamento_recusa
+                              ? `Cancelamento não realizado: ${item.cancelamento_recusa}`
+                              : item.mensagem_processamento;
                       return (
                         <TableRow key={`${item.pedido_id}-${item.numero_pedido}`}>
                           <TableCell className="font-medium text-primary whitespace-nowrap">
@@ -264,16 +296,16 @@ export default function NotasFiscais() {
                             {formatDate(item.data_emissao)}
                           </TableCell>
                           <TableCell className="hidden lg:table-cell max-w-[220px]">
-                            {item.mensagem_processamento ? (
+                            {detalhe ? (
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="text-xs text-muted-foreground line-clamp-2 cursor-help">
-                                      {item.mensagem_processamento}
+                                      {detalhe}
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent className="max-w-sm">
-                                    {item.mensagem_processamento}
+                                    {detalhe}
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
@@ -362,6 +394,54 @@ export default function NotasFiscais() {
                                     </Tooltip>
                                   </>
                                 )}
+                                {podeCancelar && item.status === 'authorized' && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        aria-label="Carta de correção"
+                                        onClick={() =>
+                                          setNotaParaCarta({
+                                            pedidoId: item.pedido_id,
+                                            numeroPedido: item.numero_pedido,
+                                            numeroNf: item.numero_nf,
+                                            emitidaEm: item.emitida_em,
+                                          })
+                                        }
+                                      >
+                                        <FilePenLine className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Carta de correção</TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {podeCancelar &&
+                                  item.status === 'authorized' &&
+                                  !aguardandoCancelamento && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-destructive hover:text-destructive"
+                                        aria-label="Cancelar nota"
+                                        onClick={() =>
+                                          setNotaParaCancelar({
+                                            pedidoId: item.pedido_id,
+                                            numeroPedido: item.numero_pedido,
+                                            numeroNf: item.numero_nf,
+                                            emitidaEm: item.emitida_em,
+                                          })
+                                        }
+                                      >
+                                        <Ban className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Cancelar nota</TooltipContent>
+                                  </Tooltip>
+                                )}
                               </TooltipProvider>
                             </div>
                           </TableCell>
@@ -411,6 +491,29 @@ export default function NotasFiscais() {
         )}
       </div>
 
+      {notaParaCarta && (
+        <CartaCorrecaoDialog
+          key={notaParaCarta.pedidoId}
+          nota={notaParaCarta}
+          onClose={() => setNotaParaCarta(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['notas-fiscais'] });
+          }}
+        />
+      )}
+      {notaParaCancelar && (
+        <CancelarNotaFiscalDialog
+          key={notaParaCancelar.pedidoId}
+          nota={notaParaCancelar}
+          onClose={() => setNotaParaCancelar(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['notas-fiscais'] });
+            queryClient.invalidateQueries({
+              queryKey: ['pedidos', notaParaCancelar.pedidoId, 'nota-fiscal'],
+            });
+          }}
+        />
+      )}
       <NotaFiscalDiagnosticoDialog
         open={!!diagnosticoPedido}
         onOpenChange={(open) => {
