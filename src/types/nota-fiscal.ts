@@ -43,6 +43,12 @@ export interface NotaFiscal {
   canceladaEm?: string | null;
   motivo_cancelamento?: string | null;
   motivoCancelamento?: string | null;
+  /** Pedido de cancelamento aceito pela Spedy e ainda não confirmado pela SEFAZ. */
+  cancelamento_solicitado_em?: string | null;
+  cancelamentoSolicitadoEm?: string | null;
+  /** Motivo pelo qual o último pedido de cancelamento não foi realizado. */
+  cancelamento_recusa?: string | null;
+  cancelamentoRecusa?: string | null;
 }
 
 export const STATUS_NOTA_FISCAL_LABELS: Record<StatusNotaFiscal, string> = {
@@ -191,6 +197,13 @@ export interface EmitirNotaFiscalPayload {
   produtos?: Array<{ produto_id: number; ncm?: string; sku?: string }>;
 }
 
+export interface CartaCorrecaoItem {
+  id: number;
+  sequencia: number;
+  texto: string;
+  created_at: string;
+}
+
 export interface NotaFiscalListItem {
   id: number;
   pedido_id: number;
@@ -207,6 +220,8 @@ export interface NotaFiscalListItem {
   emitida_em: string | null;
   cancelada_em: string | null;
   motivo_cancelamento: string | null;
+  cancelamento_solicitado_em: string | null;
+  cancelamento_recusa: string | null;
   created_at: string;
   updated_at: string;
 }

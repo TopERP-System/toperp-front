@@ -20,6 +20,7 @@ import {
   Ban,
   Download,
   FileCheck2,
+  FilePenLine,
   FileJson,
   Loader2,
   RefreshCw,
@@ -28,8 +29,9 @@ import {
 import { toast } from 'sonner';
 import { EmitirNotaFiscalDialog } from './EmitirNotaFiscalDialog';
 import { CancelarNotaFiscalDialog } from './CancelarNotaFiscalDialog';
+import { CartaCorrecaoDialog } from './CartaCorrecaoDialog';
 import { NotaFiscalDiagnosticoDialog } from './NotaFiscalDiagnosticoDialog';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface PedidoNotaFiscalSectionProps {
   pedidoId: number;
@@ -79,6 +81,7 @@ export function PedidoNotaFiscalSection({
   const [emitirDialogOpen, setEmitirDialogOpen] = useState(false);
   const [diagnosticoOpen, setDiagnosticoOpen] = useState(false);
   const [cancelarOpen, setCancelarOpen] = useState(false);
+  const [cartaOpen, setCartaOpen] = useState(false);
   const isVenda = tipo === 'VENDA';
   const pedidoCancelado = status === 'CANCELADO';
 
@@ -94,6 +97,25 @@ export function PedidoNotaFiscalSection({
         ? 30_000
         : false,
   });
+
+  // Cancelamento é assíncrono: enquanto a SEFAZ não responde, reconsulta sozinho
+  const aguardandoCancelamento =
+    nota?.status === 'authorized' &&
+    !!(nota.cancelamento_solicitado_em ?? nota.cancelamentoSolicitadoEm);
+  useEffect(() => {
+    if (!aguardandoCancelamento || !dialogOpen) return;
+    const timer = setInterval(() => {
+      notaFiscalService
+        .consultar(pedidoId)
+        .then((atualizada) => {
+          queryClient.setQueryData(queryKey, atualizada);
+          queryClient.invalidateQueries({ queryKey: ['notas-fiscais'] });
+        })
+        .catch(() => undefined);
+    }, 15_000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aguardandoCancelamento, dialogOpen, pedidoId]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey });
@@ -132,7 +154,11 @@ export function PedidoNotaFiscalSection({
     !pedidoCancelado &&
     (!nota || notaStatus === 'rejected');
   const podeConsultar = podeGerenciar && !!nota;
-  const podeCancelarNota = podeGerenciar && notaStatus === 'authorized';
+  const podeCancelarNota =
+    podeGerenciar && notaStatus === 'authorized' && !aguardandoCancelamento;
+  const cancelamentoRecusa = nota
+    ? pickNotaField<string>(nota, 'cancelamento_recusa', 'cancelamentoRecusa')
+    : null;
   const canceladaEm = nota
     ? pickNotaField<string>(nota, 'cancelada_em', 'canceladaEm')
     : null;
@@ -245,6 +271,17 @@ export function PedidoNotaFiscalSection({
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={busy}
+                  onClick={() => setCartaOpen(true)}
+                >
+                  <FilePenLine className="w-4 h-4 mr-2" />
+                  Carta de correção
+                </Button>
+              )}
+              {podeCancelarNota && (
+                <Button
+                  size="sm"
+                  variant="outline"
                   className="text-destructive hover:text-destructive"
                   disabled={busy}
                   onClick={() => setCancelarOpen(true)}
@@ -325,17 +362,32 @@ export function PedidoNotaFiscalSection({
                 <p>{motivoCancelamento || 'Motivo não registrado.'}</p>
               </div>
             )}
-            {notaStatus === 'authorized' && motivoCancelamento && (
+            {aguardandoCancelamento && (
               <div className="md:col-span-2">
                 <Label className="text-muted-foreground text-xs">
                   Cancelamento solicitado
                 </Label>
-                <p className="text-muted-foreground">
-                  Aguardando confirmação da SEFAZ. Use "Consultar status" para
-                  atualizar.
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Aguardando confirmação da SEFAZ. O status é atualizado
+                  automaticamente.
                 </p>
               </div>
             )}
+            {notaStatus === 'authorized' &&
+              !aguardandoCancelamento &&
+              cancelamentoRecusa && (
+                <div className="md:col-span-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                  <Label className="text-destructive text-xs">
+                    Cancelamento não realizado
+                  </Label>
+                  <p>{cancelamentoRecusa}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    A nota continua autorizada. Você pode tentar cancelar de
+                    novo.
+                  </p>
+                </div>
+              )}
           </div>
         )}
 
@@ -363,6 +415,21 @@ export function PedidoNotaFiscalSection({
         invalidate();
       }}
     />
+    {cartaOpen && nota && (
+      <CartaCorrecaoDialog
+        nota={{
+          pedidoId,
+          numeroPedido,
+          numeroNf: pickNotaField<number>(nota, 'numero_nf', 'numeroNf'),
+          emitidaEm: pickNotaField<string>(nota, 'emitida_em', 'emitidaEm'),
+        }}
+        onClose={() => setCartaOpen(false)}
+        onSuccess={(result) => {
+          queryClient.setQueryData(queryKey, result);
+          invalidate();
+        }}
+      />
+    )}
     {cancelarOpen && nota && (
       <CancelarNotaFiscalDialog
         nota={{
