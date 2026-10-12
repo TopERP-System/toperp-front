@@ -28,7 +28,11 @@ import {
   telefoneArmazenadoParaCampo,
 } from "@/lib/validators";
 import { cepService } from "@/services/cep.service";
-import { SpedyAdminTenantResumo, spedyService } from "@/services/spedy.service";
+import {
+  isSpedyEmpresaExistenteSemChave,
+  SpedyAdminTenantResumo,
+  spedyService,
+} from "@/services/spedy.service";
 import { tenantsService } from "@/services/tenants.service";
 import {
   tenantParaFormEmpresa,
@@ -42,6 +46,8 @@ interface SpedyCadastroDialogProps {
   modo: "cadastrar" | "editar";
   onClose: () => void;
   onSuccess: () => void;
+  /** A empresa já existe na Spedy: o cadastro continua informando a API Key dela. */
+  onEmpresaExistente?: (ambiente: SpedyAdminTenantResumo["ambiente"]) => void;
 }
 
 function validarFormulario(form: UpdateTenantEmpresaDto): string | null {
@@ -69,6 +75,7 @@ export const SpedyCadastroDialog = ({
   modo,
   onClose,
   onSuccess,
+  onEmpresaExistente,
 }: SpedyCadastroDialogProps) => {
   const editando = modo === "editar";
   const [form, setForm] = useState<UpdateTenantEmpresaDto | null>(null);
@@ -178,6 +185,13 @@ export const SpedyCadastroDialog = ({
       onSuccess();
       onClose();
     } catch (err) {
+      if (isSpedyEmpresaExistenteSemChave(err) && onEmpresaExistente) {
+        toast.info(extractApiErrorMessage(err));
+        onSuccess();
+        onClose();
+        onEmpresaExistente(form.spedyAmbiente ?? tenant.ambiente);
+        return;
+      }
       toast.error(extractApiErrorMessage(err));
       // A empresa pode ter sido criada na Spedy mesmo com falha em etapa posterior
       onSuccess();

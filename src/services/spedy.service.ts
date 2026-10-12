@@ -8,8 +8,19 @@ export interface SpedyTenantStatus {
   cadastro_automatico_disponivel: boolean;
   pode_ativar: boolean;
   emissor_cadastrado?: boolean;
+  aguardando_chave?: boolean;
   pode_atualizar_certificado: boolean;
   send_email_to_customer: boolean;
+}
+
+/** `code` do 409 de /ativar quando a empresa já existe na Spedy e falta a API Key dela. */
+export const SPEDY_EMPRESA_EXISTENTE_SEM_CHAVE =
+  'SPEDY_EMPRESA_EXISTENTE_SEM_CHAVE';
+
+export function isSpedyEmpresaExistenteSemChave(error: unknown): boolean {
+  const data = (error as { response?: { data?: { code?: unknown } } })?.response
+    ?.data;
+  return data?.code === SPEDY_EMPRESA_EXISTENTE_SEM_CHAVE;
 }
 
 export interface SpedyCertificadoResult {
@@ -41,6 +52,8 @@ export interface SpedyAdminTenantResumo {
   status: 'ATIVO' | 'INATIVO' | 'SUSPENSO';
   integracao_ativa: boolean;
   emissor_cadastrado: boolean;
+  /** Emissor já existe na Spedy, mas a API Key dele ainda não foi informada */
+  aguardando_chave: boolean;
   company_id: string | null;
   ambiente: 'homologacao' | 'producao';
   pode_ativar: boolean;

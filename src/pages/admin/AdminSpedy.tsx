@@ -32,7 +32,11 @@ import { extractApiErrorMessage } from "@/lib/api-error-message";
 import { cleanDocument, formatDocument } from "@/lib/validators";
 import { SpedyAdminTenantResumo, spedyService } from "@/services/spedy.service";
 
-type SituacaoSpedy = "nao_cadastrada" | "homologacao" | "producao";
+type SituacaoSpedy =
+  | "nao_cadastrada"
+  | "aguardando_chave"
+  | "homologacao"
+  | "producao";
 type FiltroSituacao = SituacaoSpedy | "todas";
 
 const SITUACAO_CONFIG: Record<
@@ -43,6 +47,11 @@ const SITUACAO_CONFIG: Record<
     icon: XCircle,
     color: "bg-muted text-muted-foreground",
     label: "Não cadastrada",
+  },
+  aguardando_chave: {
+    icon: KeyRound,
+    color: "bg-orange-500/10 text-orange-600",
+    label: "Falta chave de API",
   },
   homologacao: {
     icon: FlaskConical,
@@ -71,6 +80,7 @@ function situacaoDoTenant(tenant: SpedyAdminTenantResumo): SituacaoSpedy {
   if (!tenant.emissor_cadastrado && !tenant.integracao_ativa) {
     return "nao_cadastrada";
   }
+  if (tenant.aguardando_chave) return "aguardando_chave";
   return tenant.ambiente;
 }
 
@@ -138,6 +148,13 @@ const AdminSpedy = () => {
       icon: XCircle,
       color: "text-muted-foreground",
       bgColor: "bg-muted/10",
+    },
+    {
+      label: "Faltando chave de API",
+      value: contar("aguardando_chave"),
+      icon: KeyRound,
+      color: "text-orange-600",
+      bgColor: "bg-orange-500/10",
     },
     {
       label: "Em Homologação",
@@ -225,6 +242,14 @@ const AdminSpedy = () => {
         </>
       );
     }
+    if (tenant.aguardando_chave) {
+      return (
+        <Button size="sm" onClick={() => setTenantParaChave(tenant)}>
+          <KeyRound className="w-4 h-4 mr-2" />
+          Informar chave de API
+        </Button>
+      );
+    }
     return (
       <>
         <Button
@@ -273,7 +298,7 @@ const AdminSpedy = () => {
         </motion.div>
 
         {/* Stats Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           {stats.map((stat, index) => (
             <motion.div
               key={stat.label}
@@ -314,6 +339,7 @@ const AdminSpedy = () => {
             <SelectContent>
               <SelectItem value="todas">Todas as situações</SelectItem>
               <SelectItem value="nao_cadastrada">Não cadastrada</SelectItem>
+              <SelectItem value="aguardando_chave">Falta chave de API</SelectItem>
               <SelectItem value="homologacao">Homologação</SelectItem>
               <SelectItem value="producao">Produção</SelectItem>
             </SelectContent>
@@ -401,6 +427,14 @@ const AdminSpedy = () => {
           modo="cadastrar"
           onClose={() => setTenantParaCadastrar(null)}
           onSuccess={recarregarLista}
+          onEmpresaExistente={(ambiente) =>
+            setTenantParaChave({
+              ...tenantParaCadastrar,
+              ambiente,
+              emissor_cadastrado: true,
+              aguardando_chave: true,
+            })
+          }
         />
       )}
       {tenantParaEditar && (

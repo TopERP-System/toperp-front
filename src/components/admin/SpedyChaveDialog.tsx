@@ -38,7 +38,7 @@ export const SpedyChaveDialog = ({
   const [ambiente, setAmbiente] = useState(tenant.ambiente);
   const [salvando, setSalvando] = useState(false);
 
-  const jaIntegrada = tenant.integracao_ativa || tenant.emissor_cadastrado;
+  const jaIntegrada = tenant.integracao_ativa;
 
   const handleSalvar = async () => {
     if (apiKey.trim().length < 8) {
@@ -74,6 +74,14 @@ export const SpedyChaveDialog = ({
         </DialogHeader>
 
         <div className="space-y-4">
+          {tenant.aguardando_chave && (
+            <p className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+              Esta empresa já está cadastrada na Spedy, falta só a chave dela.
+              No painel da Spedy, selecione a empresa e copie a chave em{" "}
+              <strong>Minha empresa → Credenciais da API</strong>. Use a chave
+              da própria empresa, não a da conta titular.
+            </p>
+          )}
           {jaIntegrada && (
             <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
               Esta empresa já tem uma integração gravada. Salvar substitui a
