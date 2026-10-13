@@ -24,7 +24,7 @@ import {
   type HistoricoPagamentoItem,
 } from "@/services/financeiro.service";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Undo2 } from "lucide-react";
+import { Loader2, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -173,13 +173,13 @@ export function HistoricoPagamentosConta({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-destructive hover:text-destructive"
+                          className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
                           onClick={() => {
                             setMotivo("");
                             setEstornando(item);
                           }}
                         >
-                          <Undo2 className="mr-1 h-4 w-4" />
+                          <RotateCcw className="mr-1 h-4 w-4" />
                           Estornar
                         </Button>
                       ) : item.legado && !isEstornado ? (
