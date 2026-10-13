@@ -227,7 +227,8 @@ export function PedidoNotaFiscalSection({
                   Consultar status
                 </Button>
               )}
-              {nota && (
+              {/* Payload técnico da Spedy: só em desenvolvimento. */}
+              {import.meta.env.DEV && nota && (
                 <Button
                   size="sm"
                   variant="outline"

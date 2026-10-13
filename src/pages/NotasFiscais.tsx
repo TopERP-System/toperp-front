@@ -330,26 +330,29 @@ export default function NotasFiscais() {
                                   </TooltipTrigger>
                                   <TooltipContent>Atualizar status na Spedy</TooltipContent>
                                 </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() =>
-                                        setDiagnosticoPedido({
-                                          id: item.pedido_id,
-                                          numero: item.numero_pedido,
-                                        })
-                                      }
-                                    >
-                                      <FileJson className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    Ver payload / diagnóstico Spedy
-                                  </TooltipContent>
-                                </Tooltip>
+                                {/* Payload técnico da Spedy: só em desenvolvimento. */}
+                                {import.meta.env.DEV && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() =>
+                                          setDiagnosticoPedido({
+                                            id: item.pedido_id,
+                                            numero: item.numero_pedido,
+                                          })
+                                        }
+                                      >
+                                        <FileJson className="h-4 w-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      Ver payload / diagnóstico Spedy
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
                                 {podeBaixar && (
                                   <>
                                     <Tooltip>
