@@ -22,6 +22,7 @@ import {
   calcularValorTotalConta,
   contaAceitaJurosDesconto,
   mapContaApiParaEdicao,
+  toEditValorOriginal,
   type ContaFinanceiraEdicaoForm,
 } from "@/lib/conta-financeira-edicao";
 import { formatCurrency } from "@/lib/utils";
@@ -252,12 +253,45 @@ export function EditarContaFinanceiraDialog({
       : Number(editConta.valor_original) || 0
     : 0;
 
+  // O total não pode ficar abaixo do já pago (mesma regra do backend; não vale para
+  // previsões nem contas de pedido). Conta que já estava com excedente só é barrada
+  // se a edição o aumentar.
+  const aplicaTravaPago = jurosDescontoPermitido && !isEditPrevisao;
+  const valorJaPago = aplicaTravaPago
+    ? toEditValorOriginal(contaSelecionada?.valor_pago)
+    : 0;
+  const excedentePago = Math.max(
+    0,
+    Math.round((valorJaPago - valorTotalEdicao) * 100) / 100,
+  );
+  const excedenteAnterior = Math.max(
+    0,
+    Math.round(
+      (valorJaPago -
+        toEditValorOriginal(
+          contaSelecionada?.valor_total ?? contaSelecionada?.valor_original,
+        )) *
+        100,
+    ) / 100,
+  );
+  const totalAbaixoDoPago =
+    excedentePago > 0.009 && excedentePago > excedenteAnterior + 0.009;
+  const pagoLabel =
+    (tipoFixo ?? editConta?.tipo) === "RECEBER" ? "recebido" : "pago";
+
   const handleUpdate = () => {
     if (contaId == null || !editConta) return;
 
     if (valorTotalEdicao < 0) {
       toast.error(
         "O desconto não pode ser maior que o valor original somado aos juros.",
+      );
+      return;
+    }
+
+    if (totalAbaixoDoPago) {
+      toast.error(
+        `O valor total não pode ser menor que o valor já ${pagoLabel} (${formatCurrency(valorJaPago)}).`,
       );
       return;
     }
@@ -396,6 +430,7 @@ export function EditarContaFinanceiraDialog({
                       type="number"
                       step="0.01"
                       placeholder="0.00"
+                      disabled={!jurosDescontoPermitido}
                       value={editConta.valor_original || ""}
                       onChange={(e) =>
                         setEditConta({
@@ -446,7 +481,7 @@ export function EditarContaFinanceiraDialog({
                   <span className="text-muted-foreground">
                     {jurosDescontoPermitido
                       ? "Valor total (original + juros − desconto)"
-                      : "Juros e desconto não se aplicam a contas vinculadas a pedido."}
+                      : "Em contas vinculadas a pedido, o valor vem do pedido; juros e desconto não se aplicam."}
                   </span>
                   <span
                     className={
@@ -461,6 +496,20 @@ export function EditarContaFinanceiraDialog({
                 {valorTotalEdicao < 0 ? (
                   <p className="text-xs text-destructive">
                     O desconto não pode ser maior que o valor original somado aos juros.
+                  </p>
+                ) : null}
+                {valorJaPago > 0.009 ? (
+                  <p
+                    className={
+                      totalAbaixoDoPago
+                        ? "text-xs text-destructive"
+                        : "text-xs text-muted-foreground"
+                    }
+                  >
+                    Já {pagoLabel}: {formatCurrency(valorJaPago)}.
+                    {totalAbaixoDoPago
+                      ? ` O valor total não pode ficar abaixo desse valor. Estorne o ${pagoLabel === "recebido" ? "recebimento" : "pagamento"} antes de reduzir o valor ou aumentar o desconto.`
+                      : ""}
                   </p>
                 ) : null}
               </div>
@@ -793,7 +842,7 @@ export function EditarContaFinanceiraDialog({
               onClick={handleUpdate}
               className="w-full"
               variant="gradient"
-              disabled={updateContaMutation.isPending}
+              disabled={updateContaMutation.isPending || totalAbaixoDoPago}
             >
               {updateContaMutation.isPending ? (
                 <>
