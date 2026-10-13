@@ -74,7 +74,13 @@ export function HistoricoPagamentosConta({
       toast.success("Pagamento estornado.");
       setEstornando(null);
       setMotivo("");
-      await queryClient.invalidateQueries({ queryKey: ["conta-financeira", contaId] });
+      // A API pode devolver o id como texto ("1153") e as páginas usam número na chave:
+      // comparar como string para a tela de detalhe recarregar após o estorno.
+      await queryClient.invalidateQueries({
+        predicate: (q) =>
+          q.queryKey[0] === "conta-financeira" &&
+          String(q.queryKey[1]) === String(contaId),
+      });
       await queryClient.invalidateQueries({ queryKey: ["contas-financeiras"] });
       await queryClient.invalidateQueries({ queryKey: ["centro-custo"] });
       for (const key of invalidateQueryKeys) {

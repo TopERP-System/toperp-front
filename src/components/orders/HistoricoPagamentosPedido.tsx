@@ -95,6 +95,7 @@ export function HistoricoPagamentosPedido({
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
       queryClient.invalidateQueries({ queryKey: ['pagamentos'] });
       queryClient.invalidateQueries({ queryKey: ['contas-financeiras'] });
+      queryClient.invalidateQueries({ queryKey: ['conta-financeira-detalhe-pedido'] });
       queryClient.invalidateQueries({ queryKey: ['contas-a-receber'] });
       queryClient.invalidateQueries({ queryKey: ['contas-a-pagar'] });
       onEstornoSucesso?.();
