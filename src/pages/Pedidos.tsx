@@ -49,6 +49,8 @@ import { formatCurrency, normalizeCurrency } from '@/lib/utils';
 import { controleRocaService } from '@/services/controle-roca.service';
 import { pedidosService } from '@/services/pedidos.service';
 import {
+  FILTRO_NOTA_FISCAL_PEDIDO_LABELS,
+  FiltroNotaFiscalPedido,
   FiltrosPedidos,
   Pedido,
   RelatorioPedidoModelo,
@@ -257,6 +259,7 @@ export default function Pedidos() {
     filters.data_final ||
     filters.tipo ||
     filters.status ||
+    filters.nota_fiscal ||
     filters.roca_id ||
     filters.somente_com_roca ||
     filters.cliente_id ||
@@ -265,6 +268,7 @@ export default function Pedidos() {
 
   const qtdFiltrosAtivos = [
     filters.status,
+    filters.nota_fiscal,
     filters.cliente_id,
     filters.fornecedor_id,
     filters.data_inicial,
@@ -327,6 +331,7 @@ export default function Pedidos() {
       data_final: undefined,
       tipo: undefined,
       status: undefined,
+      nota_fiscal: undefined,
       roca_id: undefined,
       somente_com_roca: undefined,
       cliente_id: undefined,
@@ -561,6 +566,11 @@ export default function Pedidos() {
                   Status: {labelStatusFiltro(filters.status)}
                 </span>
               )}
+              {filters.nota_fiscal && (
+                <span className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-medium text-foreground">
+                  NF-e: {FILTRO_NOTA_FISCAL_PEDIDO_LABELS[filters.nota_fiscal]}
+                </span>
+              )}
               {labelClienteFiltro() && (
                 <span className="inline-flex items-center max-w-[200px] truncate rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-medium text-foreground">
                   Cliente: {labelClienteFiltro()}
@@ -634,6 +644,35 @@ export default function Pedidos() {
                     <SelectItem value="ABERTO">Aberto</SelectItem>
                     <SelectItem value="ATENDIDO">Atendido</SelectItem>
                     <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Nota fiscal</Label>
+                <Select
+                  value={filters.nota_fiscal || 'all'}
+                  onValueChange={(value) =>
+                    updateFilters({
+                      nota_fiscal:
+                        value === 'all' ? undefined : (value as FiltroNotaFiscalPedido),
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {(
+                      Object.entries(FILTRO_NOTA_FISCAL_PEDIDO_LABELS) as Array<
+                        [FiltroNotaFiscalPedido, string]
+                      >
+                    ).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

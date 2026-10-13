@@ -407,7 +407,8 @@ export function EmitirNotaFiscalDialog({
       return notaFiscalService.emitir(pedidoId!, payload);
     },
     onSuccess: (nota) => {
-      queryClient.invalidateQueries({ queryKey: ['pedidos', pedidoId, 'nota-fiscal'] });
+      // Prefixo ['pedidos'] também recarrega a listagem (coluna NF-e).
+      queryClient.invalidateQueries({ queryKey: ['pedidos'] });
       queryClient.invalidateQueries({ queryKey: ['notas-fiscais'] });
       const statusLabel = STATUS_NOTA_FISCAL_LABELS[nota.status] ?? nota.status;
       const motivo = nota.mensagem_processamento ?? nota.mensagemProcessamento;

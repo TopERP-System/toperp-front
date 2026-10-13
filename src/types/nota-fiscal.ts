@@ -83,6 +83,11 @@ export function isStatusNotaEmProcessamento(status: StatusNotaFiscal): boolean {
   return STATUS_NOTA_EM_PROCESSAMENTO.includes(status);
 }
 
+/** Nota autorizada ou em processamento: não cabe emitir outra para o pedido. */
+export function isStatusNotaAtiva(status?: StatusNotaFiscal | null): boolean {
+  return !!status && (status === 'authorized' || isStatusNotaEmProcessamento(status));
+}
+
 export function isStatusNotaFinal(status: StatusNotaFiscal): boolean {
   return (
     status === 'authorized' ||

@@ -117,8 +117,9 @@ export function PedidoNotaFiscalSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aguardandoCancelamento, dialogOpen, pedidoId]);
 
+  // Prefixo ['pedidos'] cobre a nota deste pedido e a listagem (coluna NF-e).
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey });
+    queryClient.invalidateQueries({ queryKey: ['pedidos'] });
   };
 
   const consultarMutation = useMutation({

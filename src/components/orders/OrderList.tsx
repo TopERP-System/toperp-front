@@ -19,10 +19,12 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { normalizeCurrency } from '@/lib/utils';
+import { isStatusNotaAtiva } from '@/types/nota-fiscal';
 import { Pedido, pedidoVinculadoRoca, StatusPedido } from '@/types/pedido';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Edit, Eye, FileText, Loader2, Receipt, ShoppingCart, Trash2, Ban } from 'lucide-react';
+import { NotaFiscalPedidoBadge } from './NotaFiscalPedidoBadge';
 import { StatusBadge } from './StatusBadge';
 import { TypeBadge } from './TypeBadge';
 import { canManageNotaFiscal } from '@/lib/role-access';
@@ -167,7 +169,7 @@ export function OrderList({
               className="gap-2"
             >
               <Receipt className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-              Emitir nota fiscal
+              {isStatusNotaAtiva(order.nota_fiscal_status) ? 'Ver nota fiscal' : 'Emitir nota fiscal'}
             </DropdownMenuItem>
           )}
           {canEditOrCancel && (
@@ -285,6 +287,7 @@ export function OrderList({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {renderStatus(order)}
+              {order.tipo === 'VENDA' && <NotaFiscalPedidoBadge order={order} />}
               <span className="text-sm font-semibold ml-auto">
                 {formatCurrency(normalizeCurrency(order.valor_total, false))}
               </span>
@@ -299,13 +302,14 @@ export function OrderList({
 
       {/* Tabela — tablet/desktop */}
       <div className="hidden md:block overflow-x-auto">
-        <Table className="min-w-[720px] w-full">
+        <Table className="min-w-[820px] w-full">
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50 border-b sticky top-0 z-[1]">
             <TableHead className="font-semibold text-foreground whitespace-nowrap">Número</TableHead>
             <TableHead className="font-semibold text-foreground whitespace-nowrap hidden lg:table-cell">Tipo</TableHead>
             <TableHead className="font-semibold text-foreground min-w-[140px]">Cliente/Fornecedor</TableHead>
             <TableHead className="font-semibold text-foreground whitespace-nowrap">Status</TableHead>
+            <TableHead className="font-semibold text-foreground whitespace-nowrap">NF-e</TableHead>
             <TableHead className="font-semibold text-foreground whitespace-nowrap">Total</TableHead>
             <TableHead className="font-semibold text-foreground whitespace-nowrap hidden lg:table-cell">Data</TableHead>
             <TableHead className="w-[72px] font-semibold text-foreground text-right whitespace-nowrap">
@@ -328,6 +332,9 @@ export function OrderList({
                 </span>
               </TableCell>
               <TableCell>{renderStatus(order)}</TableCell>
+              <TableCell>
+                <NotaFiscalPedidoBadge order={order} />
+              </TableCell>
               <TableCell className="whitespace-nowrap">
                 <span className="font-medium">
                   {formatCurrency(normalizeCurrency(order.valor_total, false))}

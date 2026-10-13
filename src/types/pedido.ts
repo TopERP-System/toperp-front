@@ -1,3 +1,4 @@
+import type { StatusNotaFiscal } from './nota-fiscal';
 export type TipoPedido = 'VENDA' | 'COMPRA';
 
 /** Modelo do PDF individual do pedido (query `campos` de GET /pedidos/:id/relatorio/pdf). */
@@ -84,6 +85,10 @@ export interface Pedido {
   roca_id?: number | null;
   roca?: { id: number; nome: string } | null;
   roca_nome?: string | null;
+  /** Status da NF-e do pedido (só na listagem); null = sem nota. */
+  nota_fiscal_status?: StatusNotaFiscal | null;
+  /** Número da NF-e, quando já atribuído (só na listagem). */
+  nota_fiscal_numero?: number | null;
   usuario_criacao_id?: string;
   usuario_atualizacao_id?: string;
   data_pedido: string;
@@ -167,6 +172,21 @@ export interface AtualizarCondicaoPagamentoPayload {
   forma_pagamento?: FormaPagamento;
 }
 
+export type FiltroNotaFiscalPedido =
+  | 'emitida'
+  | 'processando'
+  | 'problema'
+  | 'cancelada'
+  | 'nao_emitida';
+
+export const FILTRO_NOTA_FISCAL_PEDIDO_LABELS: Record<FiltroNotaFiscalPedido, string> = {
+  emitida: 'Emitida',
+  nao_emitida: 'Não emitida',
+  processando: 'Processando',
+  problema: 'Rejeitada',
+  cancelada: 'Cancelada',
+};
+
 export interface FiltrosPedidos {
   id?: number;
   numero_pedido?: string;
@@ -183,6 +203,8 @@ export interface FiltrosPedidos {
   fornecedor_nome?: string;
   data_inicial?: string;
   data_final?: string;
+  /** Situação da NF-e do pedido */
+  nota_fiscal?: FiltroNotaFiscalPedido;
   /** Filtro rápido dos cards do dashboard (mapeado na listagem) */
   card_filtro?:
     | 'faturamento_venda'

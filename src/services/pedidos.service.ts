@@ -128,6 +128,7 @@ class PedidosService {
     if (params?.somente_com_roca) {
       queryParams.append('somente_com_roca', 'true');
     }
+    if (params?.nota_fiscal) queryParams.append('nota_fiscal', params.nota_fiscal);
     if (params?.data_inicial) {
       // Enviar em snake_case (padrão da API)
       queryParams.append('data_inicial', params.data_inicial);
