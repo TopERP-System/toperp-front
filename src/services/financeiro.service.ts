@@ -29,6 +29,8 @@ export interface ContaFinanceira {
   data_prevista?: string | null;
   previsao?: boolean;
   data_pagamento?: string;
+  /** Último pagamento não estornado (histórico) ou data_pagamento da conta — YYYY-MM-DD. */
+  ultima_data_pagamento?: string | null;
   status: 'PENDENTE' | 'PAGO_PARCIAL' | 'PAGO_TOTAL' | 'VENCIDO' | 'CANCELADO' | 'PREVISAO' | 'ABERTO' | 'PARCIAL' | 'QUITADO';
   forma_pagamento?: 'DINHEIRO' | 'PIX' | 'CARTAO_CREDITO' | 'CARTAO_DEBITO' | 'BOLETO' | 'TRANSFERENCIA' | 'CHEQUE';
   observacoes?: string;
@@ -162,6 +164,10 @@ export interface ContaFinanceiraAgrupada {
   qtd_parcelas?: number;
   primeira_data_vencimento?: string | null;
   ultima_data_vencimento?: string | null;
+  /** Menor data de emissão do grupo (YYYY-MM-DD). */
+  data_emissao?: string | null;
+  /** Último pagamento não estornado do grupo (YYYY-MM-DD). */
+  ultima_data_pagamento?: string | null;
 }
 
 export interface ContasAgrupadasResponse {

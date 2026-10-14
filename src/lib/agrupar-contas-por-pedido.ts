@@ -7,6 +7,19 @@ export type ContaFinanceiraExibicao = ContaFinanceira & {
   _vencimentosParcelas?: string[];
 };
 
+/** Parte YYYY-MM-DD de uma data da API (coluna date ou ISO), sem conversão de fuso. */
+export function dataYMD(valor?: string | null): string | null {
+  const m = String(valor ?? '').match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
+/** Data do último pagamento da conta (histórico de pagamentos ou data_pagamento). */
+export function ultimaDataPagamentoConta(
+  c: Pick<ContaFinanceira, 'ultima_data_pagamento' | 'data_pagamento'>,
+): string | null {
+  return dataYMD(c.ultima_data_pagamento) ?? dataYMD(c.data_pagamento);
+}
+
 function aggregateStatus(statuses: string[]): string {
   const u = statuses.map((s) => String(s ?? '').toUpperCase());
   if (u.some((s) => s === 'VENCIDO')) return 'VENCIDO';
@@ -70,6 +83,14 @@ export function agruparContasPorPedido(
       .map((c) => c.data_vencimento?.split('T')[0]?.split(' ')[0])
       .filter((d): d is string => !!d)
       .sort((a, b) => a.localeCompare(b));
+    const emissoes = grupo
+      .map((c) => dataYMD(c.data_emissao))
+      .filter((d): d is string => !!d)
+      .sort();
+    const pagamentos = grupo
+      .map(ultimaDataPagamentoConta)
+      .filter((d): d is string => !!d)
+      .sort();
 
     const descricao =
       numeroPedido != null
@@ -89,6 +110,8 @@ export function agruparContasPorPedido(
       valor_em_aberto: valorRestante,
       status: aggregateStatus(grupo.map((c) => c.status)) as ContaFinanceira['status'],
       data_vencimento: vencimentos[0] ?? first.data_vencimento,
+      data_emissao: emissoes[0] ?? first.data_emissao,
+      ultima_data_pagamento: pagamentos[pagamentos.length - 1] ?? null,
       _agrupadoPedido: true,
       _qtdParcelas: grupo.length,
       _vencimentosParcelas: vencimentos,
