@@ -70,7 +70,9 @@ import {
 } from "@/lib/utils";
 import {
   agruparContasPorPedido,
+  dataYMD,
   formatarVencimentoAgrupado,
+  ultimaDataPagamentoConta,
   type ContaFinanceiraExibicao,
 } from "@/lib/agrupar-contas-por-pedido";
 import {
@@ -739,6 +741,7 @@ function ContasAPagar() {
       statusFilter,
       dataInicialFilter,
       dataFinalFilter,
+      campoDataFilter,
       activeCardFilter,
       searchTerm,
     ],
@@ -809,6 +812,7 @@ function ContasAPagar() {
                 tipo_despesa_id: tipoDespesaArg,
                 data_inicial: dataInicialArg,
                 data_final: dataFinalArg,
+                campo_data: campoDataFilter,
               }),
               listarContasPagarTodasAsPaginas({
                 tipo: "PAGAR",
@@ -818,6 +822,7 @@ function ContasAPagar() {
                 tipo_despesa_id: tipoDespesaArg,
                 data_inicial: dataInicialArg,
                 data_final: dataFinalArg,
+                campo_data: campoDataFilter,
               }),
             ]);
             const merged = dedupeContasFinanceirasPagar([
@@ -835,6 +840,7 @@ function ContasAPagar() {
               tipo_despesa_id: tipoDespesaArg,
               data_inicial: dataInicialArg,
               data_final: dataFinalArg,
+              campo_data: campoDataFilter,
             });
             return paginateLocal(todas.filter(contaTemSaldoAberto));
           }
@@ -848,6 +854,7 @@ function ContasAPagar() {
               tipo_despesa_id: tipoDespesaArg,
               data_inicial: dataInicialArg,
               data_final: dataFinalArg,
+              campo_data: campoDataFilter,
             });
             return paginateLocal(merged.filter(contaTemSaldoAberto));
           }
@@ -860,6 +867,7 @@ function ContasAPagar() {
               tipo_despesa_id: tipoDespesaArg,
               data_inicial: dataInicialArg,
               data_final: dataFinalArg,
+              campo_data: campoDataFilter,
             });
             return paginateLocal(merged.filter(contaTemSaldoAberto));
           }
@@ -1012,16 +1020,13 @@ function ContasAPagar() {
       });
     }
 
-    if (dataInicialFilter || dataFinalFilter) {
+    // Pagamento: o backend já filtra pelo histórico (uma conta pode ter vários pagamentos).
+    if ((dataInicialFilter || dataFinalFilter) && campoDataFilter !== "pagamento") {
       base = base.filter((c: any) => {
-        let dateVal: string | null | undefined;
-        if (campoDataFilter === "emissao") {
-          dateVal = c.data_emissao || c.created_at;
-        } else if (campoDataFilter === "pagamento") {
-          dateVal = c.data_pagamento || c.pagamento?.data_pagamento || (c.pagamentos?.[0]?.data) || c.data_vencimento;
-        } else {
-          dateVal = c.data_vencimento;
-        }
+        const dateVal: string | null | undefined =
+          campoDataFilter === "emissao"
+            ? c.data_emissao || c.created_at
+            : c.data_vencimento;
         return matchDataRange(dateVal, dataInicialFilter, dataFinalFilter);
       });
     }
@@ -1131,7 +1136,8 @@ function ContasAPagar() {
       tipo_despesa_id: tipoDespesaArg,
       data_inicial: dataInicialArg,
       data_final: dataFinalArg,
-          busca: searchTerm.trim() || undefined,
+      campo_data: campoDataFilter,
+      busca: searchTerm.trim() || undefined,
       status,
       proximidade_vencimento,
     };
@@ -1141,6 +1147,8 @@ function ContasAPagar() {
     tipoDespesaFilterId,
     dataInicialFilter,
     dataFinalFilter,
+    campoDataFilter,
+    searchTerm,
     statusFilter,
     activeTab,
   ]);
@@ -1684,6 +1692,8 @@ function ContasAPagar() {
             currency: "BRL",
           }).format(valorPago),
           data: formatarVencimentoItemAgrupado(item),
+          dataEmissao: dataYMD(item.data_emissao),
+          dataPagamento: dataYMD(item.ultima_data_pagamento),
           status: statusMap[item.status] || item.status,
           statusOriginal: item.status,
           contaId: item.id,
@@ -1817,6 +1827,8 @@ function ContasAPagar() {
         valor: valorFormatado,
         valorPago: valorPagoFormatado,
         data: dataFormatada,
+        dataEmissao: dataYMD(conta.data_emissao),
+        dataPagamento: ultimaDataPagamentoConta(conta),
         status: statusFormatado,
         statusOriginal: conta.status,
         contaId: conta.id,
@@ -1941,6 +1953,14 @@ function ContasAPagar() {
           case "dataVencimento":
             valA = parseDateBR((a as { data?: string }).data);
             valB = parseDateBR((b as { data?: string }).data);
+            break;
+          case "dataEmissao":
+            valA = a.dataEmissao ?? "";
+            valB = b.dataEmissao ?? "";
+            break;
+          case "dataPagamento":
+            valA = a.dataPagamento ?? "";
+            valB = b.dataPagamento ?? "";
             break;
           case "status":
             valA = (a.status ?? "").toLowerCase();
@@ -2680,11 +2700,45 @@ function ContasAPagar() {
                 </TableHead>
                 <TableHead
                   className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("dataEmissao")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Data Emissão</span>
+                    {sortColumn === "dataEmissao" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
                   onClick={() => handleSort("dataVencimento")}
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Data Vencimento</span>
                     {sortColumn === "dataVencimento" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("dataPagamento")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Data Pagamento</span>
+                    {sortColumn === "dataPagamento" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="w-3.5 h-3.5 text-primary" />
                       ) : (
@@ -2718,7 +2772,7 @@ function ContasAPagar() {
             <TableBody>
               {isLoadingContas ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Carregando contas...
@@ -2727,7 +2781,7 @@ function ContasAPagar() {
                 </TableRow>
               ) : (dataInicialFilter || dataFinalFilter) && !isLoadingContas && totalContas === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <DollarSign className="w-12 h-12 text-muted-foreground/50" />
                       <p className="text-muted-foreground">Não há contas no período selecionado.</p>
@@ -2736,7 +2790,7 @@ function ContasAPagar() {
                 </TableRow>
               ) : filteredTransacoes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <DollarSign className="w-12 h-12 text-muted-foreground/50" />
                       <p className="text-muted-foreground">
@@ -2825,11 +2879,21 @@ function ContasAPagar() {
                       <span className="text-sm text-muted-foreground">{(transacao as any).valorPago ?? '—'}</span>
                     </TableCell>
                     <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {transacao.dataEmissao ? formatDate(transacao.dataEmissao) : "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
                       {transacao.status === "Concluído" || transacao.status === "Cancelado" ? (
                         <span className="text-sm text-muted-foreground">--</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">{transacao.data}</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {transacao.dataPagamento ? formatDate(transacao.dataPagamento) : "—"}
+                      </span>
                     </TableCell>
                     <TableCell>
                       {/* Status do pedido - não editável diretamente, apenas visualização */}

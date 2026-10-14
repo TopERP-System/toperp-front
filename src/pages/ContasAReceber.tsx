@@ -74,6 +74,7 @@ import {
   valorPrincipalConta,
 } from "@/lib/contas-financeiras-listagem";
 import { cn, formatDate, formatarDataBR, formatarFormaPagamento, formatarStatus, parseDateOnlyLocal } from "@/lib/utils";
+import { dataYMD, ultimaDataPagamentoConta } from "@/lib/agrupar-contas-por-pedido";
 import ContasAReceberListaClientes from "@/pages/contas-a-receber/ContasAReceberListaClientes";
 import { Cliente, clientesService } from "@/services/clientes.service";
 import { controleRocaService } from "@/services/controle-roca.service";
@@ -512,6 +513,7 @@ const ContasAReceber = () => {
       statusFilter,
       dataInicialFilter,
       dataFinalFilter,
+      campoDataFilter,
       searchTerm,
     ],
     queryFn: async () => {
@@ -711,16 +713,13 @@ const ContasAReceber = () => {
       });
     }
 
-    if (dataInicialFilter || dataFinalFilter) {
+    // Pagamento: o backend já filtra pelo histórico (uma conta pode ter vários pagamentos).
+    if ((dataInicialFilter || dataFinalFilter) && campoDataFilter !== "pagamento") {
       base = base.filter((c: any) => {
-        let dateVal: string | null | undefined;
-        if (campoDataFilter === "emissao") {
-          dateVal = c.data_emissao || c.created_at;
-        } else if (campoDataFilter === "pagamento") {
-          dateVal = c.data_pagamento || c.pagamento?.data_pagamento || (c.pagamentos?.[0]?.data) || c.data_vencimento;
-        } else {
-          dateVal = c.data_vencimento;
-        }
+        const dateVal: string | null | undefined =
+          campoDataFilter === "emissao"
+            ? c.data_emissao || c.created_at
+            : c.data_vencimento;
         return matchDataRange(dateVal, dataInicialFilter, dataFinalFilter);
       });
     }
@@ -808,6 +807,7 @@ const ContasAReceber = () => {
       roca_id: rocaArg,
       data_inicial: dataInicialArg,
       data_final: dataFinalArg,
+      campo_data: campoDataFilter,
       status,
       proximidade_vencimento,
     };
@@ -816,6 +816,7 @@ const ContasAReceber = () => {
     rocaFilterId,
     dataInicialFilter,
     dataFinalFilter,
+    campoDataFilter,
     statusFilter,
   ]);
 
@@ -1532,6 +1533,10 @@ const ContasAReceber = () => {
     statusConsolidado: string;
     ehPrevisao: boolean;
     data_prevista?: string | null;
+    /** Menor data de emissão das parcelas (YYYY-MM-DD). */
+    data_emissao: string | null;
+    /** Último pagamento entre as parcelas (YYYY-MM-DD). */
+    ultima_data_pagamento: string | null;
   };
 
   const gruposContas = useMemo(() => {
@@ -1621,6 +1626,17 @@ const ContasAReceber = () => {
         statusConsolidado,
         ehPrevisao,
         data_prevista: primeira?.data_prevista ?? null,
+        data_emissao:
+          parcelas
+            .map((p) => dataYMD(p.data_emissao))
+            .filter((d): d is string => !!d)
+            .sort()[0] ?? null,
+        ultima_data_pagamento:
+          parcelas
+            .map(ultimaDataPagamentoConta)
+            .filter((d): d is string => !!d)
+            .sort()
+            .pop() ?? null,
       });
     });
 
@@ -1758,6 +1774,8 @@ const ContasAReceber = () => {
           data: p.data_vencimento
             ? formatDate(p.data_vencimento)
             : formatDate(p.data_pedido),
+          dataEmissao: dataYMD(p.data_pedido),
+          dataPagamento: null as string | null,
           vencimentoStatus,
           status: statusFormatado,
           pedidoId: p.pedido_id,
@@ -1828,6 +1846,8 @@ const ContasAReceber = () => {
           : g.primeira_vencimento
             ? formatDate(g.primeira_vencimento)
             : "—",
+        dataEmissao: g.data_emissao,
+        dataPagamento: g.ultima_data_pagamento,
         vencimentoStatus,
         status: g.statusConsolidado,
         pedidoId: g.pedido_id,
@@ -1897,6 +1917,14 @@ const ContasAReceber = () => {
         case "dataVencimento":
           valA = parseDateBR(a.data);
           valB = parseDateBR(b.data);
+          break;
+        case "dataEmissao":
+          valA = a.dataEmissao ?? "";
+          valB = b.dataEmissao ?? "";
+          break;
+        case "dataPagamento":
+          valA = a.dataPagamento ?? "";
+          valB = b.dataPagamento ?? "";
           break;
         case "status":
           valA = (a.status ?? "").toLowerCase();
@@ -1969,6 +1997,14 @@ const ContasAReceber = () => {
         case "dataVencimento":
           valA = parseDateBR(a.data);
           valB = parseDateBR(b.data);
+          break;
+        case "dataEmissao":
+          valA = a.dataEmissao ?? "";
+          valB = b.dataEmissao ?? "";
+          break;
+        case "dataPagamento":
+          valA = a.dataPagamento ?? "";
+          valB = b.dataPagamento ?? "";
           break;
         case "status":
           valA = (a.status ?? "").toLowerCase();
@@ -3142,11 +3178,45 @@ const ContasAReceber = () => {
                 </TableHead>
                 <TableHead
                   className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("dataEmissao")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Data Emissão</span>
+                    {sortColumn === "dataEmissao" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
                   onClick={() => handleSort("dataVencimento")}
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Data Vencimento</span>
                     {sortColumn === "dataVencimento" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => handleSort("dataPagamento")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Data Pagamento</span>
+                    {sortColumn === "dataPagamento" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="w-3.5 h-3.5 text-primary" />
                       ) : (
@@ -3180,7 +3250,7 @@ const ContasAReceber = () => {
             <TableBody>
               {(isLoadingPedidosContasReceber || (usarFallbackContasFinanceiras && isLoadingContas)) ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Carregando contas a receber...
@@ -3189,7 +3259,7 @@ const ContasAReceber = () => {
                 </TableRow>
               ) : (clienteFilterId != null && clienteFilterId > 0 && !isLoadingPedidosContasReceber && pedidos.length === 0 && (usarFallbackContasFinanceiras ? transacoesDisplayGrupos : transacoesDisplayReceber).length === 0) ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <DollarSign className="w-12 h-12 text-muted-foreground/50" />
                       <p className="text-muted-foreground">Não há pedidos ou contas desse determinado cliente.</p>
@@ -3198,7 +3268,7 @@ const ContasAReceber = () => {
                 </TableRow>
               ) : (dataInicialFilter || dataFinalFilter) && !isLoadingPedidosContasReceber && pedidos.length === 0 && (usarFallbackContasFinanceiras ? transacoesDisplayGrupos : transacoesDisplayReceber).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <DollarSign className="w-12 h-12 text-muted-foreground/50" />
                       <p className="text-muted-foreground">Não há contas no período selecionado.</p>
@@ -3207,7 +3277,7 @@ const ContasAReceber = () => {
                 </TableRow>
               ) : (usarFallbackContasFinanceiras ? transacoesDisplayGrupos : transacoesDisplayReceber).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <DollarSign className="w-12 h-12 text-muted-foreground/50" />
                       <p className="text-muted-foreground">
@@ -3268,6 +3338,11 @@ const ContasAReceber = () => {
                         <span className="text-sm text-muted-foreground">{transacao.valorPago}</span>
                       </TableCell>
                       <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {transacao.dataEmissao ? formatDate(transacao.dataEmissao) : "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
                         {(transacao as { ehPrevisao?: boolean }).ehPrevisao ? (
                           <span className="text-sm text-muted-foreground">{transacao.data}</span>
                         ) : transacao.status === "Pago Total" || transacao.status === "Cancelado" ? (
@@ -3275,6 +3350,11 @@ const ContasAReceber = () => {
                         ) : (
                           <span className="text-sm text-muted-foreground">{transacao.data}</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {transacao.dataPagamento ? formatDate(transacao.dataPagamento) : "—"}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(transacao.status)}`}>
@@ -3512,11 +3592,21 @@ const ContasAReceber = () => {
                       <span className="text-sm text-muted-foreground">{transacao.valorPago}</span>
                     </TableCell>
                     <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {transacao.dataEmissao ? formatDate(transacao.dataEmissao) : "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
                       {transacao.status === "Quitado" || transacao.status === "Cancelado" ? (
                         <span className="text-sm text-muted-foreground">—</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">{transacao.data}</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {transacao.dataPagamento ? formatDate(transacao.dataPagamento) : "—"}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(transacao.status)}`}>
