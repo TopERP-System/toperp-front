@@ -3357,7 +3357,7 @@ const ContasAReceber = () => {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(transacao.status)}`}>
+                        <span className={`inline-block whitespace-nowrap text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(transacao.status)}`}>
                           {transacao.status}
                         </span>
                       </TableCell>
@@ -3609,7 +3609,7 @@ const ContasAReceber = () => {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(transacao.status)}`}>
+                      <span className={`inline-block whitespace-nowrap text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(transacao.status)}`}>
                         {transacao.status}
                       </span>
                     </TableCell>

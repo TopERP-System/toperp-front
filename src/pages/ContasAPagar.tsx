@@ -2897,7 +2897,7 @@ function ContasAPagar() {
                     </TableCell>
                     <TableCell>
                       {/* Status do pedido - não editável diretamente, apenas visualização */}
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(transacao.status)}`}>
+                      <span className={`inline-block whitespace-nowrap text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(transacao.status)}`}>
                         {transacao.status}
                       </span>
                     </TableCell>
