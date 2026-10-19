@@ -42,6 +42,8 @@ export interface RelatorioFinanceiroClienteQuery {
   status?: string;
   /** Campo do período: vencimento (padrão), emissão ou pagamento */
   campoData?: 'vencimento' | 'emissao' | 'pagamento';
+  /** Roça (exibida com o rótulo do tenant, ex.: Empresa) */
+  rocaId?: number;
 }
 
 /** Mesmo filtro do relatório financeiro de cliente, aplicado ao fornecedor. */
@@ -137,6 +139,9 @@ class RelatoriosClienteService {
     }
     if (filtros?.campoData === 'emissao' || filtros?.campoData === 'vencimento' || filtros?.campoData === 'pagamento') {
       params.append('campo_data', filtros.campoData);
+    }
+    if (filtros?.rocaId != null && filtros.rocaId > 0) {
+      params.append('roca_id', String(filtros.rocaId));
     }
     const q = params.toString();
     return q ? `?${q}` : '';

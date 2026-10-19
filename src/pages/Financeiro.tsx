@@ -145,6 +145,7 @@ const Financeiro = () => {
   const [relatorioDataInicial, setRelatorioDataInicial] = useState("");
   const [relatorioDataFinal, setRelatorioDataFinal] = useState("");
   const [relatorioStatusFiltro, setRelatorioStatusFiltro] = useState<string>("Todos");
+  const [relatorioRocaId, setRelatorioRocaId] = useState<number | null>(null);
   const [relatorioFornecedorPdfOpen, setRelatorioFornecedorPdfOpen] = useState(false);
   const [relatorioFornecedorIdSelect, setRelatorioFornecedorIdSelect] = useState("");
   const [relatorioFornecedorPdfLoading, setRelatorioFornecedorPdfLoading] = useState(false);
@@ -292,6 +293,7 @@ const Financeiro = () => {
       page: 1,
       limit: 1,
       cliente_id: relatorioClienteIdParsed ?? undefined,
+      roca_id: relatorioRocaId ?? undefined,
       data_inicial: relatorioDataInicial || undefined,
       data_final: relatorioDataFinal || undefined,
       status:
@@ -301,6 +303,7 @@ const Financeiro = () => {
     }),
     [
       relatorioClienteIdParsed,
+      relatorioRocaId,
       relatorioDataInicial,
       relatorioDataFinal,
       relatorioStatusFiltro,
@@ -325,11 +328,14 @@ const Financeiro = () => {
 
   /** Mensagem quando o preview não encontra contas (PDF/impressão desabilitados). */
   const relatorioMensagemSemDados = useMemo(() => {
+    if (relatorioRocaId != null) {
+      return `O cliente não possui dívida nessa ${rotulo.singularLower} para os filtros selecionados.`;
+    }
     if (relatorioStatusFiltro !== "Todos") {
       return "O cliente não possui dívida naquele status selecionado.";
     }
     return "O cliente não possui dívida naquele período.";
-  }, [relatorioStatusFiltro]);
+  }, [relatorioStatusFiltro, relatorioRocaId, rotulo.singularLower]);
 
   const relatorioFiltrosForPdf = useMemo(
     () => ({
@@ -339,8 +345,9 @@ const Financeiro = () => {
         relatorioStatusFiltro !== "Todos"
           ? relatorioStatusFiltro
           : undefined,
+      rocaId: relatorioRocaId ?? undefined,
     }),
-    [relatorioDataInicial, relatorioDataFinal, relatorioStatusFiltro],
+    [relatorioDataInicial, relatorioDataFinal, relatorioStatusFiltro, relatorioRocaId],
   );
 
   const relatorioFornecedorIdParsed = useMemo(() => {
@@ -1138,7 +1145,16 @@ const Financeiro = () => {
                   <DropdownMenuLabel>Relatórios</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() => setRelatorioClientePdfOpen(true)}
+                    onClick={() => {
+                      setRelatorioDataInicial("");
+                      setRelatorioDataFinal("");
+                      setRelatorioStatusFiltro("Todos");
+                      setRelatorioClienteIdSelect(
+                        clienteFilterId != null ? String(clienteFilterId) : "",
+                      );
+                      setRelatorioRocaId(rocaFilterId ?? null);
+                      setRelatorioClientePdfOpen(true);
+                    }}
                   >
                     Relatório financeiro por cliente
                   </DropdownMenuItem>
@@ -1891,17 +1907,7 @@ const Financeiro = () => {
 
         <Dialog
           open={relatorioClientePdfOpen}
-          onOpenChange={(open) => {
-            setRelatorioClientePdfOpen(open);
-            if (open) {
-              setRelatorioDataInicial("");
-              setRelatorioDataFinal("");
-              setRelatorioStatusFiltro("Todos");
-              setRelatorioClienteIdSelect(
-                clienteFilterId != null ? String(clienteFilterId) : "",
-              );
-            }
-          }}
+          onOpenChange={setRelatorioClientePdfOpen}
         >
           <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -1925,6 +1931,26 @@ const Financeiro = () => {
                     {clientes.map((c) => (
                       <SelectItem key={c.id} value={String(c.id)}>
                         {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{rotulo.singular}</Label>
+                <Select
+                  value={relatorioRocaId == null ? "todos" : String(relatorioRocaId)}
+                  onValueChange={(v) => setRelatorioRocaId(v === "todos" ? null : parseInt(v, 10))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={rotulo.todas} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">{rotulo.todas}</SelectItem>
+                    {rocasFiltroOrdenadas.map((roca) => (
+                      <SelectItem key={roca.id} value={String(roca.id)}>
+                        {roca.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>

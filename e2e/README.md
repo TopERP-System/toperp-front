@@ -38,6 +38,7 @@ npx playwright show-report                                    # relatório da ú
 | `campos-data.spec.ts` | login | Campo de data não aceita ano com mais de 4 dígitos. |
 | `produto-dados-fiscais-local.spec.ts` | login + back local | Fluxo completo de dados fiscais do produto, com vídeo. **Cria um produto `[E2E 036] …`** (task 036). |
 | `pedido-ordens-local.spec.ts` | login + back local | Data de entrega no pedido (validação, salvar, carregar, limpar) e download das ordens de produção e expedição, com vídeo. **Cria um pedido `[E2E 034]` e o exclui no final** (task 034). Usa o primeiro cliente e os primeiros produtos do banco. |
+| `relatorios-financeiros-filtros.spec.ts` | nada (API simulada) | Relatório geral de Contas a Receber/Pagar (cliente/fornecedor + empresa) e Relatório financeiro por cliente em Contas a Receber e Financeiro (empresa): os filtros vão para o PDF e para a pré-visualização, e o dialog abre com os filtros avançados já aplicados (task 001). |
 
 ## Onde ficam vídeos, prints e arquivos baixados
 

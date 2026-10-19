@@ -329,6 +329,8 @@ function ContasAPagar() {
   const [relatorioGeralCampoData, setRelatorioGeralCampoData] = useState<
     "vencimento" | "emissao" | "pagamento"
   >("vencimento");
+  const [relatorioGeralFornecedorId, setRelatorioGeralFornecedorId] = useState<number | null>(null);
+  const [relatorioGeralRocaId, setRelatorioGeralRocaId] = useState<number | null>(null);
   const [relatorioCentroCustoStatusFiltro, setRelatorioCentroCustoStatusFiltro] =
     useState<string>("Todos");
   const [relatorioCentroCustoCampoData, setRelatorioCentroCustoCampoData] = useState<
@@ -543,12 +545,16 @@ function ContasAPagar() {
         relatorioGeralStatusFiltro !== "Todos"
           ? relatorioGeralStatusFiltro
           : undefined,
+      fornecedor_id: relatorioGeralFornecedorId ?? undefined,
+      roca_id: relatorioGeralRocaId ?? undefined,
     }),
     [
       relatorioGeralDataInicial,
       relatorioGeralDataFinal,
       relatorioGeralStatusFiltro,
       relatorioGeralCampoData,
+      relatorioGeralFornecedorId,
+      relatorioGeralRocaId,
     ],
   );
 
@@ -582,6 +588,9 @@ function ContasAPagar() {
     relatorioGeralTotalContas > 0;
 
   const relatorioGeralMensagemSemDados = useMemo(() => {
+    if (relatorioGeralFornecedorId != null || relatorioGeralRocaId != null) {
+      return "Não há contas a pagar para os filtros selecionados.";
+    }
     if (relatorioGeralStatusFiltro !== "Todos") {
       return "Não há contas a pagar com o status selecionado.";
     }
@@ -589,7 +598,13 @@ function ContasAPagar() {
       return "Não há contas a pagar no período selecionado.";
     }
     return "Não há contas a pagar cadastradas.";
-  }, [relatorioGeralStatusFiltro, relatorioGeralDataInicial, relatorioGeralDataFinal]);
+  }, [
+    relatorioGeralStatusFiltro,
+    relatorioGeralDataInicial,
+    relatorioGeralDataFinal,
+    relatorioGeralFornecedorId,
+    relatorioGeralRocaId,
+  ]);
 
   const relatorioGeralFiltrosForPdf = useMemo(
     () => ({
@@ -600,12 +615,16 @@ function ContasAPagar() {
           ? relatorioGeralStatusFiltro
           : undefined,
       campoData: relatorioGeralCampoData,
+      fornecedorId: relatorioGeralFornecedorId ?? undefined,
+      rocaId: relatorioGeralRocaId ?? undefined,
     }),
     [
       relatorioGeralDataInicial,
       relatorioGeralDataFinal,
       relatorioGeralStatusFiltro,
       relatorioGeralCampoData,
+      relatorioGeralFornecedorId,
+      relatorioGeralRocaId,
     ],
   );
 
@@ -2571,7 +2590,17 @@ function ContasAPagar() {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Relatórios</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setRelatorioGeralPdfOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setRelatorioGeralDataInicial(dataInicialFilter || "");
+                    setRelatorioGeralDataFinal(dataFinalFilter || "");
+                    setRelatorioGeralStatusFiltro("Todos");
+                    setRelatorioGeralCampoData("vencimento");
+                    setRelatorioGeralFornecedorId(fornecedorFilterId);
+                    setRelatorioGeralRocaId(rocaFilterId);
+                    setRelatorioGeralPdfOpen(true);
+                  }}
+                >
                   Relatório geral
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setRelatorioFornecedorPdfOpen(true)}>
@@ -3423,28 +3452,67 @@ function ContasAPagar() {
         </Dialog>
         <Dialog
           open={relatorioGeralPdfOpen}
-          onOpenChange={(open) => {
-            setRelatorioGeralPdfOpen(open);
-            if (open) {
-              setRelatorioGeralDataInicial(dataInicialFilter || "");
-              setRelatorioGeralDataFinal(dataFinalFilter || "");
-              setRelatorioGeralStatusFiltro(
-                statusFilter && statusFilter !== "" ? statusFilter : "Todos",
-              );
-              setRelatorioGeralCampoData("vencimento");
-            }
-          }}
+          onOpenChange={setRelatorioGeralPdfOpen}
         >
           <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Relatório geral</DialogTitle>
               <DialogDescription>
                 Inclui dados da empresa e todos os lançamentos de contas a pagar conforme os
-                filtros selecionados (período por data de vencimento, emissão ou pagamento e status).
+                filtros selecionados (fornecedor, {rotulo.singularLower}, período por data de
+                vencimento, emissão ou pagamento e status).
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-4">
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-[#1A3B70]">Fornecedor</Label>
+                  <Select
+                    value={relatorioGeralFornecedorId == null ? "todos" : String(relatorioGeralFornecedorId)}
+                    onValueChange={(v) =>
+                      setRelatorioGeralFornecedorId(v === "todos" ? null : parseInt(v, 10))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os fornecedores" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os fornecedores</SelectItem>
+                      {fornecedores.map((f) => (
+                        <SelectItem key={f.id} value={String(f.id)}>
+                          {f.nome_fantasia || f.nome_razao}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-[#1A3B70]">{rotulo.singular}</Label>
+                  <Select
+                    value={relatorioGeralRocaId == null ? "todos" : String(relatorioGeralRocaId)}
+                    onValueChange={(v) =>
+                      setRelatorioGeralRocaId(v === "todos" ? null : parseInt(v, 10))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={rotulo.todas} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">{rotulo.todas}</SelectItem>
+                      {rocasLista
+                        .filter((r) => r.ativo !== false)
+                        .map((roca) => (
+                          <SelectItem key={roca.id} value={String(roca.id)}>
+                            {roca.nome}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
                   <RadioGroup

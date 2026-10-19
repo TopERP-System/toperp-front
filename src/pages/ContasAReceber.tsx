@@ -203,12 +203,15 @@ const ContasAReceber = () => {
   const [relatorioClienteDataInicial, setRelatorioClienteDataInicial] = useState("");
   const [relatorioClienteDataFinal, setRelatorioClienteDataFinal] = useState("");
   const [relatorioClienteStatusFiltro, setRelatorioClienteStatusFiltro] = useState<string>("Todos");
+  const [relatorioClienteRocaId, setRelatorioClienteRocaId] = useState<number | null>(null);
   const [relatorioClienteCampoData, setRelatorioClienteCampoData] = useState<
     "vencimento" | "emissao" | "pagamento"
   >("vencimento");
   const [relatorioDataInicial, setRelatorioDataInicial] = useState<string>("");
   const [relatorioDataFinal, setRelatorioDataFinal] = useState<string>("");
   const [relatorioStatusFiltro, setRelatorioStatusFiltro] = useState<string>("Todos");
+  const [relatorioClienteGeralId, setRelatorioClienteGeralId] = useState<number | null>(null);
+  const [relatorioRocaGeralId, setRelatorioRocaGeralId] = useState<number | null>(null);
   const [relatorioCampoData, setRelatorioCampoData] = useState<
     "vencimento" | "emissao" | "pagamento"
   >("vencimento");
@@ -318,8 +321,17 @@ const ContasAReceber = () => {
       campo_data: relatorioCampoData,
       status:
         relatorioStatusFiltro !== "Todos" ? relatorioStatusFiltro : undefined,
+      cliente_id: relatorioClienteGeralId ?? undefined,
+      roca_id: relatorioRocaGeralId ?? undefined,
     }),
-    [relatorioDataInicial, relatorioDataFinal, relatorioStatusFiltro, relatorioCampoData],
+    [
+      relatorioDataInicial,
+      relatorioDataFinal,
+      relatorioStatusFiltro,
+      relatorioCampoData,
+      relatorioClienteGeralId,
+      relatorioRocaGeralId,
+    ],
   );
 
   const {
@@ -352,6 +364,9 @@ const ContasAReceber = () => {
     relatorioGeralTotalContas > 0;
 
   const relatorioGeralMensagemSemDados = useMemo(() => {
+    if (relatorioClienteGeralId != null || relatorioRocaGeralId != null) {
+      return "Não há contas a receber para os filtros selecionados.";
+    }
     if (relatorioStatusFiltro !== "Todos") {
       return "Não há contas a receber com o status selecionado.";
     }
@@ -359,7 +374,13 @@ const ContasAReceber = () => {
       return "Não há contas a receber no período selecionado.";
     }
     return "Não há contas a receber cadastradas.";
-  }, [relatorioStatusFiltro, relatorioDataInicial, relatorioDataFinal]);
+  }, [
+    relatorioStatusFiltro,
+    relatorioDataInicial,
+    relatorioDataFinal,
+    relatorioClienteGeralId,
+    relatorioRocaGeralId,
+  ]);
 
   const relatorioGeralFiltrosForPdf = useMemo(
     () => ({
@@ -368,8 +389,17 @@ const ContasAReceber = () => {
       status:
         relatorioStatusFiltro !== "Todos" ? relatorioStatusFiltro : undefined,
       campoData: relatorioCampoData,
+      clienteId: relatorioClienteGeralId ?? undefined,
+      rocaId: relatorioRocaGeralId ?? undefined,
     }),
-    [relatorioDataInicial, relatorioDataFinal, relatorioStatusFiltro, relatorioCampoData],
+    [
+      relatorioDataInicial,
+      relatorioDataFinal,
+      relatorioStatusFiltro,
+      relatorioCampoData,
+      relatorioClienteGeralId,
+      relatorioRocaGeralId,
+    ],
   );
 
   const relatorioClientePreviewParams = useMemo(
@@ -377,6 +407,7 @@ const ContasAReceber = () => {
       page: 1,
       limit: 1,
       cliente_id: relatorioClienteIdParsed ?? undefined,
+      roca_id: relatorioClienteRocaId ?? undefined,
       data_inicial: relatorioClienteDataInicial || undefined,
       data_final: relatorioClienteDataFinal || undefined,
       campo_data: relatorioClienteCampoData,
@@ -387,6 +418,7 @@ const ContasAReceber = () => {
     }),
     [
       relatorioClienteIdParsed,
+      relatorioClienteRocaId,
       relatorioClienteDataInicial,
       relatorioClienteDataFinal,
       relatorioClienteStatusFiltro,
@@ -410,11 +442,14 @@ const ContasAReceber = () => {
     relatorioClientePreviewData.total > 0;
 
   const relatorioClienteMensagemSemDados = useMemo(() => {
+    if (relatorioClienteRocaId != null) {
+      return `O cliente não possui dívida nessa ${rotulo.singularLower} para os filtros selecionados.`;
+    }
     if (relatorioClienteStatusFiltro !== "Todos") {
       return "O cliente não possui dívida naquele status selecionado.";
     }
     return "O cliente não possui dívida naquele período.";
-  }, [relatorioClienteStatusFiltro]);
+  }, [relatorioClienteStatusFiltro, relatorioClienteRocaId, rotulo.singularLower]);
 
   const relatorioClienteFiltrosForPdf = useMemo(
     () => ({
@@ -425,12 +460,14 @@ const ContasAReceber = () => {
           ? relatorioClienteStatusFiltro
           : undefined,
       campoData: relatorioClienteCampoData,
+      rocaId: relatorioClienteRocaId ?? undefined,
     }),
     [
       relatorioClienteDataInicial,
       relatorioClienteDataFinal,
       relatorioClienteStatusFiltro,
       relatorioClienteCampoData,
+      relatorioClienteRocaId,
     ],
   );
 
@@ -2746,12 +2783,25 @@ const ContasAReceber = () => {
                     setRelatorioDataFinal(dataFinalFilter || "");
                     setRelatorioStatusFiltro("Todos");
                     setRelatorioCampoData("vencimento");
+                    setRelatorioClienteGeralId(clienteFilterId);
+                    setRelatorioRocaGeralId(rocaFilterId);
                     setRelatorioDialogOpen(true);
                   }}
                 >
                   Relatório geral
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setRelatorioClientePdfOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setRelatorioClienteDataInicial("");
+                    setRelatorioClienteDataFinal("");
+                    setRelatorioClienteStatusFiltro("Todos");
+                    setRelatorioClienteIdSelect(
+                      clienteFilterId != null ? String(clienteFilterId) : "",
+                    );
+                    setRelatorioClienteRocaId(rocaFilterId);
+                    setRelatorioClientePdfOpen(true);
+                  }}
+                >
                   Relatório financeiro por cliente
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -2769,11 +2819,58 @@ const ContasAReceber = () => {
               <DialogTitle>Relatório geral</DialogTitle>
               <DialogDescription>
                 Inclui dados da empresa e todos os lançamentos de contas a receber conforme os
-                filtros selecionados (período por data de vencimento, emissão ou pagamento e status).
+                filtros selecionados (cliente, {rotulo.singularLower}, período por data de vencimento,
+                emissão ou pagamento e status).
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-4">
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-[#1A3B70]">Cliente</Label>
+                  <Select
+                    value={relatorioClienteGeralId == null ? "todos" : String(relatorioClienteGeralId)}
+                    onValueChange={(v) =>
+                      setRelatorioClienteGeralId(v === "todos" ? null : parseInt(v, 10))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os clientes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os clientes</SelectItem>
+                      {clientes.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-[#1A3B70]">{rotulo.singular}</Label>
+                  <Select
+                    value={relatorioRocaGeralId == null ? "todos" : String(relatorioRocaGeralId)}
+                    onValueChange={(v) =>
+                      setRelatorioRocaGeralId(v === "todos" ? null : parseInt(v, 10))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={rotulo.todas} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">{rotulo.todas}</SelectItem>
+                      {rocasLista
+                        .filter((r) => r.ativo !== false)
+                        .map((roca) => (
+                          <SelectItem key={roca.id} value={String(roca.id)}>
+                            {roca.nome}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator />
+
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-[#1A3B70]">Filtrar período por</Label>
                   <RadioGroup
@@ -2925,24 +3022,14 @@ const ContasAReceber = () => {
         </Dialog>
         <Dialog
           open={relatorioClientePdfOpen}
-          onOpenChange={(open) => {
-            setRelatorioClientePdfOpen(open);
-            if (open) {
-              setRelatorioClienteDataInicial("");
-              setRelatorioClienteDataFinal("");
-              setRelatorioClienteStatusFiltro("Todos");
-              setRelatorioClienteIdSelect(
-                clienteFilterId != null ? String(clienteFilterId) : "",
-              );
-            }
-          }}
+          onOpenChange={setRelatorioClientePdfOpen}
         >
           <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Relatório financeiro por cliente</DialogTitle>
               <DialogDescription>
                 Inclui dados da empresa e todos os lançamentos de contas a receber do cliente
-                conforme os filtros selecionados (período por data de vencimento e status).
+                conforme os filtros selecionados ({rotulo.singularLower}, período e status).
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
@@ -2959,6 +3046,25 @@ const ContasAReceber = () => {
                     {clientes.map((c) => (
                       <SelectItem key={c.id} value={String(c.id)}>
                         {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{rotulo.singular}</Label>
+                <Select
+                  value={relatorioClienteRocaId == null ? "todos" : String(relatorioClienteRocaId)}
+                  onValueChange={(v) => setRelatorioClienteRocaId(v === "todos" ? null : parseInt(v, 10))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={rotulo.todas} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">{rotulo.todas}</SelectItem>
+                    {rocasLista.filter((r) => r.ativo !== false).map((roca) => (
+                      <SelectItem key={roca.id} value={String(roca.id)}>
+                        {roca.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
