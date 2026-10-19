@@ -357,6 +357,8 @@ class FinanceiroService {
     cliente_id?: number;
     fornecedor_id?: number;
     roca_id?: number;
+    /** Conta bancária (banco) vinculada à conta financeira */
+    conta_bancaria_id?: number;
     data_inicial?: string;
     data_final?: string;
     campo_data?: 'vencimento' | 'emissao' | 'pagamento';
@@ -371,6 +373,9 @@ class FinanceiroService {
     if (params?.fornecedor_id) queryParams.append('fornecedor_id', params.fornecedor_id.toString());
     if (params?.roca_id != null && params.roca_id > 0) {
       queryParams.append('roca_id', params.roca_id.toString());
+    }
+    if (params?.conta_bancaria_id != null && params.conta_bancaria_id > 0) {
+      queryParams.append('conta_bancaria_id', params.conta_bancaria_id.toString());
     }
     if (params?.data_inicial) queryParams.append('data_inicial', params.data_inicial);
     if (params?.data_final) queryParams.append('data_final', params.data_final);
@@ -389,6 +394,8 @@ class FinanceiroService {
     cliente_id?: number;
     fornecedor_id?: number;
     roca_id?: number;
+    /** Conta bancária (banco) vinculada à conta financeira */
+    conta_bancaria_id?: number;
     tipo_despesa_id?: number;
     pedido_id?: number;
     proximidade_vencimento?: 'VENCIDA' | 'VENCE_HOJE' | 'CRITICO' | 'ATENCAO' | 'NORMAL' | 'LONGO_PRAZO';
@@ -407,6 +414,9 @@ class FinanceiroService {
     if (params?.fornecedor_id) queryParams.append('fornecedor_id', params.fornecedor_id.toString());
     if (params?.roca_id != null && params.roca_id > 0) {
       queryParams.append('roca_id', params.roca_id.toString());
+    }
+    if (params?.conta_bancaria_id != null && params.conta_bancaria_id > 0) {
+      queryParams.append('conta_bancaria_id', params.conta_bancaria_id.toString());
     }
     if (params?.tipo_despesa_id != null && params.tipo_despesa_id > 0) {
       queryParams.append('tipo_despesa_id', params.tipo_despesa_id.toString());
