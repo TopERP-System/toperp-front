@@ -80,6 +80,7 @@ import { Cliente, clientesService } from "@/services/clientes.service";
 import { controleRocaService } from "@/services/controle-roca.service";
 import { useRotuloRoca } from "@/hooks/useRotuloRoca";
 import { ContaFinanceira, CreateContaFinanceiraDto, financeiroService } from "@/services/financeiro.service";
+import { contasBancariasService } from "@/services/contas-bancarias.service";
 import { pedidosService } from "@/services/pedidos.service";
 import type { Roca } from "@/types/roca";
 import { relatoriosClienteService } from "@/services/relatorios-cliente.service";
@@ -143,6 +144,8 @@ const ContasAReceber = () => {
   const [clienteFilterId, setClienteFilterId] = useState<number | null>(() => getSavedCReceberState("clienteFilterId", null));
   /** Filtro por roça: null = todas */
   const [rocaFilterId, setRocaFilterId] = useState<number | null>(() => getSavedCReceberState("rocaFilterId", null));
+  /** Filtro por conta bancária (banco): null = todas */
+  const [contaBancariaFilterId, setContaBancariaFilterId] = useState<number | null>(() => getSavedCReceberState("contaBancariaFilterId", null));
   /** Filtro por status do pedido: '' = todos; ABERTO | PARCIAL | QUITADO | VENCIDO */
   const [statusFilter, setStatusFilter] = useState<string>(() => getSavedCReceberState("statusFilter", ""));
   /** Filtro por período: data_inicial e data_final (YYYY-MM-DD) */
@@ -157,6 +160,7 @@ const ContasAReceber = () => {
       searchTerm,
       clienteFilterId,
       rocaFilterId,
+      contaBancariaFilterId,
       statusFilter,
       dataInicialFilter,
       dataFinalFilter,
@@ -169,6 +173,7 @@ const ContasAReceber = () => {
     searchTerm,
     clienteFilterId,
     rocaFilterId,
+    contaBancariaFilterId,
     statusFilter,
     dataInicialFilter,
     dataFinalFilter,
@@ -179,6 +184,7 @@ const ContasAReceber = () => {
   // Estados de Rascunho para a gaveta de Filtros Avançados (só aplicados ao clicar em "Aplicar Filtros")
   const [draftClienteFilterId, setDraftClienteFilterId] = useState<number | null>(clienteFilterId);
   const [draftRocaFilterId, setDraftRocaFilterId] = useState<number | null>(rocaFilterId);
+  const [draftContaBancariaFilterId, setDraftContaBancariaFilterId] = useState<number | null>(contaBancariaFilterId);
   const [draftStatusFilter, setDraftStatusFilter] = useState<string>(statusFilter);
   const [draftDataInicialFilter, setDraftDataInicialFilter] = useState<string>(dataInicialFilter);
   const [draftDataFinalFilter, setDraftDataFinalFilter] = useState<string>(dataFinalFilter);
@@ -188,6 +194,7 @@ const ContasAReceber = () => {
     if (open) {
       setDraftClienteFilterId(clienteFilterId);
       setDraftRocaFilterId(rocaFilterId);
+      setDraftContaBancariaFilterId(contaBancariaFilterId);
       setDraftStatusFilter(statusFilter);
       setDraftDataInicialFilter(dataInicialFilter);
       setDraftDataFinalFilter(dataFinalFilter);
@@ -275,6 +282,14 @@ const ContasAReceber = () => {
   const rocasLista: Roca[] = Array.isArray(rocasData)
     ? rocasData
     : (rocasData as { rocas?: Roca[] })?.rocas ?? [];
+
+  // Inclui contas bancárias inativas: lançamentos antigos podem estar nelas
+  const { data: contasBancariasFiltroData } = useQuery({
+    queryKey: ["contas-bancarias", "filtro-contas-receber"],
+    queryFn: () => contasBancariasService.listar({ limit: 100 }),
+    retry: false,
+  });
+  const contasBancariasFiltro = contasBancariasFiltroData?.contas ?? [];
 
   // Buscar clientes
   const { data: clientesData } = useQuery({
@@ -547,6 +562,7 @@ const ContasAReceber = () => {
       activeCardFilter,
       clienteFilterId,
       rocaFilterId,
+      contaBancariaFilterId,
       statusFilter,
       dataInicialFilter,
       dataFinalFilter,
@@ -573,6 +589,10 @@ const ContasAReceber = () => {
           tipo: "RECEBER" as const,
           cliente_id: clienteArg,
           roca_id: rocaArg,
+          conta_bancaria_id:
+            contaBancariaFilterId != null && contaBancariaFilterId > 0
+              ? contaBancariaFilterId
+              : undefined,
           data_inicial: dataInicialArg,
           data_final: dataFinalArg,
           campo_data: campoDataFilter,
@@ -776,6 +796,7 @@ const ContasAReceber = () => {
   const temFiltrosAtivos =
     (clienteFilterId != null && clienteFilterId > 0) ||
     (rocaFilterId != null && rocaFilterId > 0) ||
+    (contaBancariaFilterId != null && contaBancariaFilterId > 0) ||
     !!statusFilter ||
     !!dataInicialFilter ||
     !!dataFinalFilter ||
@@ -784,6 +805,7 @@ const ContasAReceber = () => {
   const handleAplicarFiltros = () => {
     setClienteFilterId(draftClienteFilterId);
     setRocaFilterId(draftRocaFilterId);
+    setContaBancariaFilterId(draftContaBancariaFilterId);
     setStatusFilter(draftStatusFilter);
     setDataInicialFilter(draftDataInicialFilter);
     setDataFinalFilter(draftDataFinalFilter);
@@ -795,6 +817,7 @@ const ContasAReceber = () => {
     sessionStorage.removeItem(SESSION_KEY_CRECEBER);
     setClienteFilterId(null);
     setRocaFilterId(null);
+    setContaBancariaFilterId(null);
     setStatusFilter("");
     setCampoDataFilter("vencimento");
     setDataInicialFilter("");
@@ -804,6 +827,7 @@ const ContasAReceber = () => {
 
     setDraftClienteFilterId(null);
     setDraftRocaFilterId(null);
+    setDraftContaBancariaFilterId(null);
     setDraftStatusFilter("");
     setDraftCampoDataFilter("vencimento");
     setDraftDataInicialFilter("");
@@ -842,6 +866,10 @@ const ContasAReceber = () => {
       tipo: "RECEBER" as const,
       cliente_id: clienteArg,
       roca_id: rocaArg,
+      conta_bancaria_id:
+        contaBancariaFilterId != null && contaBancariaFilterId > 0
+          ? contaBancariaFilterId
+          : undefined,
       data_inicial: dataInicialArg,
       data_final: dataFinalArg,
       campo_data: campoDataFilter,
@@ -851,6 +879,7 @@ const ContasAReceber = () => {
   }, [
     clienteFilterId,
     rocaFilterId,
+    contaBancariaFilterId,
     dataInicialFilter,
     dataFinalFilter,
     campoDataFilter,
@@ -2561,6 +2590,7 @@ const ContasAReceber = () => {
                 <span className="ml-1 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
                   {(clienteFilterId != null && clienteFilterId > 0 ? 1 : 0) +
                     (rocaFilterId != null && rocaFilterId > 0 ? 1 : 0) +
+                    (contaBancariaFilterId != null && contaBancariaFilterId > 0 ? 1 : 0) +
                     (statusFilter ? 1 : 0) +
                     (campoDataFilter !== "vencimento" ? 1 : 0) +
                     (dataInicialFilter ? 1 : 0) +
@@ -2628,6 +2658,33 @@ const ContasAReceber = () => {
                               {roca.nome}
                             </SelectItem>
                           ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Separator />
+
+                  {/* Conta bancária */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold">Conta (Banco)</Label>
+                    <Select
+                      value={draftContaBancariaFilterId == null ? "todos" : String(draftContaBancariaFilterId)}
+                      onValueChange={(v) =>
+                        setDraftContaBancariaFilterId(v === "todos" ? null : parseInt(v, 10))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todas as contas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas as contas</SelectItem>
+                        {contasBancariasFiltro.map((cb) => (
+                          <SelectItem key={cb.id} value={String(cb.id)}>
+                            {cb.nome}
+                            {cb.banco ? ` (${cb.banco})` : ""}
+                            {cb.numeroConta ? ` - CC: ${cb.numeroConta}` : ""}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
