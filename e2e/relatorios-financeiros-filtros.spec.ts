@@ -1,8 +1,10 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 /**
- * Relatório geral de Contas a Receber / Contas a Pagar com filtro por
- * cliente/fornecedor e empresa (roça com rótulo customizado) — task 001.
+ * Relatórios financeiros com filtro por cliente/fornecedor e empresa
+ * (roça com rótulo customizado) — task 001:
+ * - Relatório geral de Contas a Receber / Contas a Pagar
+ * - Relatório financeiro por cliente (Contas a Receber e Financeiro)
  * API simulada: não precisa de backend nem de credenciais.
  */
 
@@ -27,7 +29,7 @@ const ROCAS = [
 ];
 
 interface ApiSimulada {
-  /** Query strings das chamadas de pré-visualização (GET /contas-financeiras com limit=1). */
+  /** Query strings das pré-visualizações (GET /contas-financeiras e /agrupado com limit=1). */
   previews: URLSearchParams[];
   /** URLs dos PDFs pedidos ao backend. */
   pdfs: URL[];
@@ -58,7 +60,7 @@ async function simularApi(
     const json = (body: Json, status = 200) =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 
-    if (caminho.startsWith("/relatorios/") && caminho.endsWith("/geral/pdf")) {
+    if (caminho.startsWith("/relatorios/") && caminho.endsWith("/pdf")) {
       api.pdfs.push(url);
       return route.fulfill({ status: 200, contentType: "application/pdf", body: "%PDF-1.4 e2e" });
     }
@@ -66,7 +68,7 @@ async function simularApi(
     if (caminho.endsWith("/rocas")) return json(ROCAS);
     if (caminho.startsWith("/clientes")) return json({ data: CLIENTES, total: CLIENTES.length });
     if (caminho.startsWith("/fornecedor")) return json({ data: FORNECEDORES, total: FORNECEDORES.length });
-    if (caminho === "/contas-financeiras") {
+    if (caminho === "/contas-financeiras" || caminho === "/contas-financeiras/agrupado") {
       if (url.searchParams.get("limit") === "1") api.previews.push(url.searchParams);
       return json({ data: [], total: 3 });
     }
@@ -75,13 +77,15 @@ async function simularApi(
   return api;
 }
 
-async function abrirRelatorioGeral(page: Page) {
+async function abrirRelatorio(page: Page, nome: string) {
   await page.getByRole("button", { name: "Relatórios" }).click();
-  await page.getByRole("menuitem", { name: "Relatório geral" }).click();
-  const dialog = page.getByRole("dialog", { name: "Relatório geral" });
+  await page.getByRole("menuitem", { name: nome }).click();
+  const dialog = page.getByRole("dialog", { name: nome });
   await expect(dialog).toBeVisible();
   return dialog;
 }
+
+const abrirRelatorioGeral = (page: Page) => abrirRelatorio(page, "Relatório geral");
 
 test.describe("relatório geral — filtros por parceiro e empresa", () => {
   test("contas a receber: envia cliente e empresa para o PDF e para a pré-visualização", async ({ page }) => {
@@ -164,3 +168,55 @@ test.describe("relatório geral — filtros por parceiro e empresa", () => {
     await expect(dialog.getByRole("combobox").filter({ hasText: "Empresa Sul" })).toBeVisible();
   });
 });
+
+for (const tela of [
+  { nome: "contas a receber", rota: "/contas-a-receber", sessao: "creceber_filtros_v2" },
+  { nome: "financeiro", rota: "/financeiro", sessao: null },
+]) {
+  test.describe(`relatório financeiro por cliente — ${tela.nome}`, () => {
+    test("envia a empresa escolhida para o PDF e para a pré-visualização", async ({ page }) => {
+      const api = await simularApi(page);
+      await page.goto(tela.rota);
+      const dialog = await abrirRelatorio(page, "Relatório financeiro por cliente");
+
+      await dialog.getByRole("combobox").filter({ hasText: "Selecione o cliente" }).click();
+      await page.getByRole("option", { name: "Cliente Alfa" }).click();
+      await dialog.getByRole("combobox").filter({ hasText: "Todas as empresas" }).click();
+      await page.getByRole("option", { name: "Empresa Sul" }).click();
+
+      await expect
+        .poll(() => api.previews.some((q) => q.get("cliente_id") === "1" && q.get("roca_id") === "8"))
+        .toBe(true);
+
+      await dialog.getByRole("button", { name: /Baixar PDF/ }).click();
+      await expect.poll(() => api.pdfs.length).toBe(1);
+      const pdf = api.pdfs[0];
+      expect(pdf.pathname).toMatch(/\/relatorios\/cliente\/1\/financeiro\/pdf$/);
+      expect(pdf.searchParams.get("roca_id")).toBe("8");
+    });
+
+    test("sem empresa não envia roca_id", async ({ page }) => {
+      const api = await simularApi(page);
+      await page.goto(tela.rota);
+      const dialog = await abrirRelatorio(page, "Relatório financeiro por cliente");
+
+      await dialog.getByRole("combobox").filter({ hasText: "Selecione o cliente" }).click();
+      await page.getByRole("option", { name: "Cliente Beta" }).click();
+      await dialog.getByRole("button", { name: /Baixar PDF/ }).click();
+      await expect.poll(() => api.pdfs.length).toBe(1);
+      expect(api.pdfs[0].pathname).toMatch(/\/relatorios\/cliente\/2\/financeiro\/pdf$/);
+      expect(api.pdfs[0].searchParams.has("roca_id")).toBe(false);
+    });
+
+    if (tela.sessao) {
+      test("abre com cliente e empresa dos filtros avançados", async ({ page }) => {
+        await simularApi(page, { [tela.sessao!]: { clienteFilterId: 2, rocaFilterId: 7 } });
+        await page.goto(tela.rota);
+        const dialog = await abrirRelatorio(page, "Relatório financeiro por cliente");
+
+        await expect(dialog.getByRole("combobox").filter({ hasText: "Cliente Beta" })).toBeVisible();
+        await expect(dialog.getByRole("combobox").filter({ hasText: "Empresa Norte" })).toBeVisible();
+      });
+    }
+  });
+}
