@@ -110,6 +110,19 @@ class NotaFiscalService {
     );
   }
 
+  /** PDF de uma carta de correção já enviada (gerado pela Spedy). */
+  async baixarPdfCartaCorrecao(
+    pedidoId: number,
+    cartaId: number,
+    nome: { numeroNf?: number | null; sequencia: number },
+  ): Promise<void> {
+    const blob = await apiClient.getBlob(
+      `/pedidos/${pedidoId}/nota-fiscal/cartas-correcao/${cartaId}/pdf`,
+    );
+    const base = nome.numeroNf ? `nfe-${nome.numeroNf}` : `pedido-${pedidoId}`;
+    downloadBlob(blob, `carta-correcao-${base}-${nome.sequencia}.pdf`);
+  }
+
   async baixarPdf(pedidoId: number, numeroPedido?: string): Promise<void> {
     const blob = await apiClient.getBlob(`/pedidos/${pedidoId}/nota-fiscal/pdf`);
     const safe = numeroPedido?.replace(/[^\w-]+/g, '_') || String(pedidoId);

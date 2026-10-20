@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, FilePenLine, Loader2 } from 'lucide-react';
+import { AlertTriangle, Download, FilePenLine, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -52,6 +52,7 @@ export function CartaCorrecaoDialog({
   const queryClient = useQueryClient();
   const [texto, setTexto] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [baixandoId, setBaixandoId] = useState<number | null>(null);
 
   const queryKey = ['pedidos', nota.pedidoId, 'cartas-correcao'] as const;
   const {
@@ -92,6 +93,22 @@ export function CartaCorrecaoDialog({
       });
     } finally {
       setEnviando(false);
+    }
+  };
+
+  const handleBaixarPdf = async (cartaId: number, sequencia: number) => {
+    setBaixandoId(cartaId);
+    try {
+      await notaFiscalService.baixarPdfCartaCorrecao(nota.pedidoId, cartaId, {
+        numeroNf: nota.numeroNf,
+        sequencia,
+      });
+    } catch (err) {
+      toast.error('Não foi possível baixar o PDF da carta de correção', {
+        description: extractApiErrorMessage(err),
+      });
+    } finally {
+      setBaixandoId(null);
     }
   };
 
@@ -172,10 +189,28 @@ export function CartaCorrecaoDialog({
                     key={carta.id}
                     className="rounded-lg border border-border p-3 text-sm"
                   >
-                    <p className="mb-1 text-xs text-muted-foreground">
-                      Carta nº {carta.sequencia} ·{' '}
-                      {formatDateTime(carta.created_at)}
-                    </p>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        Carta nº {carta.sequencia} ·{' '}
+                        {formatDateTime(carta.created_at)}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 px-2 text-xs"
+                        aria-label={`Baixar PDF da carta nº ${carta.sequencia}`}
+                        disabled={baixandoId != null}
+                        onClick={() => handleBaixarPdf(carta.id, carta.sequencia)}
+                      >
+                        {baixandoId === carta.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        Baixar PDF
+                      </Button>
+                    </div>
                     <p className="whitespace-pre-wrap break-words">{carta.texto}</p>
                   </li>
                 ))}
