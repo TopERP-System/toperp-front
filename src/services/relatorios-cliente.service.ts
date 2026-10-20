@@ -64,6 +64,10 @@ export interface RelatorioGeralContasPagarQuery {
   rocaId?: number;
   /** Campo do período: vencimento (padrão), emissão ou pagamento */
   campoData?: 'vencimento' | 'emissao' | 'pagamento';
+  /** Conta bancária (banco). Tem prioridade sobre `semContaBancaria`. */
+  contaBancariaId?: number;
+  /** Só contas sem banco definido. */
+  semContaBancaria?: boolean;
 }
 
 /** Filtros do relatório geral de contas a receber. */
@@ -75,6 +79,10 @@ export interface RelatorioGeralContasReceberQuery {
   rocaId?: number;
   /** Campo do período: vencimento (padrão), emissão ou pagamento */
   campoData?: 'vencimento' | 'emissao' | 'pagamento';
+  /** Conta bancária (banco). Tem prioridade sobre `semContaBancaria`. */
+  contaBancariaId?: number;
+  /** Só contas sem banco definido. */
+  semContaBancaria?: boolean;
 }
 
 /** Filtros do relatório por centro de custo. */
@@ -272,6 +280,11 @@ class RelatoriosClienteService {
     if (filtros?.rocaId != null && filtros.rocaId > 0) {
       params.append('roca_id', String(filtros.rocaId));
     }
+    if (filtros?.contaBancariaId != null && filtros.contaBancariaId > 0) {
+      params.append('conta_bancaria_id', String(filtros.contaBancariaId));
+    } else if (filtros?.semContaBancaria) {
+      params.append('sem_conta_bancaria', 'true');
+    }
     if (filtros?.campoData === 'emissao' || filtros?.campoData === 'vencimento' || filtros?.campoData === 'pagamento') {
       params.append('campo_data', filtros.campoData);
     }
@@ -341,6 +354,11 @@ class RelatoriosClienteService {
     }
     if (filtros?.rocaId != null && filtros.rocaId > 0) {
       params.append('roca_id', String(filtros.rocaId));
+    }
+    if (filtros?.contaBancariaId != null && filtros.contaBancariaId > 0) {
+      params.append('conta_bancaria_id', String(filtros.contaBancariaId));
+    } else if (filtros?.semContaBancaria) {
+      params.append('sem_conta_bancaria', 'true');
     }
     if (filtros?.campoData === 'emissao' || filtros?.campoData === 'vencimento' || filtros?.campoData === 'pagamento') {
       params.append('campo_data', filtros.campoData);

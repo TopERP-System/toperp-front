@@ -33,6 +33,7 @@ import {
     Select,
     SelectContent,
     SelectItem,
+    SelectSeparator,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
@@ -75,6 +76,12 @@ import {
 } from "@/lib/contas-financeiras-listagem";
 import { cn, formatDate, formatarDataBR, formatarFormaPagamento, formatarStatus, parseDateOnlyLocal } from "@/lib/utils";
 import { dataYMD, ultimaDataPagamentoConta } from "@/lib/agrupar-contas-por-pedido";
+import {
+  CONTA_BANCARIA_RELATORIO_SEM_BANCO,
+  CONTA_BANCARIA_RELATORIO_TODAS,
+  parseContaBancariaRelatorio,
+  valorInicialContaBancariaRelatorio,
+} from "@/lib/filtro-conta-bancaria-relatorio";
 import ContasAReceberListaClientes from "@/pages/contas-a-receber/ContasAReceberListaClientes";
 import { Cliente, clientesService } from "@/services/clientes.service";
 import { controleRocaService } from "@/services/controle-roca.service";
@@ -219,6 +226,10 @@ const ContasAReceber = () => {
   const [relatorioStatusFiltro, setRelatorioStatusFiltro] = useState<string>("Todos");
   const [relatorioClienteGeralId, setRelatorioClienteGeralId] = useState<number | null>(null);
   const [relatorioRocaGeralId, setRelatorioRocaGeralId] = useState<number | null>(null);
+  /** "todas" | "sem_banco" | id da conta bancária */
+  const [relatorioContaBancariaGeral, setRelatorioContaBancariaGeral] = useState<string>(
+    CONTA_BANCARIA_RELATORIO_TODAS,
+  );
   const [relatorioCampoData, setRelatorioCampoData] = useState<
     "vencimento" | "emissao" | "pagamento"
   >("vencimento");
@@ -326,6 +337,11 @@ const ContasAReceber = () => {
     return Number.isFinite(n) && n > 0 ? n : null;
   }, [relatorioClienteIdSelect]);
 
+  const relatorioGeralContaBancariaFiltro = useMemo(
+    () => parseContaBancariaRelatorio(relatorioContaBancariaGeral),
+    [relatorioContaBancariaGeral],
+  );
+
   const relatorioGeralPreviewParams = useMemo(
     () => ({
       page: 1,
@@ -338,6 +354,8 @@ const ContasAReceber = () => {
         relatorioStatusFiltro !== "Todos" ? relatorioStatusFiltro : undefined,
       cliente_id: relatorioClienteGeralId ?? undefined,
       roca_id: relatorioRocaGeralId ?? undefined,
+      conta_bancaria_id: relatorioGeralContaBancariaFiltro.contaBancariaId,
+      sem_conta_bancaria: relatorioGeralContaBancariaFiltro.semContaBancaria,
     }),
     [
       relatorioDataInicial,
@@ -346,6 +364,7 @@ const ContasAReceber = () => {
       relatorioCampoData,
       relatorioClienteGeralId,
       relatorioRocaGeralId,
+      relatorioGeralContaBancariaFiltro,
     ],
   );
 
@@ -379,7 +398,11 @@ const ContasAReceber = () => {
     relatorioGeralTotalContas > 0;
 
   const relatorioGeralMensagemSemDados = useMemo(() => {
-    if (relatorioClienteGeralId != null || relatorioRocaGeralId != null) {
+    if (
+      relatorioClienteGeralId != null ||
+      relatorioRocaGeralId != null ||
+      relatorioContaBancariaGeral !== CONTA_BANCARIA_RELATORIO_TODAS
+    ) {
       return "Não há contas a receber para os filtros selecionados.";
     }
     if (relatorioStatusFiltro !== "Todos") {
@@ -395,6 +418,7 @@ const ContasAReceber = () => {
     relatorioDataFinal,
     relatorioClienteGeralId,
     relatorioRocaGeralId,
+    relatorioContaBancariaGeral,
   ]);
 
   const relatorioGeralFiltrosForPdf = useMemo(
@@ -406,6 +430,7 @@ const ContasAReceber = () => {
       campoData: relatorioCampoData,
       clienteId: relatorioClienteGeralId ?? undefined,
       rocaId: relatorioRocaGeralId ?? undefined,
+      ...relatorioGeralContaBancariaFiltro,
     }),
     [
       relatorioDataInicial,
@@ -414,6 +439,7 @@ const ContasAReceber = () => {
       relatorioCampoData,
       relatorioClienteGeralId,
       relatorioRocaGeralId,
+      relatorioGeralContaBancariaFiltro,
     ],
   );
 
@@ -2842,6 +2868,9 @@ const ContasAReceber = () => {
                     setRelatorioCampoData("vencimento");
                     setRelatorioClienteGeralId(clienteFilterId);
                     setRelatorioRocaGeralId(rocaFilterId);
+                    setRelatorioContaBancariaGeral(
+                      valorInicialContaBancariaRelatorio(contaBancariaFilterId),
+                    );
                     setRelatorioDialogOpen(true);
                   }}
                 >
@@ -2876,8 +2905,8 @@ const ContasAReceber = () => {
               <DialogTitle>Relatório geral</DialogTitle>
               <DialogDescription>
                 Inclui dados da empresa e todos os lançamentos de contas a receber conforme os
-                filtros selecionados (cliente, {rotulo.singularLower}, período por data de vencimento,
-                emissão ou pagamento e status).
+                filtros selecionados (cliente, {rotulo.singularLower}, conta bancária, período por data
+                de vencimento, emissão ou pagamento e status).
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
@@ -2922,6 +2951,34 @@ const ContasAReceber = () => {
                             {roca.nome}
                           </SelectItem>
                         ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-[#1A3B70]">Conta (Banco)</Label>
+                  <Select
+                    value={relatorioContaBancariaGeral}
+                    onValueChange={setRelatorioContaBancariaGeral}
+                  >
+                    <SelectTrigger aria-label="Conta (Banco) do relatório geral">
+                      <SelectValue placeholder="Todas (com e sem banco)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={CONTA_BANCARIA_RELATORIO_TODAS}>
+                        Todas (com e sem banco)
+                      </SelectItem>
+                      <SelectItem value={CONTA_BANCARIA_RELATORIO_SEM_BANCO}>
+                        Sem banco definido
+                      </SelectItem>
+                      {contasBancariasFiltro.length > 0 && <SelectSeparator />}
+                      {contasBancariasFiltro.map((cb) => (
+                        <SelectItem key={cb.id} value={String(cb.id)}>
+                          {cb.nome}
+                          {cb.banco ? ` (${cb.banco})` : ""}
+                          {cb.numeroConta ? ` - CC: ${cb.numeroConta}` : ""}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

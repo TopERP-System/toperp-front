@@ -5,6 +5,7 @@ import { expect, test, type Page, type Route } from "@playwright/test";
  * (roça com rótulo customizado) — task 001:
  * - Relatório geral de Contas a Receber / Contas a Pagar
  * - Relatório financeiro por cliente (Contas a Receber e Financeiro)
+ * E filtro por conta bancária (banco) no relatório geral — task 003.
  * API simulada: não precisa de backend nem de credenciais.
  */
 
@@ -23,6 +24,10 @@ const CLIENTES = [
 const FORNECEDORES = [
   { id: 3, nome_fantasia: "Fornecedor Gama", nome_razao: "Gama LTDA", statusFornecedor: "ATIVO" },
 ];
+const CONTAS_BANCARIAS = [
+  { id: 4, nome: "Conta Principal", banco: "Sicoob", numeroConta: "1234-5", ativo: true },
+  { id: 5, nome: "Conta Antiga", banco: "Itaú", ativo: false },
+];
 const ROCAS = [
   { id: 7, nome: "Empresa Norte", ativo: true },
   { id: 8, nome: "Empresa Sul", ativo: true },
@@ -33,13 +38,15 @@ interface ApiSimulada {
   previews: URLSearchParams[];
   /** URLs dos PDFs pedidos ao backend. */
   pdfs: URL[];
+  /** URLs dos PDFs pedidos para impressão. */
+  impressoes: URL[];
 }
 
 async function simularApi(
   page: Page,
   sessionStorageInicial?: Record<string, unknown>,
 ): Promise<ApiSimulada> {
-  const api: ApiSimulada = { previews: [], pdfs: [] };
+  const api: ApiSimulada = { previews: [], pdfs: [], impressoes: [] };
   await page.addInitScript(
     ({ token, sessao }) => {
       localStorage.setItem("access_token", token);
@@ -63,6 +70,13 @@ async function simularApi(
     if (caminho.startsWith("/relatorios/") && caminho.endsWith("/pdf")) {
       api.pdfs.push(url);
       return route.fulfill({ status: 200, contentType: "application/pdf", body: "%PDF-1.4 e2e" });
+    }
+    if (caminho.startsWith("/relatorios/") && caminho.endsWith("/imprimir")) {
+      api.impressoes.push(url);
+      return route.fulfill({ status: 200, contentType: "application/pdf", body: "%PDF-1.4 e2e" });
+    }
+    if (caminho === "/contas-bancarias") {
+      return json({ contas: CONTAS_BANCARIAS, total: CONTAS_BANCARIAS.length });
     }
     if (caminho === "/configuracoes") return json({ rotulo_roca: "Empresa" });
     if (caminho.endsWith("/rocas")) return json(ROCAS);
@@ -218,5 +232,116 @@ for (const tela of [
         await expect(dialog.getByRole("combobox").filter({ hasText: "Empresa Norte" })).toBeVisible();
       });
     }
+  });
+}
+
+const PARAMS_BANCO = ["conta_bancaria_id", "sem_conta_bancaria"];
+const comboBanco = (dialog: ReturnType<Page["getByRole"]>) =>
+  dialog.getByRole("combobox", { name: "Conta (Banco) do relatório geral" });
+
+for (const tela of [
+  {
+    nome: "contas a receber",
+    rota: "/contas-a-receber",
+    sessao: "creceber_filtros_v2",
+    caminhoPdf: /\/relatorios\/contas-receber\/geral\/pdf$/,
+    caminhoImprimir: /\/relatorios\/contas-receber\/geral\/imprimir$/,
+  },
+  {
+    nome: "contas a pagar",
+    rota: "/contas-a-pagar",
+    sessao: "cpagar_filtros_v2",
+    caminhoPdf: /\/relatorios\/contas-pagar\/geral\/pdf$/,
+    caminhoImprimir: /\/relatorios\/contas-pagar\/geral\/imprimir$/,
+  },
+]) {
+  test.describe(`relatório geral — conta bancária — ${tela.nome}`, () => {
+    test("padrão é \"Todas (com e sem banco)\" e nenhuma requisição leva parâmetro de banco", async ({ page }) => {
+      const api = await simularApi(page);
+      await page.goto(tela.rota);
+      const dialog = await abrirRelatorioGeral(page);
+
+      await expect(comboBanco(dialog)).toHaveText(/Todas \(com e sem banco\)/);
+      await expect.poll(() => api.previews.length).toBeGreaterThan(0);
+
+      await dialog.getByRole("button", { name: "Baixar PDF" }).click();
+      await expect.poll(() => api.pdfs.length).toBe(1);
+      await dialog.getByRole("button", { name: "Abrir para imprimir" }).click();
+      await expect.poll(() => api.impressoes.length).toBe(1);
+
+      for (const q of [...api.previews, api.pdfs[0].searchParams, api.impressoes[0].searchParams]) {
+        for (const p of PARAMS_BANCO) expect(q.has(p)).toBe(false);
+      }
+    });
+
+    test("abre com o banco dos filtros avançados da tela", async ({ page }) => {
+      await simularApi(page, { [tela.sessao]: { contaBancariaFilterId: 4 } });
+      await page.goto(tela.rota);
+      const dialog = await abrirRelatorioGeral(page);
+
+      await expect(comboBanco(dialog)).toHaveText(/Conta Principal \(Sicoob\) - CC: 1234-5/);
+    });
+
+    test("banco escolhido vai para a pré-visualização, o PDF e a impressão", async ({ page }) => {
+      const api = await simularApi(page);
+      await page.goto(tela.rota);
+      const dialog = await abrirRelatorioGeral(page);
+
+      await comboBanco(dialog).click();
+      // Ordem das opções: Todas, Sem banco, depois os bancos (inclui inativos)
+      await expect(page.getByRole("option")).toHaveText([
+        "Todas (com e sem banco)",
+        "Sem banco definido",
+        "Conta Principal (Sicoob) - CC: 1234-5",
+        "Conta Antiga (Itaú)",
+      ]);
+      await page.getByRole("option", { name: "Conta Antiga (Itaú)" }).click();
+
+      await expect
+        .poll(() =>
+          api.previews.some(
+            (q) => q.get("conta_bancaria_id") === "5" && !q.has("sem_conta_bancaria"),
+          ),
+        )
+        .toBe(true);
+
+      await dialog.getByRole("button", { name: "Baixar PDF" }).click();
+      await expect.poll(() => api.pdfs.length).toBe(1);
+      expect(api.pdfs[0].pathname).toMatch(tela.caminhoPdf);
+      expect(api.pdfs[0].searchParams.get("conta_bancaria_id")).toBe("5");
+      expect(api.pdfs[0].searchParams.has("sem_conta_bancaria")).toBe(false);
+
+      await dialog.getByRole("button", { name: "Abrir para imprimir" }).click();
+      await expect.poll(() => api.impressoes.length).toBe(1);
+      expect(api.impressoes[0].pathname).toMatch(tela.caminhoImprimir);
+      expect(api.impressoes[0].searchParams.get("conta_bancaria_id")).toBe("5");
+    });
+
+    test("\"Sem banco definido\" envia sem_conta_bancaria=true", async ({ page }) => {
+      const api = await simularApi(page, { [tela.sessao]: { contaBancariaFilterId: 4 } });
+      await page.goto(tela.rota);
+      const dialog = await abrirRelatorioGeral(page);
+
+      await comboBanco(dialog).click();
+      await page.getByRole("option", { name: "Sem banco definido" }).click();
+
+      await expect
+        .poll(() =>
+          api.previews.some(
+            (q) => q.get("sem_conta_bancaria") === "true" && !q.has("conta_bancaria_id"),
+          ),
+        )
+        .toBe(true);
+
+      await dialog.getByRole("button", { name: "Baixar PDF" }).click();
+      await expect.poll(() => api.pdfs.length).toBe(1);
+      expect(api.pdfs[0].searchParams.get("sem_conta_bancaria")).toBe("true");
+      expect(api.pdfs[0].searchParams.has("conta_bancaria_id")).toBe(false);
+
+      await dialog.getByRole("button", { name: "Abrir para imprimir" }).click();
+      await expect.poll(() => api.impressoes.length).toBe(1);
+      expect(api.impressoes[0].searchParams.get("sem_conta_bancaria")).toBe("true");
+      expect(api.impressoes[0].searchParams.has("conta_bancaria_id")).toBe(false);
+    });
   });
 }

@@ -40,6 +40,7 @@ import {
     Select,
     SelectContent,
     SelectItem,
+    SelectSeparator,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
@@ -75,6 +76,12 @@ import {
   ultimaDataPagamentoConta,
   type ContaFinanceiraExibicao,
 } from "@/lib/agrupar-contas-por-pedido";
+import {
+  CONTA_BANCARIA_RELATORIO_SEM_BANCO,
+  CONTA_BANCARIA_RELATORIO_TODAS,
+  parseContaBancariaRelatorio,
+  valorInicialContaBancariaRelatorio,
+} from "@/lib/filtro-conta-bancaria-relatorio";
 import {
   type ContaFinanceira,
   type ContaFinanceiraAgrupada,
@@ -337,6 +344,10 @@ function ContasAPagar() {
   >("vencimento");
   const [relatorioGeralFornecedorId, setRelatorioGeralFornecedorId] = useState<number | null>(null);
   const [relatorioGeralRocaId, setRelatorioGeralRocaId] = useState<number | null>(null);
+  /** "todas" | "sem_banco" | id da conta bancária */
+  const [relatorioGeralContaBancaria, setRelatorioGeralContaBancaria] = useState<string>(
+    CONTA_BANCARIA_RELATORIO_TODAS,
+  );
   const [relatorioCentroCustoStatusFiltro, setRelatorioCentroCustoStatusFiltro] =
     useState<string>("Todos");
   const [relatorioCentroCustoCampoData, setRelatorioCentroCustoCampoData] = useState<
@@ -547,6 +558,11 @@ function ContasAPagar() {
     ],
   );
 
+  const relatorioGeralContaBancariaFiltro = useMemo(
+    () => parseContaBancariaRelatorio(relatorioGeralContaBancaria),
+    [relatorioGeralContaBancaria],
+  );
+
   const relatorioGeralPreviewParams = useMemo(
     () => ({
       page: 1,
@@ -561,6 +577,8 @@ function ContasAPagar() {
           : undefined,
       fornecedor_id: relatorioGeralFornecedorId ?? undefined,
       roca_id: relatorioGeralRocaId ?? undefined,
+      conta_bancaria_id: relatorioGeralContaBancariaFiltro.contaBancariaId,
+      sem_conta_bancaria: relatorioGeralContaBancariaFiltro.semContaBancaria,
     }),
     [
       relatorioGeralDataInicial,
@@ -569,6 +587,7 @@ function ContasAPagar() {
       relatorioGeralCampoData,
       relatorioGeralFornecedorId,
       relatorioGeralRocaId,
+      relatorioGeralContaBancariaFiltro,
     ],
   );
 
@@ -602,7 +621,11 @@ function ContasAPagar() {
     relatorioGeralTotalContas > 0;
 
   const relatorioGeralMensagemSemDados = useMemo(() => {
-    if (relatorioGeralFornecedorId != null || relatorioGeralRocaId != null) {
+    if (
+      relatorioGeralFornecedorId != null ||
+      relatorioGeralRocaId != null ||
+      relatorioGeralContaBancaria !== CONTA_BANCARIA_RELATORIO_TODAS
+    ) {
       return "Não há contas a pagar para os filtros selecionados.";
     }
     if (relatorioGeralStatusFiltro !== "Todos") {
@@ -618,6 +641,7 @@ function ContasAPagar() {
     relatorioGeralDataFinal,
     relatorioGeralFornecedorId,
     relatorioGeralRocaId,
+    relatorioGeralContaBancaria,
   ]);
 
   const relatorioGeralFiltrosForPdf = useMemo(
@@ -631,6 +655,7 @@ function ContasAPagar() {
       campoData: relatorioGeralCampoData,
       fornecedorId: relatorioGeralFornecedorId ?? undefined,
       rocaId: relatorioGeralRocaId ?? undefined,
+      ...relatorioGeralContaBancariaFiltro,
     }),
     [
       relatorioGeralDataInicial,
@@ -639,6 +664,7 @@ function ContasAPagar() {
       relatorioGeralCampoData,
       relatorioGeralFornecedorId,
       relatorioGeralRocaId,
+      relatorioGeralContaBancariaFiltro,
     ],
   );
 
@@ -2663,6 +2689,9 @@ function ContasAPagar() {
                     setRelatorioGeralCampoData("vencimento");
                     setRelatorioGeralFornecedorId(fornecedorFilterId);
                     setRelatorioGeralRocaId(rocaFilterId);
+                    setRelatorioGeralContaBancaria(
+                      valorInicialContaBancariaRelatorio(contaBancariaFilterId),
+                    );
                     setRelatorioGeralPdfOpen(true);
                   }}
                 >
@@ -3524,8 +3553,8 @@ function ContasAPagar() {
               <DialogTitle>Relatório geral</DialogTitle>
               <DialogDescription>
                 Inclui dados da empresa e todos os lançamentos de contas a pagar conforme os
-                filtros selecionados (fornecedor, {rotulo.singularLower}, período por data de
-                vencimento, emissão ou pagamento e status).
+                filtros selecionados (fornecedor, {rotulo.singularLower}, conta bancária, período
+                por data de vencimento, emissão ou pagamento e status).
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
@@ -3572,6 +3601,34 @@ function ContasAPagar() {
                             {roca.nome}
                           </SelectItem>
                         ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold text-[#1A3B70]">Conta (Banco)</Label>
+                  <Select
+                    value={relatorioGeralContaBancaria}
+                    onValueChange={setRelatorioGeralContaBancaria}
+                  >
+                    <SelectTrigger aria-label="Conta (Banco) do relatório geral">
+                      <SelectValue placeholder="Todas (com e sem banco)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={CONTA_BANCARIA_RELATORIO_TODAS}>
+                        Todas (com e sem banco)
+                      </SelectItem>
+                      <SelectItem value={CONTA_BANCARIA_RELATORIO_SEM_BANCO}>
+                        Sem banco definido
+                      </SelectItem>
+                      {contasBancariasFiltro.length > 0 && <SelectSeparator />}
+                      {contasBancariasFiltro.map((cb) => (
+                        <SelectItem key={cb.id} value={String(cb.id)}>
+                          {cb.nome}
+                          {cb.banco ? ` (${cb.banco})` : ""}
+                          {cb.numeroConta ? ` - CC: ${cb.numeroConta}` : ""}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
