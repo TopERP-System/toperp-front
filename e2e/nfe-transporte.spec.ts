@@ -168,8 +168,8 @@ test.describe("NF-e — transporte na pré-emissão", () => {
     expect(api.emissoes[0]).toMatchObject({ modalidade_frete: 1, peso_liquido: null });
   });
 
-  test("problema no cadastro da transportadora aparece e bloqueia", async ({ page }) => {
-    await simularApi(page, {}, [
+  test("problema no cadastro da transportadora aparece e bloqueia (envio ligado)", async ({ page }) => {
+    await simularApi(page, { enviado_para_spedy: true }, [
       {
         campo: "transporte.transportadora",
         label: "UF da transportadora (obrigatória quando a inscrição estadual é informada) — corrija no cadastro da transportadora",
