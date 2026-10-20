@@ -32,11 +32,13 @@ export function CampoSelectComCadastroRapido({
             type="button"
             variant="outline"
             size="icon"
-            className="h-8 w-8 shrink-0 rounded-lg"
+            // Da altura da linha do rótulo: não empurra o select para baixo
+            className="h-6 w-6 shrink-0 rounded-md"
             title={`Cadastro rápido de ${label.toLowerCase()}`}
+            aria-label={`Cadastro rápido de ${label.toLowerCase()}`}
             onClick={onToggleCadastroRapido}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>

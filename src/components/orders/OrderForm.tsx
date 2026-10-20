@@ -55,6 +55,11 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import {
+  MODALIDADES_FRETE,
+  MODALIDADE_FRETE_SEM_TRANSPORTE,
+  parseModalidadeFrete,
+} from '@/lib/modalidade-frete';
 
 /** Interpreta string YYYY-MM-DD como data local (evita dia anterior em UTC). */
 function parseDataLocal(value: string): Date {
@@ -171,6 +176,17 @@ export function OrderForm({
   const [clienteId, setClienteId] = useState<number | undefined>(undefined);
   const [fornecedorId, setFornecedorId] = useState<number | undefined>(undefined);
   const [transportadoraId, setTransportadoraId] = useState<number | undefined>(undefined);
+  /** Modalidade do frete do pedido (null = não definida). */
+  const [modalidadeFrete, setModalidadeFrete] = useState<number | null>(null);
+  /**
+   * Último frete padrão aplicado a partir do cliente (pedido novo). Campo que o usuário não
+   * mexeu acompanha o cliente escolhido; o que ele alterou fica como está.
+   */
+  const fretePadraoAplicadoRef = useRef<{
+    clienteId: number;
+    transportadoraId: number | undefined;
+    modalidade: number | null;
+  } | null>(null);
   const [rocaId, setRocaId] = useState<number | undefined>(undefined);
   const [dataPedido, setDataPedido] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -307,6 +323,46 @@ export function OrderForm({
     }
   }, [dadosClientePedido, tipo, clienteId, order]);
 
+  // Pedido novo: transportadora e modalidade vêm do cadastro do cliente (task 004).
+  // Edição nunca sobrescreve o que está no pedido.
+  useEffect(() => {
+    if (order || tipo !== 'VENDA' || !clienteId || !dadosClientePedido) return;
+    if (Number(dadosClientePedido.cliente?.id) !== clienteId) return; // resposta de outro cliente
+    const anterior = fretePadraoAplicadoRef.current;
+    if (anterior?.clienteId === clienteId) return;
+
+    const novaTransportadora = dadosClientePedido.transportadora_padrao?.id ?? undefined;
+    const novaModalidade = parseModalidadeFrete(dadosClientePedido.modalidade_frete_padrao);
+    const padrao = dadosClientePedido.transportadora_padrao;
+    if (padrao) {
+      setTransportadorasLista((prev) =>
+        prev.some((t) => t.id === padrao.id) ? prev : [...prev, { id: padrao.id, nome: padrao.nome }],
+      );
+    }
+    setTransportadoraId((atual) =>
+      atual === undefined || (anterior && atual === anterior.transportadoraId)
+        ? novaTransportadora
+        : atual,
+    );
+    setModalidadeFrete((atual) =>
+      atual === null || (anterior && atual === anterior.modalidade) ? novaModalidade : atual,
+    );
+    fretePadraoAplicadoRef.current = {
+      clienteId,
+      transportadoraId: novaTransportadora,
+      modalidade: novaModalidade,
+    };
+  }, [dadosClientePedido, tipo, clienteId, order]);
+
+  const handleModalidadeFreteChange = (valor: string) => {
+    const nova = valor === 'nenhuma' ? null : Number(valor);
+    setModalidadeFrete(nova);
+    if (nova === MODALIDADE_FRETE_SEM_TRANSPORTE && transportadoraId !== undefined) {
+      setTransportadoraId(undefined);
+      toast.info('Sem transporte não usa transportadora: a transportadora foi removida do pedido.');
+    }
+  };
+
   // Dialog para escolher condição quando há múltiplas e nenhuma padrão
   const [dialogEscolherCondicaoOpen, setDialogEscolherCondicaoOpen] = useState(false);
   const [condicoesParaEscolha, setCondicoesParaEscolha] = useState<CondicaoPagamento[]>([]);
@@ -395,6 +451,8 @@ export function OrderForm({
     setClienteId(undefined);
     setFornecedorId(undefined);
     setTransportadoraId(undefined);
+    setModalidadeFrete(null);
+    fretePadraoAplicadoRef.current = null;
     setRocaId(undefined);
     setDataPedido(new Date().toISOString().split('T')[0]);
     setDataEntregaPrevista('');
@@ -439,7 +497,8 @@ export function OrderForm({
         setTipo(order.tipo);
         setClienteId(order.cliente_id);
         setFornecedorId(order.fornecedor_id);
-        setTransportadoraId(order.transportadora_id);
+        setTransportadoraId(order.transportadora_id ?? undefined);
+        setModalidadeFrete(parseModalidadeFrete(order.modalidade_frete));
         const rocaPedido = order.roca_id ?? (order as { rocaId?: number }).rocaId;
         setRocaId(rocaPedido != null && rocaPedido > 0 ? Number(rocaPedido) : undefined);
 
@@ -1047,7 +1106,9 @@ export function OrderForm({
       data_entrega_prevista: dataEntregaPrevista || (order ? null : undefined),
       cliente_id: tipo === 'VENDA' ? clienteId : undefined,
       fornecedor_id: tipo === 'COMPRA' ? fornecedorId : undefined,
-      transportadora_id: transportadoraId,
+      // Na edição, null permite remover a transportadora
+      transportadora_id: transportadoraId ?? (order ? null : undefined),
+      modalidade_frete: tipo === 'VENDA' ? modalidadeFrete : undefined,
       roca_id: rocaId,
       forma_pagamento: formaPagamentoPayload ?? formaPagamento,
       forma_pagamento_estrutural: formaEstrutural,
@@ -1885,20 +1946,30 @@ export function OrderForm({
                 >
                   <Select
                     value={transportadoraId?.toString() || ''}
-                    onValueChange={(value) => setTransportadoraId(Number(value))}
-                    disabled={transportadorasLista.length === 0}
+                    onValueChange={(value) =>
+                      setTransportadoraId(value === 'nenhuma' ? undefined : Number(value))
+                    }
+                    disabled={
+                      transportadorasLista.length === 0 ||
+                      modalidadeFrete === MODALIDADE_FRETE_SEM_TRANSPORTE
+                    }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Transportadora do pedido">
                       <SelectValue
                         placeholder={
-                          transportadorasLista.length === 0
-                            ? 'Não há transportadora cadastrada'
-                            : 'Selecione uma transportadora'
+                          modalidadeFrete === MODALIDADE_FRETE_SEM_TRANSPORTE
+                            ? 'Sem transporte'
+                            : transportadorasLista.length === 0
+                              ? 'Não há transportadora cadastrada'
+                              : 'Selecione uma transportadora'
                         }
                       />
                     </SelectTrigger>
                     {transportadorasLista.length > 0 && (
                       <SelectContent>
+                        {transportadoraId !== undefined && (
+                          <SelectItem value="nenhuma">Nenhuma</SelectItem>
+                        )}
                         {transportadorasLista.map((transportadora) => (
                           <SelectItem key={transportadora.id} value={transportadora.id.toString()}>
                             {transportadora.nome}
@@ -1908,6 +1979,30 @@ export function OrderForm({
                     )}
                   </Select>
                 </CampoSelectComCadastroRapido>
+
+                {tipo === 'VENDA' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="pedido-modalidade-frete">Modalidade do frete</Label>
+                    <Select
+                      value={modalidadeFrete == null ? '' : String(modalidadeFrete)}
+                      onValueChange={handleModalidadeFreteChange}
+                    >
+                      <SelectTrigger id="pedido-modalidade-frete" aria-label="Modalidade do frete do pedido">
+                        <SelectValue placeholder="Não definida" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {modalidadeFrete != null && (
+                          <SelectItem value="nenhuma">Não definida</SelectItem>
+                        )}
+                        {MODALIDADES_FRETE.map((m) => (
+                          <SelectItem key={m.value} value={String(m.value)}>
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Prazo de Entrega (dias)</Label>
@@ -1931,27 +2026,38 @@ export function OrderForm({
                   />
                 </div>
 
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Frete</Label>
+                  <Label htmlFor="pedido-valor-frete">Valor do frete (R$)</Label>
                   <Input
+                    id="pedido-valor-frete"
                     type="number"
                     step="0.01"
                     min="0"
                     value={frete}
                     onChange={(e) => setFrete(e.target.value ? Number(e.target.value) : '')}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {tipo === 'VENDA'
+                      ? 'Cobrado do cliente e somado ao total do pedido.'
+                      : 'Somado ao total da compra.'}
+                  </p>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Outras Taxas</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={outrasTaxas}
-                  onChange={(e) => setOutrasTaxas(e.target.value ? Number(e.target.value) : '')}
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="pedido-outras-taxas">Outras taxas (R$)</Label>
+                  <Input
+                    id="pedido-outras-taxas"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={outrasTaxas}
+                    onChange={(e) => setOutrasTaxas(e.target.value ? Number(e.target.value) : '')}
+                  />
+                  <p className="text-xs text-muted-foreground">Somadas ao total do pedido.</p>
+                </div>
               </div>
               </>
                 );

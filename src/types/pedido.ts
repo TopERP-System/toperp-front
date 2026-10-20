@@ -76,6 +76,8 @@ export interface Pedido {
     telefone?: string;
   };
   transportadora_id?: number;
+  /** Modalidade do frete (0,1,2,3,4,9) definida no pedido. */
+  modalidade_frete?: number | null;
   transportadora?: {
     id: number;
     nome: string;
@@ -126,7 +128,10 @@ export interface CreatePedidoDto {
   status?: StatusPedido;
   cliente_id?: number;
   fornecedor_id?: number;
-  transportadora_id?: number;
+  /** null limpa a transportadora na edição. */
+  transportadora_id?: number | null;
+  /** Modalidade do frete (0,1,2,3,4,9). null limpa. */
+  modalidade_frete?: number | null;
   /** Roça vinculada (opcional). */
   roca_id?: number;
   data_pedido: string;

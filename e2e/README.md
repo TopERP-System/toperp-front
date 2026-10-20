@@ -41,6 +41,8 @@ npx playwright show-report                                    # relatório da ú
 | `relatorios-financeiros-filtros.spec.ts` | nada (API simulada) | Relatório geral de Contas a Receber/Pagar (cliente/fornecedor + empresa) e Relatório financeiro por cliente em Contas a Receber e Financeiro (empresa): os filtros vão para o PDF e para a pré-visualização, e o dialog abre com os filtros avançados já aplicados (task 001). Relatório geral com Conta (Banco): "Todas (com e sem banco)", um banco ou "Sem banco definido" vão para a pré-visualização, o PDF e a impressão, e o select abre com o banco dos filtros avançados (task 003). |
 | `filtros-avancados-banco.spec.ts` | nada (API simulada) | Filtros Avançados de Contas a Receber/Pagar: filtro por Conta (Banco) vai para as listagens (tabela e cards), inclui contas bancárias inativas, fica salvo ao voltar para a tela e sai com Limpar (task 002). |
 | `carta-correcao-pdf.spec.ts` | nada (API simulada) | Tela Notas Fiscais: cada carta de correção enviada tem o botão "Baixar PDF", que baixa o PDF da carta certa; erro da API aparece em toast (task 005). |
+| `frete-cliente-pedido.spec.ts` | nada (API simulada) | Frete padrão do cliente (modalidade e transportadora) vai no cadastro; "Sem transporte" limpa a transportadora; pedido novo puxa do cliente, acompanha a troca de cliente sem sobrescrever o que o usuário alterou (task 004, etapa 1). |
+| `nfe-transporte.spec.ts` | nada (API simulada) | Pré-emissão da NF-e: seção Transporte mostra modalidade e transportadora do pedido, peso líquido sugerido e bruto vazio, envia os pesos (independentes), bloqueia bruto < líquido e problema da transportadora, e pedido sem modalidade exige escolher (task 004, etapa 2). |
 
 ## Onde ficam vídeos, prints e arquivos baixados
 

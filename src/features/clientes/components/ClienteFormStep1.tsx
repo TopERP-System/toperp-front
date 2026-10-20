@@ -12,6 +12,7 @@ import { Building2, Check, Circle, DollarSign, FileText, Hash, User } from "luci
 import { useEffect, useState } from "react";
 import { ClienteFormData, ContatoFormData, EnderecoFormData } from "../types/cliente.types";
 import { cn } from "@/lib/utils";
+import { ClienteFreteFields } from "@/components/clientes/ClienteFreteFields";
 
 interface ClienteFormStep1Props {
   formData: ClienteFormData;
@@ -428,6 +429,12 @@ export const ClienteFormStep1 = ({
           </p>
         </div>
       </div>
+
+      <ClienteFreteFields
+        transportadoraId={formData.transportadora_padrao_id}
+        modalidade={formData.modalidade_frete_padrao}
+        onChange={(valores) => onFormDataChange(valores)}
+      />
 
       {/* Status Inicial - Opcional conforme GUIA_FRONTEND_CAMPOS_OPCIONAIS.md */}
       <div className="space-y-3">

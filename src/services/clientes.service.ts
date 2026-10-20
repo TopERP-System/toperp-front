@@ -21,6 +21,8 @@ export interface Cliente {
   cpf_cnpj: string;
   inscricao_estadual?: string;
   limite_credito?: number;
+  transportadora_padrao_id?: number | null;
+  modalidade_frete_padrao?: number | null;
   criadoEm?: string;
   atualizadoEm?: string;
   enderecos?: Array<{
@@ -59,6 +61,8 @@ export interface CreateClienteDto {
   cpf_cnpj?: string;  // Opcional conforme GUIA_FRONTEND_CAMPOS_OPCIONAIS.md
   inscricao_estadual?: string;
   limite_credito?: number | null;  // null = sem limite conforme guia
+  transportadora_padrao_id?: number | null;
+  modalidade_frete_padrao?: number | null;
   contatos?: Array<{
     id?: number;
     telefone: string;

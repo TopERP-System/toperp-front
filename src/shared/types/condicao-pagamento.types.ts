@@ -39,6 +39,10 @@ export interface DadosClienteParaPedido {
   };
   condicao_pagamento_padrao: CondicaoPagamento | null;
   condicoes_pagamento: CondicaoPagamento[];
+  /** Transportadora padrão do cliente (só se ativa). */
+  transportadora_padrao?: { id: number; nome: string } | null;
+  /** Modalidade do frete padrão (0,1,2,3,4,9). */
+  modalidade_frete_padrao?: number | null;
 }
 
 

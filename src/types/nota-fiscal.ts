@@ -105,7 +105,8 @@ export type SecaoNotaFiscal =
   | 'pedido'
   | 'cliente'
   | 'endereco'
-  | 'produto';
+  | 'produto'
+  | 'transporte';
 
 export interface CampoFaltanteNotaFiscal {
   campo: string;
@@ -159,6 +160,32 @@ export interface NotaFiscalPreEmissaoEmpresa {
   cfop_interestadual?: string | null;
 }
 
+export interface NotaFiscalPreEmissaoTransportadora {
+  id: number;
+  nome: string;
+  nome_fantasia?: string | null;
+  cnpj?: string | null;
+  inscricao_estadual?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+}
+
+export interface NotaFiscalPreEmissaoTransporte {
+  /** Modalidade do frete do pedido; null = pedido antigo (escolher na emissão). */
+  modalidade_frete: number | null;
+  transportadora: NotaFiscalPreEmissaoTransportadora | null;
+  /** Peso líquido calculado pelos itens (kg) ou null. */
+  peso_liquido_sugerido: number | null;
+  itens_sem_peso: number;
+  /** false enquanto os campos de transporte não forem confirmados com a Spedy. */
+  enviado_para_spedy: boolean;
+}
+
 export interface NotaFiscalPreEmissao {
   pedido: {
     id: number;
@@ -182,6 +209,7 @@ export interface NotaFiscalPreEmissao {
   } | null;
   cliente: NotaFiscalPreEmissaoCliente | null;
   itens: NotaFiscalPreEmissaoItem[];
+  transporte?: NotaFiscalPreEmissaoTransporte;
   campos_faltantes: CampoFaltanteNotaFiscal[];
   /** Avisos que não bloqueiam a emissão (ex.: produto sem tributação própria). */
   avisos?: string[];
@@ -200,6 +228,11 @@ export interface EmitirNotaFiscalPayload {
   };
   endereco?: NotaFiscalPreEmissaoEndereco;
   produtos?: Array<{ produto_id: number; ncm?: string; sku?: string }>;
+  /** Só quando o pedido não tem modalidade (fica gravada no pedido). */
+  modalidade_frete?: number;
+  /** Pesos em kg, opcionais e independentes. */
+  peso_liquido?: number | null;
+  peso_bruto?: number | null;
 }
 
 export interface CartaCorrecaoItem {

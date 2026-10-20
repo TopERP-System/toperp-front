@@ -22,6 +22,7 @@ import {
 import { BRAZILIAN_UFS, isValidBrazilUf } from '@/lib/brazil-uf';
 import { extractApiErrorMessage } from '@/lib/api-error-message';
 import { formatCurrency } from '@/lib/utils';
+import { MODALIDADES_FRETE, labelModalidadeFrete } from '@/lib/modalidade-frete';
 import { cepService } from '@/services/cep.service';
 import {
   formatTelefone,
@@ -272,6 +273,59 @@ function calcularFaltantesLocal(data: {
   return faltantes;
 }
 
+/** "1.234,5" / "1234.5" → 1234.5; vazio → null; inválido → NaN. */
+function parsePeso(valor: string): number | null {
+  const limpo = valor.trim();
+  if (!limpo) return null;
+  const normalizado = limpo.includes(',') ? limpo.replace(/\./g, '').replace(',', '.') : limpo;
+  const n = Number(normalizado);
+  return Number.isFinite(n) ? n : Number.NaN;
+}
+
+function formatarPeso(valor: number | null | undefined): string {
+  if (valor == null) return '';
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(valor);
+}
+
+/** Pendências do transporte: modalidade (pedido antigo), transportadora (servidor) e pesos. */
+function calcularFaltantesTransporte(input: {
+  transporte?: { modalidade_frete: number | null } | null;
+  modalidadeEscolhida: string;
+  faltantesServidor: CampoFaltanteNotaFiscal[];
+  pesoLiquido: string;
+  pesoBruto: string;
+}): CampoFaltanteNotaFiscal[] {
+  if (!input.transporte) return [];
+  const faltantes: CampoFaltanteNotaFiscal[] = [];
+  if (input.transporte.modalidade_frete == null && !input.modalidadeEscolhida) {
+    faltantes.push({
+      campo: 'transporte.modalidade_frete',
+      label: 'Modalidade do frete',
+      secao: 'transporte',
+    });
+  }
+  input.faltantesServidor
+    .filter((f) => f.secao === 'transporte' && f.campo !== 'transporte.modalidade_frete')
+    .forEach((f, i) => faltantes.push({ ...f, campo: `${f.campo}.${i}` }));
+  const liquido = parsePeso(input.pesoLiquido);
+  const bruto = parsePeso(input.pesoBruto);
+  const pesoInvalido = (v: number | null) => v != null && (Number.isNaN(v) || v <= 0);
+  if (pesoInvalido(liquido)) {
+    faltantes.push({ campo: 'transporte.peso_liquido', label: 'Peso líquido inválido', secao: 'transporte' });
+  }
+  if (pesoInvalido(bruto)) {
+    faltantes.push({ campo: 'transporte.peso_bruto', label: 'Peso bruto inválido', secao: 'transporte' });
+  }
+  if (liquido != null && bruto != null && !pesoInvalido(liquido) && !pesoInvalido(bruto) && bruto < liquido) {
+    faltantes.push({
+      campo: 'transporte.pesos',
+      label: 'O peso bruto não pode ser menor que o peso líquido',
+      secao: 'transporte',
+    });
+  }
+  return faltantes;
+}
+
 function codigoIbgeValido(codigo?: string | null): boolean {
   return /^\d{7}$/.test(String(codigo || '').replace(/\D/g, ''));
 }
@@ -315,6 +369,10 @@ export function EmitirNotaFiscalDialog({
   const [ncmPorProduto, setNcmPorProduto] = useState<Record<number, string>>({});
   const [erroEmissao, setErroEmissao] = useState<string | null>(null);
   const [buscandoCep, setBuscandoCep] = useState(false);
+  /** Modalidade escolhida na emissão (só quando o pedido não tem). */
+  const [modalidadeEscolhida, setModalidadeEscolhida] = useState('');
+  const [pesoLiquido, setPesoLiquido] = useState('');
+  const [pesoBruto, setPesoBruto] = useState('');
 
   const buscarCep = async (cepRaw: string) => {
     const limpo = cepRaw.replace(/\D/g, '');
@@ -369,6 +427,9 @@ export function EmitirNotaFiscalDialog({
       ncms[item.produto_id] = item.ncm || '';
     }
     setNcmPorProduto(ncms);
+    setModalidadeEscolhida('');
+    setPesoLiquido(formatarPeso(data.transporte?.peso_liquido_sugerido));
+    setPesoBruto('');
   }, [data]);
 
   useEffect(() => {
@@ -380,7 +441,14 @@ export function EmitirNotaFiscalDialog({
 
   const faltantes = useMemo(() => {
     if (!data || !order) return [];
-    return calcularFaltantesLocal({
+    const doTransporte = calcularFaltantesTransporte({
+      transporte: data.transporte,
+      modalidadeEscolhida,
+      faltantesServidor: data.campos_faltantes ?? [],
+      pesoLiquido,
+      pesoBruto,
+    });
+    return [...calcularFaltantesLocal({
       empresaCnpj: data.empresa.cnpj,
       spedyConfigurado: data.spedy_configurado,
       pedidoTipo: order.tipo,
@@ -396,8 +464,8 @@ export function EmitirNotaFiscalDialog({
       })),
       notaBloqueia: !!data.nota_existente?.bloqueia_reemissao,
       temItens: data.itens.length > 0,
-    });
-  }, [data, order, clienteNome, clienteDoc, endereco, ncmPorProduto]);
+    }), ...doTransporte];
+  }, [data, order, clienteNome, clienteDoc, endereco, ncmPorProduto, modalidadeEscolhida, pesoLiquido, pesoBruto]);
 
   const podeEmitir = faltantes.length === 0;
 
@@ -466,6 +534,11 @@ export function EmitirNotaFiscalDialog({
         ncm: (ncmPorProduto[item.produto_id] ?? item.ncm).trim(),
         sku: item.sku || undefined,
       })),
+      ...(data.transporte?.modalidade_frete == null && modalidadeEscolhida
+        ? { modalidade_frete: Number(modalidadeEscolhida) }
+        : {}),
+      peso_liquido: parsePeso(pesoLiquido),
+      peso_bruto: parsePeso(pesoBruto),
     };
     emitirMutation.mutate(payload);
   };
@@ -589,6 +662,104 @@ export function EmitirNotaFiscalDialog({
                   />
                 </div>
               </SectionCard>
+
+              {data.transporte && (
+                <SectionCard
+                  title="Transporte"
+                  description="Transportadora e modalidade do pedido (para mudar, edite o pedido) e pesos da carga"
+                >
+                  {!data.transporte.enviado_para_spedy && (
+                    <Alert className="border-amber-500/50 bg-amber-500/5 text-amber-900 dark:text-amber-200 [&>svg]:text-amber-600">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-sm">
+                        Estes dados ficam gravados no sistema, mas ainda não saem na NF-e: os campos de
+                        transporte estão sendo confirmados com a Spedy.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {data.transporte.modalidade_frete != null ? (
+                      <ReadOnlyField
+                        label="Modalidade do frete"
+                        value={labelModalidadeFrete(data.transporte.modalidade_frete)}
+                      />
+                    ) : (
+                      <FormField label="Modalidade do frete" htmlFor="nfe-modalidade-frete" required>
+                        <Select value={modalidadeEscolhida} onValueChange={setModalidadeEscolhida}>
+                          <SelectTrigger id="nfe-modalidade-frete" aria-label="Modalidade do frete da NF-e">
+                            <SelectValue placeholder="Escolha (fica gravada no pedido)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MODALIDADES_FRETE.map((m) => (
+                              <SelectItem key={m.value} value={String(m.value)}>
+                                {m.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormField>
+                    )}
+                    <ReadOnlyField
+                      label="Transportadora"
+                      value={
+                        data.transporte.transportadora
+                          ? data.transporte.transportadora.nome_fantasia?.trim() ||
+                            data.transporte.transportadora.nome
+                          : data.transporte.modalidade_frete === 9 || modalidadeEscolhida === '9'
+                            ? 'Sem transporte'
+                            : 'Nenhuma transportadora no pedido'
+                      }
+                    />
+                    {data.transporte.transportadora && modalidadeEscolhida !== '9' && (
+                      <>
+                        <ReadOnlyField
+                          label="CPF/CNPJ · Inscrição estadual"
+                          value={[
+                            data.transporte.transportadora.cnpj || 'sem CPF/CNPJ',
+                            data.transporte.transportadora.inscricao_estadual || 'sem IE',
+                          ].join(' · ')}
+                        />
+                        <ReadOnlyField
+                          label="Cidade / UF"
+                          value={
+                            [data.transporte.transportadora.cidade, data.transporte.transportadora.estado]
+                              .filter(Boolean)
+                              .join(' / ') || '—'
+                          }
+                        />
+                      </>
+                    )}
+                    <FormField label="Peso líquido (kg)" htmlFor="nfe-peso-liquido">
+                      <Input
+                        id="nfe-peso-liquido"
+                        inputMode="decimal"
+                        value={pesoLiquido}
+                        onChange={(e) => setPesoLiquido(e.target.value)}
+                        placeholder="Opcional"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {data.transporte.peso_liquido_sugerido != null
+                          ? `Sugerido pelos itens: ${formatarPeso(data.transporte.peso_liquido_sugerido)} kg.`
+                          : data.transporte.itens_sem_peso > 0
+                            ? `Não calculado: ${data.transporte.itens_sem_peso} ${data.transporte.itens_sem_peso === 1 ? 'item sem peso' : 'itens sem peso'} no cadastro.`
+                            : 'Deixe em branco para não informar.'}
+                      </p>
+                    </FormField>
+                    <FormField label="Peso bruto (kg)" htmlFor="nfe-peso-bruto">
+                      <Input
+                        id="nfe-peso-bruto"
+                        inputMode="decimal"
+                        value={pesoBruto}
+                        onChange={(e) => setPesoBruto(e.target.value)}
+                        placeholder="Opcional"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Peso com embalagem. Deixe em branco para não informar.
+                      </p>
+                    </FormField>
+                  </div>
+                </SectionCard>
+              )}
 
               <SectionCard
                 title="Empresa emitente"

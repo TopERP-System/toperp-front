@@ -35,6 +35,8 @@ export interface ClienteFormData {
   cpf_cnpj: string;
   inscricao_estadual: string;
   limite_credito?: number;
+  transportadora_padrao_id?: number | null;
+  modalidade_frete_padrao?: number | null;
 }
 
 export interface ClienteFormStepProps {

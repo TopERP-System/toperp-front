@@ -213,6 +213,15 @@ export function prepararPayloadAtualizacaoCliente(
     }
   }
   
+  // Frete padrão: envia os dois juntos (o backend aplica a regra "sem transporte")
+  if (
+    camposAlterados.includes('transportadora_padrao_id') ||
+    camposAlterados.includes('modalidade_frete_padrao')
+  ) {
+    payload.transportadora_padrao_id = dadosForm.transportadora_padrao_id ?? null;
+    payload.modalidade_frete_padrao = dadosForm.modalidade_frete_padrao ?? null;
+  }
+
   // 2. Processar endereços
   // IMPORTANTE: Só enviar o array se houver alterações
   if (camposAlterados.includes('enderecos')) {

@@ -92,6 +92,7 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { ClienteFreteFields } from "@/components/clientes/ClienteFreteFields";
 
 const Clientes = () => {
   const navigate = useNavigate();
@@ -1351,6 +1352,8 @@ const Clientes = () => {
         cpf_cnpj: selectedCliente.cpf_cnpj || "",
         inscricao_estadual: selectedCliente.inscricao_estadual || "",
         limite_credito: limiteCreditoVal ?? undefined,
+        transportadora_padrao_id: selectedCliente.transportadora_padrao_id ?? null,
+        modalidade_frete_padrao: selectedCliente.modalidade_frete_padrao ?? null,
       });
       setEditLimiteCreditoInput(limiteCreditoDisplay);
 
@@ -2829,6 +2832,12 @@ const Clientes = () => {
                     </div>
                   </div>
 
+                  <ClienteFreteFields
+                    transportadoraId={editCliente.transportadora_padrao_id}
+                    modalidade={editCliente.modalidade_frete_padrao}
+                    onChange={(valores) => setEditCliente({ ...editCliente, ...valores })}
+                  />
+
                 </div>
               </div>
 
@@ -3270,6 +3279,8 @@ const Clientes = () => {
                             cpf_cnpj: editCliente.cpf_cnpj,
                             inscricao_estadual: editCliente.inscricao_estadual,
                             limite_credito: editCliente.limite_credito,
+                            transportadora_padrao_id: editCliente.transportadora_padrao_id ?? null,
+                            modalidade_frete_padrao: editCliente.modalidade_frete_padrao ?? null,
                             enderecos: editEnderecos, // Sempre enviar array se houver endereços
                             contatos: editContatos,
                           };

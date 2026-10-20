@@ -16,6 +16,8 @@ interface EditFormData {
   cpf_cnpj?: string;
   inscricao_estadual?: string;
   limite_credito?: number | null;
+  transportadora_padrao_id?: number | null;
+  modalidade_frete_padrao?: number | null;
   enderecos?: Array<{
     id?: number;
     cep?: string;
@@ -107,6 +109,14 @@ export function prepararAtualizacaoCliente(
       formState.limite_credito = dadosEditados.limite_credito;
       camposAlterados.push('limite_credito');
     }
+  }
+
+  for (const campo of ['transportadora_padrao_id', 'modalidade_frete_padrao'] as const) {
+    if (dadosEditados[campo] === undefined) continue;
+    const original = clienteOriginal[campo] ?? null;
+    const editado = dadosEditados[campo] ?? null;
+    formState[campo] = editado;
+    if (original !== editado) camposAlterados.push(campo);
   }
 
   // Processar endereços

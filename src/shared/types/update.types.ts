@@ -38,6 +38,8 @@ export interface UpdateClientePayload {
   nome_razao?: string | null;
   inscricao_estadual?: string | null;
   limite_credito?: number | null; // null = sem limite; número ≥ 0 = limite em reais
+  transportadora_padrao_id?: number | null;
+  modalidade_frete_padrao?: number | null;
 
   // Array de endereços (OPCIONAL - se não enviar, mantém existentes)
   enderecos?: UpdateEndereco[];
@@ -99,6 +101,8 @@ export interface ClienteFormState {
   inscricao_estadual?: string;
   statusCliente?: 'ATIVO' | 'INATIVO' | 'BLOQUEADO' | 'INADIMPLENTE';
   limite_credito?: number | null;
+  transportadora_padrao_id?: number | null;
+  modalidade_frete_padrao?: number | null;
 
   // Arrays de relacionamentos
   enderecos: EnderecoFormState[];

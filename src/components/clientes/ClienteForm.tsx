@@ -128,7 +128,7 @@ export default function ClienteForm({ onSubmit, isPending = false }: ClienteForm
           <FormSection
             icon={User}
             title="Informações básicas"
-            description="Nome, documento, limite de crédito e status do cliente."
+            description="Nome, documento, limite de crédito, frete padrão e status do cliente."
           >
             <ClienteFormStep1
               formData={formData}

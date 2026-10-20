@@ -78,6 +78,12 @@ export function prepararCriacaoCliente(input: {
         : cliente.limite_credito === null
           ? { limite_credito: null }
           : {}),
+      ...(cliente.transportadora_padrao_id != null
+        ? { transportadora_padrao_id: cliente.transportadora_padrao_id }
+        : {}),
+      ...(cliente.modalidade_frete_padrao != null
+        ? { modalidade_frete_padrao: cliente.modalidade_frete_padrao }
+        : {}),
       ...(enderecosValidos.length > 0 ? { enderecos: enderecosValidos } : {}),
       ...(contatosValidos.length > 0 ? { contatos: contatosValidos } : {}),
       ...(condicoesPagamento && condicoesPagamento.length > 0
