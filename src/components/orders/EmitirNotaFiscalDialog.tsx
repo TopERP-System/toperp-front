@@ -668,15 +668,6 @@ export function EmitirNotaFiscalDialog({
                   title="Transporte"
                   description="Transportadora e modalidade do pedido (para mudar, edite o pedido) e pesos da carga"
                 >
-                  {!data.transporte.enviado_para_spedy && (
-                    <Alert className="border-amber-500/50 bg-amber-500/5 text-amber-900 dark:text-amber-200 [&>svg]:text-amber-600">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription className="text-sm">
-                        Estes dados ficam gravados no sistema, mas ainda não saem na NF-e: os campos de
-                        transporte estão sendo confirmados com a Spedy.
-                      </AlertDescription>
-                    </Alert>
-                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {data.transporte.modalidade_frete != null ? (
                       <ReadOnlyField

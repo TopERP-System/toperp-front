@@ -182,8 +182,6 @@ export interface NotaFiscalPreEmissaoTransporte {
   /** Peso líquido calculado pelos itens (kg) ou null. */
   peso_liquido_sugerido: number | null;
   itens_sem_peso: number;
-  /** false enquanto os campos de transporte não forem confirmados com a Spedy. */
-  enviado_para_spedy: boolean;
 }
 
 export interface NotaFiscalPreEmissao {
