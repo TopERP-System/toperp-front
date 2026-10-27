@@ -55,6 +55,7 @@ const initialForm: ProdutoFormData = {
   nome: '',
   descricao: '',
   sku: '',
+  codigo_barras: '',
   preco_custo: 0,
   preco_venda: 0,
   preco_promocional: undefined,
@@ -276,6 +277,19 @@ export default function ProdutoForm({
                     value={form.sku || ''}
                     onChange={(e) => patch({ sku: e.target.value })}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Código de barras (opcional)</Label>
+                  <Input
+                    className={inputClass}
+                    inputMode="numeric"
+                    placeholder="GTIN/EAN da embalagem (8, 12, 13 ou 14 dígitos)"
+                    value={form.codigo_barras || ''}
+                    onChange={(e) => patch({ codigo_barras: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ajuda a reconhecer o produto ao importar o XML da nota de compra.
+                  </p>
                 </div>
               </div>
             </FormSection>
