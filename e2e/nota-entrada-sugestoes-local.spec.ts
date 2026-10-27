@@ -10,7 +10,7 @@ import { exigirCredenciais, login } from "./helpers/login";
  */
 
 const API = process.env.E2E_API_URL ?? "http://localhost:4000/api/v1";
-const CNPJ = "11444777000161";
+const CNPJ = "22333444000181";
 const CHAVE = `352610${CNPJ}550010000000131000000131`;
 
 const det = (n: number, codigo: string, descricao: string, unidade: string) =>
