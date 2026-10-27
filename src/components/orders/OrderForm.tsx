@@ -21,7 +21,7 @@ import {
     SelectValue
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { cn, formatCurrency } from '@/lib/utils';
+import { cn, formatarQuantidade, formatCurrency } from '@/lib/utils';
 import { Cliente, clientesService } from '@/services/clientes.service';
 import { controleRocaService } from '@/services/controle-roca.service';
 import { useRotuloRoca } from '@/hooks/useRotuloRoca';
@@ -1528,7 +1528,7 @@ export function OrderForm({
                               <p className="text-xs text-muted-foreground">
                                 Estoque:{' '}
                                 <span className="font-medium text-foreground">
-                                  {estoqueDisponivel ?? '—'}
+                                  {estoqueDisponivel !== undefined ? formatarQuantidade(estoqueDisponivel) : '—'}
                                 </span>
                               </p>
                               {excedeEstoque ? (
