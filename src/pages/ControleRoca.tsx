@@ -80,7 +80,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { cn, compareRocaPorCodigo, formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
+import { cn, compareRocaPorCodigo, formatarQuantidade, formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import {
   cleanDocument,
   formatCPF,
@@ -3954,7 +3954,7 @@ export default function ControleRoca() {
                             <TableCell className="font-mono text-xs">{p.sku}</TableCell>
                             <TableCell>{p.unidade_medida || '—'}</TableCell>
                             <TableCell>{formatCurrency(p.preco_venda ?? 0)}</TableCell>
-                            <TableCell>{p.estoque_atual ?? 0}</TableCell>
+                            <TableCell>{formatarQuantidade(p.estoque_atual)}</TableCell>
                             <TableCell className="text-right">
                               <Button
                                 variant="outline"

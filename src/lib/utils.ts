@@ -29,6 +29,12 @@ export function compareRocaPorCodigo(
   });
 }
 
+/** Quantidade de estoque (até 3 casas, task 011): 12 → "12", 12.5 → "12,5", 1234.25 → "1.234,25". */
+export function formatarQuantidade(valor: number | string | null | undefined): string {
+  const n = Number(valor ?? 0);
+  return (Number.isFinite(n) ? n : 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
