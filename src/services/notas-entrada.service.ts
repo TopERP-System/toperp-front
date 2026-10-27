@@ -1,3 +1,4 @@
+import type { FormaPagamento } from '@/types/pedido';
 import { apiClient } from './api';
 
 /** Espelha backend/src/nota-entrada (task 009). */
@@ -94,6 +95,46 @@ class NotasEntradaService {
     return apiClient.postForm<NotaEntradaPrevia>('/notas-entrada/xml/previa', fd);
   }
 
+  /** US10: confirma a entrada (pedido de compra, estoque, contas a pagar e custo). */
+  async confirmar(arquivo: File, dados: ConfirmarNotaEntradaDto): Promise<NotaEntradaDetalhe> {
+    const fd = new FormData();
+    fd.append('xml', arquivo);
+    fd.append('dados', JSON.stringify(dados));
+    return apiClient.postForm<NotaEntradaDetalhe>('/notas-entrada/xml/confirmar', fd);
+  }
+
+  async listar(filtros: FiltrosNotasEntrada = {}): Promise<NotasEntradaResponse> {
+    const params = new URLSearchParams();
+    for (const [chave, valor] of Object.entries(filtros)) {
+      if (valor !== undefined && valor !== null && String(valor).trim() !== '') {
+        params.append(chave, String(valor).trim());
+      }
+    }
+    const query = params.toString();
+    return apiClient.get<NotasEntradaResponse>(`/notas-entrada${query ? `?${query}` : ''}`);
+  }
+
+  async buscar(id: number): Promise<NotaEntradaDetalhe> {
+    return apiClient.get<NotaEntradaDetalhe>(`/notas-entrada/${id}`);
+  }
+
+  async baixarXml(nota: Pick<NotaEntrada, 'id' | 'chave_acesso'>): Promise<void> {
+    const blob = await apiClient.getBlob(`/notas-entrada/${nota.id}/xml`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `NFe${nota.chave_acesso}.xml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  /** Cancela a entrada: cancela o pedido de compra (estorna estoque e contas a pagar). */
+  async cancelar(id: number): Promise<NotaEntradaDetalhe> {
+    return apiClient.post<NotaEntradaDetalhe>(`/notas-entrada/${id}/cancelar`, {});
+  }
+
   /** Associa o código do produto no fornecedor (cProd) a um produto; troca se já existir. */
   async salvarVinculo(dados: SalvarVinculoDto): Promise<unknown> {
     return apiClient.put('/notas-entrada/vinculos', dados);
@@ -109,3 +150,62 @@ export interface SalvarVinculoDto {
 }
 
 export const notasEntradaService = new NotasEntradaService();
+
+export interface ConfirmarNotaEntradaDto {
+  data_entrada: string;
+  forma_pagamento: FormaPagamento;
+  usar_parcelas_xml?: boolean;
+  data_vencimento?: string;
+  cfops?: Array<{ n_item: number; cfop: string }>;
+}
+
+export interface NotaEntrada {
+  id: number;
+  chave_acesso: string;
+  numero: string;
+  serie: string;
+  data_emissao: string;
+  data_entrada: string | null;
+  situacao: 'EFETIVADA' | 'CANCELADA' | 'RASCUNHO';
+  valor_total: number;
+  emitente_nome: string;
+  emitente_cpf_cnpj: string;
+  fornecedor: { id: number; nome_fantasia: string } | null;
+  pedido_id: number | null;
+  numero_pedido: string | null;
+}
+
+export interface NotaEntradaDetalhe extends NotaEntrada {
+  condicao_pagamento: string | null;
+  valores: { produtos: number; frete: number; seguro: number; desconto: number; ipi: number; outros: number };
+  itens: Array<{
+    n_item: number;
+    codigo_fornecedor: string;
+    descricao: string;
+    cfop_nota: string | null;
+    cfop_entrada: string;
+    unidade_nota: string | null;
+    quantidade_nota: number;
+    valor_total: number;
+    fator_conversao: number;
+    quantidade_estoque: number;
+    custo_unitario: number;
+    produto: { id: number; nome: string; unidade_medida: string };
+  }>;
+}
+
+export interface FiltrosNotasEntrada {
+  data_inicial?: string;
+  data_final?: string;
+  numero?: string;
+  termo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface NotasEntradaResponse {
+  notas: NotaEntrada[];
+  total: number;
+  page: number;
+  limit: number;
+}

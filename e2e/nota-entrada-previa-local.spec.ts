@@ -89,7 +89,8 @@ test("task 009 — código de barras no produto e prévia do XML", async ({ page
       const linhas = page.getByRole("row");
       await expect(linhas.filter({ hasText: "ITEM ABC" })).toContainText(produto.nome);
       await expect(linhas.filter({ hasText: "ITEM ABC" })).toContainText("Pelo código de barras");
-      await expect(linhas.filter({ hasText: "ITEM ABC" })).toContainText("6102 → 2102");
+      await expect(linhas.filter({ hasText: "ITEM ABC" })).toContainText("6102 →");
+      await expect(page.getByLabel("CFOP de entrada do item 1")).toHaveValue("2102");
       await expect(linhas.filter({ hasText: "ITEM XYZ" })).toContainText("Não associado");
       await page.screenshot({ path: "test-results/nota-entrada-previa.png", fullPage: true });
     });

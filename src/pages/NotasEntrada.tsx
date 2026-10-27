@@ -16,13 +16,32 @@ import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { formatDocument } from '@/lib/validators';
 import { AssociarProdutoDialog } from '@/components/notas-entrada/AssociarProdutoDialog';
 import { CadastrarFornecedorDialog } from '@/components/notas-entrada/CadastrarFornecedorDialog';
+import { ConfirmarEntradaCard } from '@/components/notas-entrada/ConfirmarEntradaCard';
+import { NotasEntradaLista } from '@/components/notas-entrada/NotasEntradaLista';
+import { Input } from '@/components/ui/input';
 import { ItemPrevia, NotaEntradaPrevia, notasEntradaService } from '@/services/notas-entrada.service';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, FileInput, Loader2, Upload, XCircle } from 'lucide-react';
 import { DragEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 const quantidade = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 4 });
+const CFOP_ENTRADA = /^[123]\d{3}$/;
+
+/** Pendências da prévia, trocando as de CFOP pelo CFOP que o usuário digitou na tela. */
+function pendenciasComCfop(previa: NotaEntradaPrevia, cfops: Record<number, string>) {
+  const outras = previa.pendencias.filter((p) => p.campo !== 'cfop');
+  const deCfop = previa.itens.flatMap((item) => {
+    const cfop = cfops[item.n_item] ?? '';
+    const rotulo = `Item ${item.n_item} – ${item.descricao}`;
+    if (!cfop) return [{ campo: 'cfop', n_item: item.n_item, mensagem: `CFOP não informado: ${rotulo}` }];
+    if (!CFOP_ENTRADA.test(cfop)) {
+      return [{ campo: 'cfop', n_item: item.n_item, mensagem: `CFOP de entrada inválido (${cfop}): ${rotulo}` }];
+    }
+    return [];
+  });
+  return [...outras, ...deCfop];
+}
 
 export default function NotasEntrada() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -32,10 +51,24 @@ export default function NotasEntrada() {
   const [previa, setPrevia] = useState<NotaEntradaPrevia | null>(null);
   const [cadastrandoFornecedor, setCadastrandoFornecedor] = useState(false);
   const [itemAssociando, setItemAssociando] = useState<ItemPrevia | null>(null);
+  // US06: CFOP de entrada por item (começa com o sugerido; o que o usuário digitou é mantido ao refazer a prévia)
+  const [cfops, setCfops] = useState<Record<number, string>>({});
+  const queryClient = useQueryClient();
 
   const previaMutation = useMutation({
     mutationFn: (file: File) => notasEntradaService.previaXml(file),
-    onSuccess: setPrevia,
+    onSuccess: (dados) => {
+      setPrevia(dados);
+      setCfops((atuais) => {
+        const novos = { ...atuais };
+        for (const item of dados.itens) {
+          if (novos[item.n_item] === undefined && item.cfop_entrada_sugerido) {
+            novos[item.n_item] = item.cfop_entrada_sugerido;
+          }
+        }
+        return novos;
+      });
+    },
     onError: (error: { message?: string }) => {
       toast.error(error?.message || 'Não foi possível ler o XML.');
     },
@@ -50,6 +83,7 @@ export default function NotasEntrada() {
     }
     setArquivo(file);
     setPrevia(null);
+    setCfops({});
     previaMutation.mutate(file);
   };
 
@@ -65,7 +99,7 @@ export default function NotasEntrada() {
         <ModulePageHeader
           icon={FileInput}
           title="Notas de Entrada"
-          subtitle="Importe o XML da NF-e de compra para conferir fornecedor, produtos e valores."
+          subtitle="Importe o XML da NF-e de compra: confira, resolva o que falta e dê entrada no estoque e no contas a pagar."
         />
 
         <div
@@ -110,11 +144,41 @@ export default function NotasEntrada() {
         {previa && (
           <PreviaNota
             previa={previa}
+            pendencias={pendenciasComCfop(previa, cfops)}
+            cfops={cfops}
+            onCfop={(nItem, cfop) => setCfops((atuais) => ({ ...atuais, [nItem]: cfop }))}
             atualizando={previaMutation.isPending}
             onCadastrarFornecedor={() => setCadastrandoFornecedor(true)}
             onAssociar={setItemAssociando}
           />
         )}
+
+        {previa && arquivo && (
+          <div className="mt-6">
+            <ConfirmarEntradaCard
+              key={previa.nota.chave_acesso}
+              previa={previa}
+              arquivo={arquivo}
+              cfops={cfops}
+              bloqueado={
+                previaMutation.isPending ||
+                Boolean(previa.ja_importada) ||
+                pendenciasComCfop(previa, cfops).length > 0
+              }
+              onConfirmada={() => {
+                setPrevia(null);
+                setArquivo(null);
+                setCfops({});
+                queryClient.invalidateQueries({ queryKey: ['notas-entrada'] });
+                queryClient.invalidateQueries({ queryKey: ['produtos'] });
+              }}
+            />
+          </div>
+        )}
+
+        <div className="mt-6">
+          <NotasEntradaLista />
+        </div>
 
         {previa && cadastrandoFornecedor && (
           <CadastrarFornecedorDialog
@@ -140,11 +204,17 @@ export default function NotasEntrada() {
 
 function PreviaNota({
   previa,
+  pendencias,
+  cfops,
+  onCfop,
   atualizando,
   onCadastrarFornecedor,
   onAssociar,
 }: {
   previa: NotaEntradaPrevia;
+  pendencias: NotaEntradaPrevia['pendencias'];
+  cfops: Record<number, string>;
+  onCfop: (nItem: number, cfop: string) => void;
   atualizando: boolean;
   onCadastrarFornecedor: () => void;
   onAssociar: (item: ItemPrevia) => void;
@@ -156,13 +226,13 @@ function PreviaNota({
 
   return (
     <div className={cn('space-y-6 transition-opacity', atualizando && 'pointer-events-none opacity-60')}>
-      {previa.pendencias.length > 0 ? (
+      {pendencias.length > 0 ? (
         <Alert variant="destructive">
           <XCircle className="h-4 w-4" />
           <AlertTitle>Resolva antes de importar</AlertTitle>
           <AlertDescription>
             <ul className="mt-1 list-disc space-y-0.5 pl-4">
-              {previa.pendencias.map((p) => (
+              {pendencias.map((p) => (
                 <li key={`${p.campo}-${p.n_item ?? ''}-${p.mensagem}`}>{p.mensagem}</li>
               ))}
             </ul>
@@ -172,7 +242,7 @@ function PreviaNota({
         <Alert>
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>Tudo certo para importar</AlertTitle>
-          <AlertDescription>Fornecedor e todos os produtos foram reconhecidos.</AlertDescription>
+          <AlertDescription>Fornecedor, produtos e CFOPs resolvidos. Confira os dados abaixo e confirme a entrada.</AlertDescription>
         </Alert>
       )}
 
@@ -236,7 +306,7 @@ function PreviaNota({
                 <TableHead>Item na nota</TableHead>
                 <TableHead className="text-right">Qtd.</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
-                <TableHead>CFOP</TableHead>
+                <TableHead>CFOP (nota → entrada)</TableHead>
                 <TableHead>Produto no sistema</TableHead>
               </TableRow>
             </TableHeader>
@@ -258,9 +328,19 @@ function PreviaNota({
                     {formatCurrency(item.valor_total)}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {item.cfop}
-                    {' → '}
-                    {item.cfop_entrada_sugerido ?? <span className="text-destructive">?</span>}
+                    <span className="mr-1">{item.cfop} →</span>
+                    <Input
+                      aria-label={`CFOP de entrada do item ${item.n_item}`}
+                      className={cn(
+                        'inline-flex h-8 w-20',
+                        !CFOP_ENTRADA.test(cfops[item.n_item] ?? '') && 'border-destructive',
+                      )}
+                      inputMode="numeric"
+                      maxLength={4}
+                      placeholder="1102"
+                      value={cfops[item.n_item] ?? ''}
+                      onChange={(e) => onCfop(item.n_item, e.target.value.replace(/\D/g, ''))}
+                    />
                   </TableCell>
                   <TableCell>
                     {item.produto ? (
@@ -299,10 +379,6 @@ function PreviaNota({
           </Table>
         </CardContent>
       </Card>
-
-      <p className="text-sm text-muted-foreground">
-        Esta é só a conferência do XML: nada foi gravado ainda.
-      </p>
     </div>
   );
 }
