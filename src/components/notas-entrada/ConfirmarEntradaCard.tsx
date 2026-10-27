@@ -29,12 +29,14 @@ interface Props {
   arquivo: File;
   /** CFOP de entrada de cada item (já com o sugerido); só confirma com todos válidos. */
   cfops: Record<number, string>;
+  /** Fornecedor existente associado pelo usuário (senão, o do CNPJ/CPF da nota). */
+  fornecedorId: number | null;
   bloqueado: boolean;
   onConfirmada: (nota: NotaEntradaDetalhe) => void;
 }
 
 /** US03/US09/US10: dados internos, parcelas e confirmação da entrada. */
-export function ConfirmarEntradaCard({ previa, arquivo, cfops, bloqueado, onConfirmada }: Props) {
+export function ConfirmarEntradaCard({ previa, arquivo, cfops, fornecedorId, bloqueado, onConfirmada }: Props) {
   const duplicatas = previa.nota.duplicatas.filter((d) => d.vencimento && d.valor > 0);
   const [dataEntrada, setDataEntrada] = useState(formatISODateLocal(new Date()));
   const [forma, setForma] = useState<FormaPagamento>('BOLETO');
@@ -52,6 +54,7 @@ export function ConfirmarEntradaCard({ previa, arquivo, cfops, bloqueado, onConf
         usar_parcelas_xml: !parcelaUnica,
         ...(parcelaUnica ? { data_vencimento: vencimento } : {}),
         cfops: Object.entries(cfops).map(([n, cfop]) => ({ n_item: Number(n), cfop })),
+        ...(fornecedorId ? { fornecedor_id: fornecedorId } : {}),
       }),
     onSuccess: (nota) => {
       toast.success(`Entrada confirmada! Pedido de compra ${nota.numero_pedido ?? ''} criado.`);

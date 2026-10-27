@@ -15,8 +15,8 @@ import {
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { formatDocument } from '@/lib/validators';
 import { AssociarProdutoDialog } from '@/components/notas-entrada/AssociarProdutoDialog';
-import { CadastrarFornecedorDialog } from '@/components/notas-entrada/CadastrarFornecedorDialog';
 import { ConfirmarEntradaCard } from '@/components/notas-entrada/ConfirmarEntradaCard';
+import { FornecedorDaNotaDialog } from '@/components/notas-entrada/FornecedorDaNotaDialog';
 import { NotasEntradaLista } from '@/components/notas-entrada/NotasEntradaLista';
 import { Input } from '@/components/ui/input';
 import { ItemPrevia, NotaEntradaPrevia, notasEntradaService } from '@/services/notas-entrada.service';
@@ -49,14 +49,17 @@ export default function NotasEntrada() {
   const [arquivo, setArquivo] = useState<File | null>(null);
   // Fica na tela enquanto a prévia é refeita depois de um cadastro
   const [previa, setPrevia] = useState<NotaEntradaPrevia | null>(null);
-  const [cadastrandoFornecedor, setCadastrandoFornecedor] = useState(false);
+  const [resolvendoFornecedor, setResolvendoFornecedor] = useState(false);
+  // Fornecedor existente que o usuário associou ao emitente (null: o sistema acha pelo CNPJ/CPF)
+  const [fornecedorId, setFornecedorId] = useState<number | null>(null);
   const [itemAssociando, setItemAssociando] = useState<ItemPrevia | null>(null);
   // US06: CFOP de entrada por item (começa com o sugerido; o que o usuário digitou é mantido ao refazer a prévia)
   const [cfops, setCfops] = useState<Record<number, string>>({});
   const queryClient = useQueryClient();
 
   const previaMutation = useMutation({
-    mutationFn: (file: File) => notasEntradaService.previaXml(file),
+    mutationFn: ({ file, fornecedor }: { file: File; fornecedor: number | null }) =>
+      notasEntradaService.previaXml(file, fornecedor),
     onSuccess: (dados) => {
       setPrevia(dados);
       setCfops((atuais) => {
@@ -73,7 +76,9 @@ export default function NotasEntrada() {
       toast.error(error?.message || 'Não foi possível ler o XML.');
     },
   });
-  const recarregar = () => arquivo && previaMutation.mutate(arquivo);
+  const recarregar = (fornecedor = fornecedorId) => {
+    if (arquivo) previaMutation.mutate({ file: arquivo, fornecedor });
+  };
 
   const enviar = (file?: File | null) => {
     if (!file) return;
@@ -84,7 +89,8 @@ export default function NotasEntrada() {
     setArquivo(file);
     setPrevia(null);
     setCfops({});
-    previaMutation.mutate(file);
+    setFornecedorId(null);
+    previaMutation.mutate({ file, fornecedor: null });
   };
 
   const onDrop = (e: DragEvent) => {
@@ -148,7 +154,8 @@ export default function NotasEntrada() {
             cfops={cfops}
             onCfop={(nItem, cfop) => setCfops((atuais) => ({ ...atuais, [nItem]: cfop }))}
             atualizando={previaMutation.isPending}
-            onCadastrarFornecedor={() => setCadastrandoFornecedor(true)}
+            fornecedorAssociado={fornecedorId !== null}
+            onResolverFornecedor={() => setResolvendoFornecedor(true)}
             onAssociar={setItemAssociando}
           />
         )}
@@ -160,6 +167,7 @@ export default function NotasEntrada() {
               previa={previa}
               arquivo={arquivo}
               cfops={cfops}
+              fornecedorId={fornecedorId}
               bloqueado={
                 previaMutation.isPending ||
                 Boolean(previa.ja_importada) ||
@@ -169,6 +177,8 @@ export default function NotasEntrada() {
                 setPrevia(null);
                 setArquivo(null);
                 setCfops({});
+                setFornecedorId(null);
+                queryClient.invalidateQueries({ queryKey: ['fornecedores'] });
                 queryClient.invalidateQueries({ queryKey: ['notas-entrada'] });
                 queryClient.invalidateQueries({ queryKey: ['produtos'] });
               }}
@@ -180,12 +190,16 @@ export default function NotasEntrada() {
           <NotasEntradaLista />
         </div>
 
-        {previa && cadastrandoFornecedor && (
-          <CadastrarFornecedorDialog
+        {previa && resolvendoFornecedor && (
+          <FornecedorDaNotaDialog
             emitente={previa.nota.emitente}
+            associado={fornecedorId !== null ? previa.fornecedor : null}
             open
-            onOpenChange={setCadastrandoFornecedor}
-            onCadastrado={recarregar}
+            onOpenChange={setResolvendoFornecedor}
+            onResolvido={(id) => {
+              setFornecedorId(id);
+              recarregar(id);
+            }}
           />
         )}
         {previa?.fornecedor && itemAssociando && (
@@ -194,7 +208,7 @@ export default function NotasEntrada() {
             fornecedorId={previa.fornecedor.id}
             open
             onOpenChange={(aberto) => !aberto && setItemAssociando(null)}
-            onSalvo={recarregar}
+            onSalvo={() => recarregar()}
           />
         )}
       </div>
@@ -208,7 +222,8 @@ function PreviaNota({
   cfops,
   onCfop,
   atualizando,
-  onCadastrarFornecedor,
+  fornecedorAssociado,
+  onResolverFornecedor,
   onAssociar,
 }: {
   previa: NotaEntradaPrevia;
@@ -216,7 +231,9 @@ function PreviaNota({
   cfops: Record<number, string>;
   onCfop: (nItem: number, cfop: string) => void;
   atualizando: boolean;
-  onCadastrarFornecedor: () => void;
+  /** O usuário escolheu um fornecedor existente (em vez de achar pelo CNPJ/CPF). */
+  fornecedorAssociado: boolean;
+  onResolverFornecedor: () => void;
   onAssociar: (item: ItemPrevia) => void;
 }) {
   const { nota } = previa;
@@ -273,12 +290,19 @@ function PreviaNota({
           </Campo>
           <Campo rotulo="Fornecedor no sistema">
             {fornecedorNome ? (
-              <span className="font-medium">{fornecedorNome}</span>
+              <>
+                <span className="font-medium">{fornecedorNome}</span>
+                {fornecedorAssociado && (
+                  <Button variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" onClick={onResolverFornecedor}>
+                    Trocar
+                  </Button>
+                )}
+              </>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="destructive">Não cadastrado</Badge>
-                <Button size="sm" variant="outline" className="h-7" onClick={onCadastrarFornecedor}>
-                  Cadastrar
+                <Badge variant="destructive">Não encontrado</Badge>
+                <Button size="sm" variant="outline" className="h-7" onClick={onResolverFornecedor}>
+                  Cadastrar ou associar
                 </Button>
               </div>
             )}
@@ -369,7 +393,7 @@ function PreviaNota({
                     ) : (
                       <>
                         <Badge variant="destructive">Não associado</Badge>
-                        <span className="block text-xs text-muted-foreground">Cadastre o fornecedor primeiro</span>
+                        <span className="block text-xs text-muted-foreground">Resolva o fornecedor primeiro</span>
                       </>
                     )}
                   </TableCell>

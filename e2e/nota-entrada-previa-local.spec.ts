@@ -96,10 +96,10 @@ test("task 009 — código de barras no produto e prévia do XML", async ({ page
     });
 
     await test.step("cadastra o fornecedor pelo emitente", async () => {
-      await expect(page.getByText("Cadastre o fornecedor primeiro")).toBeVisible();
-      await page.getByRole("button", { name: "Cadastrar", exact: true }).click();
+      await expect(page.getByText("Resolva o fornecedor primeiro")).toBeVisible();
+      await page.getByRole("button", { name: "Cadastrar ou associar" }).click();
       const dialog = page.getByRole("dialog");
-      await expect(dialog.getByText("FORNECEDOR TESTE 009 LTDA")).toBeVisible();
+      await expect(dialog.getByText("FORNECEDOR TESTE 009 LTDA", { exact: true })).toBeVisible();
       await expect(dialog.getByLabel("Nome fantasia *")).toHaveValue("Teste 009");
       await dialog.getByRole("button", { name: "Cadastrar fornecedor" }).click();
       await expect(page.getByText("Fornecedor cadastrado!")).toBeVisible();

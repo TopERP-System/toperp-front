@@ -88,10 +88,14 @@ export interface NotaEntradaPrevia {
 }
 
 class NotasEntradaService {
-  /** Lê o XML da NF-e de compra e devolve a prévia (não grava nada). */
-  async previaXml(arquivo: File): Promise<NotaEntradaPrevia> {
+  /**
+   * Lê o XML da NF-e de compra e devolve a prévia (não grava nada).
+   * `fornecedorId`: fornecedor já cadastrado que o usuário associou ao emitente.
+   */
+  async previaXml(arquivo: File, fornecedorId?: number | null): Promise<NotaEntradaPrevia> {
     const fd = new FormData();
     fd.append('xml', arquivo);
+    if (fornecedorId) fd.append('fornecedor_id', String(fornecedorId));
     return apiClient.postForm<NotaEntradaPrevia>('/notas-entrada/xml/previa', fd);
   }
 
@@ -157,6 +161,7 @@ export interface ConfirmarNotaEntradaDto {
   usar_parcelas_xml?: boolean;
   data_vencimento?: string;
   cfops?: Array<{ n_item: number; cfop: string }>;
+  fornecedor_id?: number;
 }
 
 export interface NotaEntrada {
