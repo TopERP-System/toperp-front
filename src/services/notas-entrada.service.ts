@@ -74,6 +74,14 @@ export interface ItemPrevia extends NfeXmlItem {
   vinculo_origem: 'FORNECEDOR' | 'CODIGO_BARRAS' | null;
   fator_conversao: number;
   cfop_entrada_sugerido: string | null;
+  /** Produto com nome parecido (só para item sem produto); o usuário aceita ou não. */
+  sugestao: {
+    produto: ProdutoPrevia;
+    /** 0 a 1 */
+    similaridade: number;
+    /** Mesma unidade da nota: dá para aceitar com fator 1. */
+    mesma_unidade: boolean;
+  } | null;
 }
 
 export interface NotaEntradaPrevia {
@@ -142,6 +150,11 @@ class NotasEntradaService {
   /** Associa o código do produto no fornecedor (cProd) a um produto; troca se já existir. */
   async salvarVinculo(dados: SalvarVinculoDto): Promise<unknown> {
     return apiClient.put('/notas-entrada/vinculos', dados);
+  }
+
+  /** Vários itens do mesmo fornecedor de uma vez ("aceitar sugestões"): todos ou nenhum. */
+  async salvarVinculos(fornecedorId: number, vinculos: Omit<SalvarVinculoDto, 'fornecedor_id'>[]): Promise<unknown> {
+    return apiClient.put('/notas-entrada/vinculos/lote', { fornecedor_id: fornecedorId, vinculos });
   }
 }
 

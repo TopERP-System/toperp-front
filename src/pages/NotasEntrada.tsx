@@ -14,14 +14,16 @@ import {
 } from '@/components/ui/table';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { formatDocument } from '@/lib/validators';
+import { AceitarSugestoesDialog } from '@/components/notas-entrada/AceitarSugestoesDialog';
 import { AssociarProdutoDialog } from '@/components/notas-entrada/AssociarProdutoDialog';
 import { ConfirmarEntradaCard } from '@/components/notas-entrada/ConfirmarEntradaCard';
 import { FornecedorDaNotaDialog } from '@/components/notas-entrada/FornecedorDaNotaDialog';
 import { NotasEntradaLista } from '@/components/notas-entrada/NotasEntradaLista';
 import { Input } from '@/components/ui/input';
+import { comSugestao } from '@/features/notas-entrada/utils/sugestoes';
 import { ItemPrevia, NotaEntradaPrevia, notasEntradaService } from '@/services/notas-entrada.service';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, FileInput, Loader2, Upload, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileInput, Loader2, Sparkles, Upload, XCircle } from 'lucide-react';
 import { DragEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -53,6 +55,7 @@ export default function NotasEntrada() {
   // Fornecedor existente que o usuário associou ao emitente (null: o sistema acha pelo CNPJ/CPF)
   const [fornecedorId, setFornecedorId] = useState<number | null>(null);
   const [itemAssociando, setItemAssociando] = useState<ItemPrevia | null>(null);
+  const [aceitandoSugestoes, setAceitandoSugestoes] = useState(false);
   // US06: CFOP de entrada por item (começa com o sugerido; o que o usuário digitou é mantido ao refazer a prévia)
   const [cfops, setCfops] = useState<Record<number, string>>({});
   const queryClient = useQueryClient();
@@ -79,6 +82,22 @@ export default function NotasEntrada() {
   const recarregar = (fornecedor = fornecedorId) => {
     if (arquivo) previaMutation.mutate({ file: arquivo, fornecedor });
   };
+
+  // Sugestão com a mesma unidade: aceita direto, com fator 1
+  const aceitarSugestao = useMutation({
+    mutationFn: (item: ItemPrevia) =>
+      notasEntradaService.salvarVinculo({
+        fornecedor_id: previa!.fornecedor!.id,
+        codigo_fornecedor: item.codigo,
+        produto_id: item.sugestao!.produto.id,
+        fator_conversao: 1,
+        unidade_fornecedor: item.unidade,
+      }),
+    onSuccess: () => recarregar(),
+    onError: (error: { message?: string }) => {
+      toast.error(error?.message || 'Não foi possível associar o produto.');
+    },
+  });
 
   const enviar = (file?: File | null) => {
     if (!file) return;
@@ -153,10 +172,12 @@ export default function NotasEntrada() {
             pendencias={pendenciasComCfop(previa, cfops)}
             cfops={cfops}
             onCfop={(nItem, cfop) => setCfops((atuais) => ({ ...atuais, [nItem]: cfop }))}
-            atualizando={previaMutation.isPending}
+            atualizando={previaMutation.isPending || aceitarSugestao.isPending}
             fornecedorAssociado={fornecedorId !== null}
             onResolverFornecedor={() => setResolvendoFornecedor(true)}
             onAssociar={setItemAssociando}
+            onAceitarSugestao={(item) => aceitarSugestao.mutate(item)}
+            onAceitarSugestoes={() => setAceitandoSugestoes(true)}
           />
         )}
 
@@ -202,6 +223,15 @@ export default function NotasEntrada() {
             }}
           />
         )}
+        {previa?.fornecedor && aceitandoSugestoes && (
+          <AceitarSugestoesDialog
+            itens={comSugestao(previa.itens)}
+            fornecedorId={previa.fornecedor.id}
+            open
+            onOpenChange={setAceitandoSugestoes}
+            onSalvo={() => recarregar()}
+          />
+        )}
         {previa?.fornecedor && itemAssociando && (
           <AssociarProdutoDialog
             item={itemAssociando}
@@ -225,6 +255,8 @@ function PreviaNota({
   fornecedorAssociado,
   onResolverFornecedor,
   onAssociar,
+  onAceitarSugestao,
+  onAceitarSugestoes,
 }: {
   previa: NotaEntradaPrevia;
   pendencias: NotaEntradaPrevia['pendencias'];
@@ -235,8 +267,11 @@ function PreviaNota({
   fornecedorAssociado: boolean;
   onResolverFornecedor: () => void;
   onAssociar: (item: ItemPrevia) => void;
+  onAceitarSugestao: (item: ItemPrevia) => void;
+  onAceitarSugestoes: () => void;
 }) {
   const { nota } = previa;
+  const sugestoes = previa.fornecedor ? comSugestao(previa.itens).length : 0;
   const fornecedorNome = previa.fornecedor
     ? previa.fornecedor.nome_fantasia || previa.fornecedor.nome_razao
     : null;
@@ -319,8 +354,14 @@ function PreviaNota({
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-base">Itens ({previa.itens.length})</CardTitle>
+          {sugestoes > 0 && (
+            <Button size="sm" variant="outline" onClick={onAceitarSugestoes}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Aceitar sugestões ({sugestoes})
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
@@ -385,6 +426,30 @@ function PreviaNota({
                             ? `Vínculo do fornecedor${item.fator_conversao !== 1 ? ` · 1 ${item.unidade} = ${quantidade(item.fator_conversao)} ${item.produto.unidade_medida}` : ''}`
                             : 'Pelo código de barras'}
                         </span>
+                      </>
+                    ) : previa.fornecedor && item.sugestao ? (
+                      <>
+                        <span className="text-xs text-muted-foreground">Sugestão</span>
+                        <span className="block font-medium">
+                          {item.sugestao.produto.nome}{' '}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {Math.round(item.sugestao.similaridade * 100)}% parecido
+                          </span>
+                        </span>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {item.sugestao.mesma_unidade ? (
+                            <Button size="sm" className="h-7" onClick={() => onAceitarSugestao(item)}>
+                              Aceitar
+                            </Button>
+                          ) : (
+                            <Button size="sm" className="h-7" onClick={() => onAssociar(item)}>
+                              Conferir conversão
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" className="h-7" onClick={() => onAssociar(item)}>
+                            Outro produto
+                          </Button>
+                        </div>
                       </>
                     ) : previa.fornecedor ? (
                       <Button size="sm" variant="outline" className="h-7" onClick={() => onAssociar(item)}>

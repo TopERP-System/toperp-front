@@ -40,11 +40,13 @@ interface Props {
 
 /** US04/US05: associa o item da nota a um produto (existente ou novo) e grava o vínculo. */
 export function AssociarProdutoDialog({ item, fornecedorId, open, onOpenChange, onSalvo }: Props) {
-  const [modo, setModo] = useState<Modo>(item.produto ? 'existente' : 'novo');
+  // Produto atual ou, sem ele, o sugerido pelo nome
+  const atual = item.produto ?? item.sugestao?.produto ?? null;
+  const [modo, setModo] = useState<Modo>(atual ? 'existente' : 'novo');
   const [termo, setTermo] = useState('');
   const [busca, setBusca] = useState('');
   const [escolhido, setEscolhido] = useState<Pick<Produto, 'id' | 'nome' | 'sku' | 'unidade_medida'> | null>(
-    item.produto ? { ...item.produto, unidade_medida: item.produto.unidade_medida as Unidade } : null,
+    atual ? { ...atual, unidade_medida: atual.unidade_medida as Unidade } : null,
   );
   const [fator, setFator] = useState(String(item.fator_conversao || 1));
   const [nome, setNome] = useState(item.descricao);

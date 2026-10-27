@@ -84,7 +84,7 @@ test("task 009 — confirmar a entrada, ver na lista e cancelar", async ({ page 
     });
 
     await test.step("lista e detalhe", async () => {
-      const linha = page.getByRole("row").filter({ hasText: "11 · série 1" });
+      const linha = page.getByRole("row").filter({ hasText: "11 · série 1" }).first();
       await expect(linha).toContainText("Efetivada");
       await expect(linha).toContainText("R$ 270,00");
       await linha.getByRole("button", { name: "Ver nota" }).click();
@@ -97,7 +97,7 @@ test("task 009 — confirmar a entrada, ver na lista e cancelar", async ({ page 
     });
 
     await test.step("cancelar pela tela estorna o estoque", async () => {
-      const linha = page.getByRole("row").filter({ hasText: "11 · série 1" });
+      const linha = page.getByRole("row").filter({ hasText: "11 · série 1" }).first();
       await linha.getByRole("button", { name: "Cancelar entrada" }).click();
       await page.getByRole("alertdialog").getByRole("button", { name: "Cancelar entrada" }).click();
       await expect(page.getByText("Entrada cancelada")).toBeVisible();
