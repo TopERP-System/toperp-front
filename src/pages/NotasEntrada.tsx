@@ -14,7 +14,9 @@ import {
 } from '@/components/ui/table';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { formatDocument } from '@/lib/validators';
-import { NotaEntradaPrevia, notasEntradaService } from '@/services/notas-entrada.service';
+import { AssociarProdutoDialog } from '@/components/notas-entrada/AssociarProdutoDialog';
+import { CadastrarFornecedorDialog } from '@/components/notas-entrada/CadastrarFornecedorDialog';
+import { ItemPrevia, NotaEntradaPrevia, notasEntradaService } from '@/services/notas-entrada.service';
 import { useMutation } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, FileInput, Loader2, Upload, XCircle } from 'lucide-react';
 import { DragEvent, useRef, useState } from 'react';
@@ -25,14 +27,20 @@ const quantidade = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDig
 export default function NotasEntrada() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [arrastando, setArrastando] = useState(false);
-  const [arquivo, setArquivo] = useState<string | null>(null);
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  // Fica na tela enquanto a prévia é refeita depois de um cadastro
+  const [previa, setPrevia] = useState<NotaEntradaPrevia | null>(null);
+  const [cadastrandoFornecedor, setCadastrandoFornecedor] = useState(false);
+  const [itemAssociando, setItemAssociando] = useState<ItemPrevia | null>(null);
 
   const previaMutation = useMutation({
     mutationFn: (file: File) => notasEntradaService.previaXml(file),
+    onSuccess: setPrevia,
     onError: (error: { message?: string }) => {
       toast.error(error?.message || 'Não foi possível ler o XML.');
     },
   });
+  const recarregar = () => arquivo && previaMutation.mutate(arquivo);
 
   const enviar = (file?: File | null) => {
     if (!file) return;
@@ -40,7 +48,8 @@ export default function NotasEntrada() {
       toast.error('O arquivo precisa ser .xml');
       return;
     }
-    setArquivo(file.name);
+    setArquivo(file);
+    setPrevia(null);
     previaMutation.mutate(file);
   };
 
@@ -49,8 +58,6 @@ export default function NotasEntrada() {
     setArrastando(false);
     enviar(e.dataTransfer.files?.[0]);
   };
-
-  const previa = previaMutation.data;
 
   return (
     <AppLayout>
@@ -77,16 +84,16 @@ export default function NotasEntrada() {
             arrastando ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
           )}
         >
-          {previaMutation.isPending ? (
+          {previaMutation.isPending && !previa ? (
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           ) : (
             <Upload className="h-8 w-8 text-muted-foreground" />
           )}
           <p className="font-medium">
-            {previaMutation.isPending ? 'Lendo o XML…' : 'Arraste o XML da NF-e aqui ou clique para escolher'}
+            {previaMutation.isPending && !previa ? 'Lendo o XML…' : 'Arraste o XML da NF-e aqui ou clique para escolher'}
           </p>
           <p className="text-sm text-muted-foreground">
-            {arquivo ?? 'Arquivo .xml da nota de compra (modelo 55), até 5 MB'}
+            {arquivo?.name ?? 'Arquivo .xml da nota de compra (modelo 55), até 5 MB'}
           </p>
           <input
             ref={inputRef}
@@ -100,20 +107,55 @@ export default function NotasEntrada() {
           />
         </div>
 
-        {previa && <PreviaNota previa={previa} />}
+        {previa && (
+          <PreviaNota
+            previa={previa}
+            atualizando={previaMutation.isPending}
+            onCadastrarFornecedor={() => setCadastrandoFornecedor(true)}
+            onAssociar={setItemAssociando}
+          />
+        )}
+
+        {previa && cadastrandoFornecedor && (
+          <CadastrarFornecedorDialog
+            emitente={previa.nota.emitente}
+            open
+            onOpenChange={setCadastrandoFornecedor}
+            onCadastrado={recarregar}
+          />
+        )}
+        {previa?.fornecedor && itemAssociando && (
+          <AssociarProdutoDialog
+            item={itemAssociando}
+            fornecedorId={previa.fornecedor.id}
+            open
+            onOpenChange={(aberto) => !aberto && setItemAssociando(null)}
+            onSalvo={recarregar}
+          />
+        )}
       </div>
     </AppLayout>
   );
 }
 
-function PreviaNota({ previa }: { previa: NotaEntradaPrevia }) {
+function PreviaNota({
+  previa,
+  atualizando,
+  onCadastrarFornecedor,
+  onAssociar,
+}: {
+  previa: NotaEntradaPrevia;
+  atualizando: boolean;
+  onCadastrarFornecedor: () => void;
+  onAssociar: (item: ItemPrevia) => void;
+}) {
   const { nota } = previa;
   const fornecedorNome = previa.fornecedor
     ? previa.fornecedor.nome_fantasia || previa.fornecedor.nome_razao
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className={cn('space-y-6 transition-opacity', atualizando && 'pointer-events-none opacity-60')}>
       {previa.pendencias.length > 0 ? (
         <Alert variant="destructive">
           <XCircle className="h-4 w-4" />
@@ -163,7 +205,12 @@ function PreviaNota({ previa }: { previa: NotaEntradaPrevia }) {
             {fornecedorNome ? (
               <span className="font-medium">{fornecedorNome}</span>
             ) : (
-              <Badge variant="destructive">Não cadastrado</Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="destructive">Não cadastrado</Badge>
+                <Button size="sm" variant="outline" className="h-7" onClick={onCadastrarFornecedor}>
+                  Cadastrar
+                </Button>
+              </div>
             )}
           </Campo>
           <Campo rotulo="Emissão">{formatDate(nota.data_emissao)}</Campo>
@@ -219,14 +266,31 @@ function PreviaNota({ previa }: { previa: NotaEntradaPrevia }) {
                     {item.produto ? (
                       <>
                         <span className="font-medium">{item.produto.nome}</span>
+                        {previa.fornecedor && (
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="ml-1 h-auto p-0 text-xs"
+                            onClick={() => onAssociar(item)}
+                          >
+                            Trocar
+                          </Button>
+                        )}
                         <span className="block text-xs text-muted-foreground">
                           {item.vinculo_origem === 'FORNECEDOR'
                             ? `Vínculo do fornecedor${item.fator_conversao !== 1 ? ` · 1 ${item.unidade} = ${quantidade(item.fator_conversao)} ${item.produto.unidade_medida}` : ''}`
                             : 'Pelo código de barras'}
                         </span>
                       </>
+                    ) : previa.fornecedor ? (
+                      <Button size="sm" variant="outline" className="h-7" onClick={() => onAssociar(item)}>
+                        Associar
+                      </Button>
                     ) : (
-                      <Badge variant="destructive">Não associado</Badge>
+                      <>
+                        <Badge variant="destructive">Não associado</Badge>
+                        <span className="block text-xs text-muted-foreground">Cadastre o fornecedor primeiro</span>
+                      </>
                     )}
                   </TableCell>
                 </TableRow>

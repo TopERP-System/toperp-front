@@ -2,8 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 import { exigirCredenciais, login } from "./helpers/login";
 
 /**
- * Task 009 contra a API LOCAL (clone): código de barras no produto + prévia do XML da nota de entrada.
- * Grava um código de barras no primeiro produto e devolve o valor original no fim.
+ * Task 009 contra a API LOCAL (clone): código de barras no produto, prévia do XML da nota de entrada,
+ * cadastro do fornecedor pelo emitente e do produto pelo item (com o vínculo).
+ * Grava um código de barras no primeiro produto e devolve o valor original no fim; apaga o fornecedor
+ * e o produto criados (o vínculo sai junto, ON DELETE CASCADE).
  *
  *   E2E_EMAIL=... E2E_SENHA=... npx playwright test e2e/nota-entrada-previa-local.spec.ts
  */
@@ -20,22 +22,27 @@ function xmlNota(): string {
   return `<?xml version="1.0" encoding="UTF-8"?><nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
 <NFe><infNFe Id="NFe${CHAVE}" versao="4.00"><ide><mod>55</mod><natOp>VENDA</natOp><serie>1</serie><nNF>9</nNF>
 <dhEmi>2026-10-26T09:00:00-03:00</dhEmi></ide>
-<emit><CNPJ>11222333000181</CNPJ><xNome>FORNECEDOR TESTE 009 LTDA</xNome><IE>123</IE></emit>
+<emit><CNPJ>11222333000181</CNPJ><xNome>FORNECEDOR TESTE 009 LTDA</xNome><xFant>Teste 009</xFant>
+<enderEmit><xLgr>Rua A</xLgr><nro>1</nro><xBairro>Centro</xBairro><cMun>3550308</cMun><xMun>Sao Paulo</xMun>
+<UF>SP</UF><CEP>01001000</CEP><fone>1133334444</fone></enderEmit><IE>123</IE></emit>
 <dest><CNPJ>99888777000166</CNPJ><xNome>OUTRA EMPRESA</xNome></dest>
 ${det(1, "ABC", EAN)}${det(2, "XYZ", "SEM GTIN")}
 <total><ICMSTot><vProd>40.00</vProd><vNF>40.00</vNF></ICMSTot></total></infNFe></NFe>
 <protNFe versao="4.00"><infProt><nProt>1</nProt><cStat>100</cStat></infProt></protNFe></nfeProc>`;
 }
 
-async function api(page: Page, metodo: "GET" | "PATCH", caminho: string, dados?: unknown) {
+async function api(page: Page, metodo: "GET" | "PATCH" | "POST" | "DELETE", caminho: string, dados?: unknown) {
   const token = await page.evaluate(() => localStorage.getItem("access_token"));
   const resposta = await page.request.fetch(`${API}${caminho}`, {
     method: metodo,
     headers: { Authorization: `Bearer ${token}` },
-    data: dados,
+    ...(caminho.endsWith("/previa")
+      ? { multipart: { xml: { name: "nota.xml", mimeType: "text/xml", buffer: Buffer.from(xmlNota()) } } }
+      : { data: dados }),
   });
   expect(resposta.ok(), `${metodo} ${caminho}`).toBeTruthy();
-  return resposta.json();
+  const corpo = await resposta.text();
+  return corpo ? JSON.parse(corpo) : null;
 }
 
 test("task 009 — código de barras no produto e prévia do XML", async ({ page }) => {
@@ -87,6 +94,63 @@ test("task 009 — código de barras no produto e prévia do XML", async ({ page
       await page.screenshot({ path: "test-results/nota-entrada-previa.png", fullPage: true });
     });
 
+    await test.step("cadastra o fornecedor pelo emitente", async () => {
+      await expect(page.getByText("Cadastre o fornecedor primeiro")).toBeVisible();
+      await page.getByRole("button", { name: "Cadastrar", exact: true }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByText("FORNECEDOR TESTE 009 LTDA")).toBeVisible();
+      await expect(dialog.getByLabel("Nome fantasia *")).toHaveValue("Teste 009");
+      await dialog.getByRole("button", { name: "Cadastrar fornecedor" }).click();
+      await expect(page.getByText("Fornecedor cadastrado!")).toBeVisible();
+      await expect(page.getByText("Fornecedor não cadastrado", { exact: false })).toBeHidden();
+      await expect(page.getByText("Teste 009", { exact: true })).toBeVisible();
+    });
+
+    await test.step("cadastra o produto pelo item, 1 CX = 12 UN, e grava o vínculo", async () => {
+      await page.getByRole("row").filter({ hasText: "ITEM XYZ" }).getByRole("button", { name: "Associar" }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByLabel("Nome do produto *")).toHaveValue("ITEM XYZ");
+      await dialog.getByRole("combobox").first().click();
+      await page.getByRole("option", { name: "UN", exact: true }).click();
+      await dialog.getByLabel("Conversão de unidade").fill("12");
+      await expect(dialog.getByText("custo R$ 0,83 por UN", { exact: false })).toBeVisible();
+      await dialog.getByRole("button", { name: "Cadastrar e associar" }).click();
+      await expect(page.getByText("Produto cadastrado e associado!")).toBeVisible();
+
+      await expect(page.getByText("Tudo certo para importar")).toBeVisible();
+      await expect(page.getByRole("row").filter({ hasText: "ITEM XYZ" })).toContainText(
+        "Vínculo do fornecedor · 1 CX = 12 UN",
+      );
+    });
+
+    await test.step("a mesma nota de novo já vem com tudo associado", async () => {
+      await page.reload();
+      await page.locator('input[type="file"]').setInputFiles({
+        name: "nota.xml",
+        mimeType: "text/xml",
+        buffer: Buffer.from(xmlNota()),
+      });
+      await expect(page.getByText("Tudo certo para importar")).toBeVisible();
+      await page.screenshot({ path: "test-results/nota-entrada-resolvida.png", fullPage: true });
+    });
+
+    await test.step("dados gravados vieram do XML", async () => {
+      const previa = await api(page, "POST", "/notas-entrada/xml/previa");
+      const fornecedor = await api(page, "GET", `/fornecedor/${previa.fornecedor.id}`);
+      expect(fornecedor).toMatchObject({
+        nome_fantasia: "Teste 009",
+        cpf_cnpj: "11222333000181",
+        inscricao_estadual: "123",
+      });
+      expect(JSON.stringify(fornecedor)).toContain("Rua A");
+      expect(JSON.stringify(fornecedor)).toContain("1133334444");
+
+      const item = previa.itens.find((i: { codigo: string }) => i.codigo === "XYZ");
+      const criado = await api(page, "GET", `/produtos/${item.produto.id}`);
+      expect(criado).toMatchObject({ nome: "ITEM XYZ", unidade_medida: "UN", ncm: "07041000" });
+      expect(Number(criado.preco_custo)).toBeCloseTo(0.83, 2);
+    });
+
     await test.step("arquivo que não é .xml é recusado no navegador", async () => {
       await page.locator('input[type="file"]').setInputFiles({
         name: "nota.txt",
@@ -96,6 +160,10 @@ test("task 009 — código de barras no produto e prévia do XML", async ({ page
       await expect(page.getByText("O arquivo precisa ser .xml")).toBeVisible();
     });
   } finally {
+    const previa = await api(page, "POST", "/notas-entrada/xml/previa");
+    const criado = previa.itens.find((i: { codigo: string }) => i.codigo === "XYZ")?.produto;
+    if (criado) await api(page, "DELETE", `/produtos/${criado.id}`);
+    if (previa.fornecedor) await api(page, "DELETE", `/fornecedor/${previa.fornecedor.id}`);
     await api(page, "PATCH", `/produtos/${produto.id}`, { codigo_barras: original });
   }
 });

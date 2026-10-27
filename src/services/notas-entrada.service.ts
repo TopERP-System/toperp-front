@@ -34,6 +34,17 @@ export interface NfeXml {
     nome: string;
     nome_fantasia: string | null;
     inscricao_estadual: string | null;
+    endereco: {
+      logradouro: string | null;
+      numero: string | null;
+      complemento: string | null;
+      bairro: string | null;
+      cidade: string | null;
+      codigo_ibge: string | null;
+      estado: string | null;
+      cep: string | null;
+      telefone: string | null;
+    };
   };
   destinatario: { cpf_cnpj: string | null; nome: string | null };
   itens: NfeXmlItem[];
@@ -82,6 +93,19 @@ class NotasEntradaService {
     fd.append('xml', arquivo);
     return apiClient.postForm<NotaEntradaPrevia>('/notas-entrada/xml/previa', fd);
   }
+
+  /** Associa o código do produto no fornecedor (cProd) a um produto; troca se já existir. */
+  async salvarVinculo(dados: SalvarVinculoDto): Promise<unknown> {
+    return apiClient.put('/notas-entrada/vinculos', dados);
+  }
+}
+
+export interface SalvarVinculoDto {
+  fornecedor_id: number;
+  codigo_fornecedor: string;
+  produto_id: number;
+  fator_conversao: number;
+  unidade_fornecedor?: string;
 }
 
 export const notasEntradaService = new NotasEntradaService();
