@@ -107,6 +107,14 @@ class NotasEntradaService {
     return apiClient.postForm<NotaEntradaPrevia>('/notas-entrada/xml/previa', fd);
   }
 
+  /** Task 012: busca a NF-e pela chave nas notas recebidas da SEFAZ (via Spedy). */
+  async buscarPorChave(chave: string, confirmarOperacao = false): Promise<ResultadoBuscaChave> {
+    return apiClient.post<ResultadoBuscaChave>('/notas-entrada/chave', {
+      chave,
+      ...(confirmarOperacao ? { confirmar_operacao: true } : {}),
+    });
+  }
+
   /** US10: confirma a entrada (pedido de compra, estoque, contas a pagar e custo). */
   async confirmar(arquivo: File, dados: ConfirmarNotaEntradaDto): Promise<NotaEntradaDetalhe> {
     const fd = new FormData();
@@ -227,3 +235,19 @@ export interface NotasEntradaResponse {
   page: number;
   limit: number;
 }
+
+export interface ResumoNotaRecebida {
+  chave_acesso: string;
+  emitente_nome: string | null;
+  emitente_cpf_cnpj: string | null;
+  valor: number | null;
+  data_emissao: string | null;
+}
+
+/**
+ * PRONTA: XML completo (segue a prévia); AGUARDANDO_XML: manifestada, a SEFAZ libera o XML depois;
+ * CONFIRMACAO_NECESSARIA: passou o prazo da Ciência, só com a Confirmação da Operação (definitiva).
+ */
+export type ResultadoBuscaChave =
+  | { situacao: 'PRONTA'; nota: ResumoNotaRecebida; xml: string }
+  | { situacao: 'AGUARDANDO_XML' | 'CONFIRMACAO_NECESSARIA'; nota: ResumoNotaRecebida; mensagem: string };

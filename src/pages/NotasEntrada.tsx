@@ -15,6 +15,7 @@ import {
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { formatDocument } from '@/lib/validators';
 import { AceitarSugestoesDialog } from '@/components/notas-entrada/AceitarSugestoesDialog';
+import { BuscarNotaPorChave } from '@/components/notas-entrada/BuscarNotaPorChave';
 import { AssociarProdutoDialog } from '@/components/notas-entrada/AssociarProdutoDialog';
 import { ConfirmarEntradaCard } from '@/components/notas-entrada/ConfirmarEntradaCard';
 import { FornecedorDaNotaDialog } from '@/components/notas-entrada/FornecedorDaNotaDialog';
@@ -124,7 +125,14 @@ export default function NotasEntrada() {
         <ModulePageHeader
           icon={FileInput}
           title="Notas de Entrada"
-          subtitle="Importe o XML da NF-e de compra: confira, resolva o que falta e dê entrada no estoque e no contas a pagar."
+          subtitle="Busque a NF-e de compra pela chave (ou importe o XML): confira, resolva o que falta e dê entrada no estoque e no contas a pagar."
+        />
+
+        <BuscarNotaPorChave
+          ocupado={previaMutation.isPending && !previa}
+          onXml={(xml, chave) =>
+            enviar(new File([xml], `NFe${chave}.xml`, { type: 'application/xml' }))
+          }
         />
 
         <div
@@ -139,7 +147,7 @@ export default function NotasEntrada() {
           onDragLeave={() => setArrastando(false)}
           onDrop={onDrop}
           className={cn(
-            'mb-6 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed bg-card p-8 text-center transition-colors',
+            'mb-6 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed bg-card p-5 text-center transition-colors',
             arrastando ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50',
           )}
         >
@@ -149,7 +157,7 @@ export default function NotasEntrada() {
             <Upload className="h-8 w-8 text-muted-foreground" />
           )}
           <p className="font-medium">
-            {previaMutation.isPending && !previa ? 'Lendo o XML…' : 'Arraste o XML da NF-e aqui ou clique para escolher'}
+            {previaMutation.isPending && !previa ? 'Lendo o XML…' : 'Ou arraste o arquivo XML da NF-e aqui (ou clique para escolher)'}
           </p>
           <p className="text-sm text-muted-foreground">
             {arquivo?.name ?? 'Arquivo .xml da nota de compra (modelo 55), até 5 MB'}
