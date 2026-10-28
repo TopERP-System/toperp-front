@@ -41,6 +41,7 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import NotasFiscais from "./pages/NotasFiscais";
+import NotasEntrada from "./pages/NotasEntrada";
 import Pedidos from "./pages/Pedidos";
 import NovoPedido from "./pages/pedidos/NovoPedido";
 import Produtos from "./pages/Produtos";
@@ -182,6 +183,16 @@ const App = () => (
                 <ProtectedRoute>
                   <RoleRoute>
                     <NotasFiscais />
+                  </RoleRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/notas-entrada"
+              element={
+                <ProtectedRoute>
+                  <RoleRoute>
+                    <NotasEntrada />
                   </RoleRoute>
                 </ProtectedRoute>
               }

@@ -56,6 +56,7 @@ export function prepararCriacaoProduto(form: ProdutoFormData): CreateProdutoDto 
   if (form.data_validade) produtoData.data_validade = form.data_validade;
   if (form.ncm) produtoData.ncm = form.ncm;
   if (form.cest) produtoData.cest = form.cest;
+  if (form.codigo_barras?.trim()) produtoData.codigo_barras = form.codigo_barras.trim();
   // CFOP agora vem da tributação de saída (o backend espelha em tb_produto.cfop)
   if (form.origem) produtoData.origem = Number(form.origem);
   const tributacoes = montarTributacoesPayload(form.tributacoes);

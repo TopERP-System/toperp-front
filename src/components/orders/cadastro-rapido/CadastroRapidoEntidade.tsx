@@ -418,7 +418,7 @@ export function CadastroRapidoEntidade({ tipo, onClose, onCreated }: CadastroRap
               <Input
                 type="number"
                 min={0}
-                step="1"
+                step="0.001"
                 value={estoque}
                 onChange={(e) => setEstoque(e.target.value)}
                 placeholder="0"

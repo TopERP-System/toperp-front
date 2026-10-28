@@ -34,6 +34,7 @@ const ROUTE_ROLES: Record<string, AppRole[] | 'all'> = {
   '/dashboard': 'all',
   '/pedidos': 'all',
   '/notas-fiscais': ['ADMIN', 'GERENTE', 'FINANCEIRO'],
+  '/notas-entrada': ['ADMIN', 'GERENTE'],
   '/clientes': 'all',
   '/produtos': 'all',
   '/estoque': 'all',

@@ -43,6 +43,15 @@ export interface SpedyNumeracaoNfe {
   message?: string;
 }
 
+/** Recebimento de NF-e (notas recebidas da SEFAZ) do emissor na Spedy (task 012). */
+export interface SpedyRecebimentoNotas {
+  ligado: boolean;
+  /** AAAA-MM-DD */
+  data_inicio: string | null;
+  /** Data de início mais antiga aceita hoje (a SEFAZ guarda ~90 dias). */
+  data_inicio_minima: string;
+}
+
 /** Item da listagem de empresas no painel admin (GET /admin/spedy/tenants). */
 export interface SpedyAdminTenantResumo {
   tenant_id: string;
@@ -201,6 +210,24 @@ export const spedyService = {
     return apiClient.put<SpedyAtualizarEmpresaResult>(
       `/admin/spedy/tenants/${tenantId}/empresa`,
       dados,
+    );
+  },
+
+  /** Painel admin (SUPER_ADMIN): situação do recebimento de NF-e do emissor (lida na Spedy). */
+  recebimentoNotasAdmin(tenantId: string): Promise<SpedyRecebimentoNotas> {
+    return apiClient.get<SpedyRecebimentoNotas>(
+      `/admin/spedy/tenants/${tenantId}/recebimento-notas`,
+    );
+  },
+
+  /** Painel admin (SUPER_ADMIN): liga o recebimento de NF-e (nota de entrada pela chave). */
+  ligarRecebimentoNotasAdmin(
+    tenantId: string,
+    dataInicio: string,
+  ): Promise<SpedyRecebimentoNotas> {
+    return apiClient.post<SpedyRecebimentoNotas>(
+      `/admin/spedy/tenants/${tenantId}/recebimento-notas`,
+      { data_inicio: dataInicio },
     );
   },
 

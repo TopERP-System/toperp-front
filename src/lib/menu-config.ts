@@ -5,6 +5,7 @@ import {
   Boxes,
   Building2,
   DollarSign,
+  FileInput,
   FileText,
   FolderOpen,
   Landmark,
@@ -86,6 +87,7 @@ export function getAppMenu(isSuperAdmin: boolean): MenuEntry[] {
       children: [
         { kind: "link", icon: ShoppingCart, label: "Pedidos", href: "/pedidos" },
         { kind: "link", icon: Receipt, label: "Notas Fiscais", href: "/notas-fiscais" },
+        { kind: "link", icon: FileInput, label: "NF de Entrada", href: "/notas-entrada" },
       ],
     },
     {

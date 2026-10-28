@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   FileText,
   FlaskConical,
+  Inbox,
   KeyRound,
   Loader2,
   Pencil,
@@ -27,6 +28,7 @@ import {
 import { SpedyCadastroDialog } from "@/components/admin/SpedyCadastroDialog";
 import { SpedyCertificadoDialog } from "@/components/admin/SpedyCertificadoDialog";
 import { SpedyChaveDialog } from "@/components/admin/SpedyChaveDialog";
+import { SpedyRecebimentoNotasDialog } from "@/components/admin/SpedyRecebimentoNotasDialog";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { extractApiErrorMessage } from "@/lib/api-error-message";
 import { cleanDocument, formatDocument } from "@/lib/validators";
@@ -94,6 +96,8 @@ const AdminSpedy = () => {
   const [tenantParaChave, setTenantParaChave] =
     useState<SpedyAdminTenantResumo | null>(null);
   const [tenantParaCertificado, setTenantParaCertificado] =
+    useState<SpedyAdminTenantResumo | null>(null);
+  const [tenantParaRecebimento, setTenantParaRecebimento] =
     useState<SpedyAdminTenantResumo | null>(null);
   const queryClient = useQueryClient();
 
@@ -268,6 +272,16 @@ const AdminSpedy = () => {
           >
             <Upload className="w-4 h-4 mr-2" />
             Certificado
+          </Button>
+        )}
+        {tenant.integracao_ativa && tenant.ambiente === "producao" && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTenantParaRecebimento(tenant)}
+          >
+            <Inbox className="w-4 h-4 mr-2" />
+            Recebimento de notas
           </Button>
         )}
         {renderBotaoChave(tenant)}
@@ -460,6 +474,13 @@ const AdminSpedy = () => {
           tenant={tenantParaCertificado}
           onClose={() => setTenantParaCertificado(null)}
           onSuccess={recarregarLista}
+        />
+      )}
+      {tenantParaRecebimento && (
+        <SpedyRecebimentoNotasDialog
+          key={tenantParaRecebimento.tenant_id}
+          tenant={tenantParaRecebimento}
+          onClose={() => setTenantParaRecebimento(null)}
         />
       )}
     </AdminLayout>

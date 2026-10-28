@@ -20,6 +20,7 @@ export function produtoParaFormData(produto: Produto): ProdutoFormData {
     nome: produto.nome || '',
     descricao: produto.descricao || '',
     sku: produto.sku || '',
+    codigo_barras: produto.codigo_barras || '',
     preco_custo: produto.preco_custo || 0,
     preco_venda: produto.preco_venda || 0,
     preco_promocional: produto.preco_promocional,
@@ -85,7 +86,7 @@ export function prepararAtualizacaoProduto(
     payload.fornecedorId = null;
   }
 
-  const camposTexto = ['descricao', 'ncm', 'cest', 'observacoes', 'data_validade'] as const;
+  const camposTexto = ['descricao', 'ncm', 'cest', 'codigo_barras', 'observacoes', 'data_validade'] as const;
   for (const campo of camposTexto) {
     const antes = texto(campo === 'data_validade' ? paraDataInput(original.data_validade) : original[campo]);
     const depois = texto(form[campo]);

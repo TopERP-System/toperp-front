@@ -35,6 +35,8 @@ export interface Produto {
   data_validade?: string;
   ncm?: string;
   cest?: string;
+  /** GTIN/EAN (só dígitos). Não vai na NF-e de saída. */
+  codigo_barras?: string | null;
   cfop?: string;
   /** Origem da mercadoria (0–8). */
   origem?: number | null;
@@ -74,6 +76,7 @@ export interface CreateProdutoDto {
   data_validade?: string;
   ncm?: string;
   cest?: string;
+  codigo_barras?: string | null;
   cfop?: string;
   origem?: number | null;
   /** Cada operação enviada substitui a regra gravada; as não enviadas ficam como estão. */

@@ -70,7 +70,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { cn, formatarQuantidade } from "@/lib/utils";
 import {
     Categoria,
     categoriasService,
@@ -1061,7 +1061,7 @@ const Produtos = () => {
                           onChange={(e) =>
                             setFiltrosAvancados({
                               ...filtrosAvancados,
-                              estoqueMin: e.target.value ? parseInt(e.target.value) : undefined,
+                              estoqueMin: e.target.value ? Number(e.target.value) : undefined,
                             })
                           }
                         />
@@ -1075,7 +1075,7 @@ const Produtos = () => {
                           onChange={(e) =>
                             setFiltrosAvancados({
                               ...filtrosAvancados,
-                              estoqueMax: e.target.value ? parseInt(e.target.value) : undefined,
+                              estoqueMax: e.target.value ? Number(e.target.value) : undefined,
                             })
                           }
                         />
@@ -1285,7 +1285,7 @@ const Produtos = () => {
                               color: getEstoqueColor(produto.estoque_atual, produto.estoque_minimo)
                             }}
                           >
-                            {produto.estoque_atual}
+                            {formatarQuantidade(produto.estoque_atual)}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -1578,19 +1578,19 @@ const Produtos = () => {
                       <div className="space-y-3">
                         <Label className="text-sm text-muted-foreground">Estoque Atual</Label>
                         <p className="font-medium text-base" style={{ color: getEstoqueColor(selectedProduto.estoque_atual, selectedProduto.estoque_minimo) }}>
-                          {selectedProduto.estoque_atual !== undefined && selectedProduto.estoque_atual !== null ? selectedProduto.estoque_atual : "--"}
+                          {selectedProduto.estoque_atual !== undefined && selectedProduto.estoque_atual !== null ? formatarQuantidade(selectedProduto.estoque_atual) : "--"}
                         </p>
                       </div>
                       <div className="space-y-3">
                         <Label className="text-sm text-muted-foreground">Estoque Mínimo</Label>
                         <p className="font-medium text-base">
-                          {selectedProduto.estoque_minimo !== undefined && selectedProduto.estoque_minimo !== null ? selectedProduto.estoque_minimo : "--"}
+                          {selectedProduto.estoque_minimo !== undefined && selectedProduto.estoque_minimo !== null ? formatarQuantidade(selectedProduto.estoque_minimo) : "--"}
                         </p>
                       </div>
                       <div className="space-y-3">
                         <Label className="text-sm text-muted-foreground">Estoque Máximo</Label>
                         <p className="font-medium text-base">
-                          {selectedProduto.estoque_maximo !== undefined && selectedProduto.estoque_maximo !== null ? selectedProduto.estoque_maximo : "--"}
+                          {selectedProduto.estoque_maximo !== undefined && selectedProduto.estoque_maximo !== null ? formatarQuantidade(selectedProduto.estoque_maximo) : "--"}
                         </p>
                       </div>
                       <div className="space-y-3">
@@ -1918,17 +1918,17 @@ const Produtos = () => {
                                        "#2563eb"
                               }}
                             >
-                              {(mov.tipo === "ENTRADA" || mov.tipo === "DEVOLUCAO") ? "+" : (mov.tipo === "SAIDA" || mov.tipo === "PERDA" || mov.tipo === "TRANSFERENCIA") ? "-" : mov.tipo === "AJUSTE" ? (mov.quantidade >= 0 ? "+" : "") : ""}{mov.quantidade}
+                              {(mov.tipo === "ENTRADA" || mov.tipo === "DEVOLUCAO") ? "+" : (mov.tipo === "SAIDA" || mov.tipo === "PERDA" || mov.tipo === "TRANSFERENCIA") ? "-" : mov.tipo === "AJUSTE" ? (mov.quantidade >= 0 ? "+" : "-") : ""}{formatarQuantidade(Math.abs(Number(mov.quantidade)))}
                             </p>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Estoque Anterior</Label>
-                            <p className="font-medium">{mov.estoque_anterior}</p>
+                            <p className="font-medium">{formatarQuantidade(mov.estoque_anterior)}</p>
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Estoque Atual</Label>
                             <p className="font-medium" style={{ color: getEstoqueColor(mov.estoque_atual, selectedProduto?.estoque_minimo || 0) }}>
-                              {mov.estoque_atual}
+                              {formatarQuantidade(mov.estoque_atual)}
                             </p>
                           </div>
                           {mov.documento_referencia && (

@@ -73,7 +73,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatarQuantidade, formatCurrency } from "@/lib/utils";
 import {
     estoqueService,
     MovimentacaoEstoque,
@@ -678,14 +678,14 @@ const Estoque = () => {
     // Validar quantidade
     if (dados.quantidade === undefined || typeof dados.quantidade !== "number") {
       erros.push("A quantidade é obrigatória e deve ser um número");
-    } else if (!Number.isInteger(dados.quantidade)) {
-      erros.push("A quantidade deve ser um número inteiro");
+    } else if (Math.round(dados.quantidade * 1000) / 1000 !== dados.quantidade) {
+      erros.push("A quantidade pode ter no máximo 3 casas decimais");
     } else if (dados.tipo === "AJUSTE") {
       if (dados.quantidade < 0) {
         erros.push("No ajuste, o estoque final deve ser maior ou igual a 0");
       }
-    } else if (dados.quantidade < 1) {
-      erros.push("A quantidade deve ser maior ou igual a 1");
+    } else if (dados.quantidade <= 0) {
+      erros.push("A quantidade deve ser maior que zero");
     }
 
     // Validar campos opcionais (devem ser strings se enviados)
@@ -1271,8 +1271,8 @@ const Estoque = () => {
                     </Label>
                     <Input
                       type="number"
-                      min={movimentacao.tipo === "AJUSTE" ? "0" : "1"}
-                      step="1"
+                      min="0"
+                      step="0.001"
                       placeholder={
                         movimentacao.tipo === "AJUSTE" ? "Ex: 0 ou 50" : "Ex: 5"
                       }
@@ -1565,7 +1565,7 @@ const Estoque = () => {
                               : (mov.tipo === "SAIDA" || mov.tipo === "PERDA" || mov.tipo === "TRANSFERENCIA") 
                                 ? mov.quantidade < 0
                                   ? mov.quantidade.toLocaleString("pt-BR")
-                                  : `-${mov.quantidade.toLocaleString("pt-BR")}`
+                                  : `-${formatarQuantidade(mov.quantidade)}`
                                 : mov.tipo === "AJUSTE"
                                   ? (mov.quantidade >= 0
                                       ? `+${mov.quantidade.toLocaleString("pt-BR")}`
