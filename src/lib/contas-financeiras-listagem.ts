@@ -67,6 +67,38 @@ export async function listarContasTodasAsPaginas(
   return acc;
 }
 
+export interface SomasContas {
+  /** Σ valor total de todas as contas do filtro. */
+  valorTotal: number;
+  /** Σ valor total sem canceladas e sem previsões (competência). */
+  valorCompetencia: number;
+}
+
+/**
+ * Somas das contas do filtro calculadas no banco (GET /contas-financeiras devolve `totais`),
+ * com uma requisição de 1 linha. Backend antigo sem `totais`: soma a listagem inteira aqui.
+ */
+export async function somarContas(
+  base: Parameters<typeof financeiroService.listar>[0],
+): Promise<SomasContas> {
+  const response = await financeiroService.listar({ ...base, page: 1, limit: 1 });
+  const totais = (response as { totais?: { valor_total?: unknown; valor_competencia?: unknown } })
+    ?.totais;
+  if (totais && totais.valor_competencia != null) {
+    return {
+      valorTotal: Number(totais.valor_total) || 0,
+      valorCompetencia: Number(totais.valor_competencia) || 0,
+    };
+  }
+  const contas = await listarContasTodasAsPaginas(base);
+  return {
+    valorTotal: Number(
+      contas.reduce((s, c) => s + (Number(c.valor_total ?? c.valor_original) || 0), 0).toFixed(2),
+    ),
+    valorCompetencia: calcularStatsFinanceiroFiltrado(contas, []).receitaMes,
+  };
+}
+
 /** Receita estimada (previsão): não é valor a receber de cliente — fica fora do Total a Receber. */
 export function contaEhPrevisao(c: ContaFinanceira): boolean {
   return c.previsao === true || String(c.status ?? '').toUpperCase() === 'PREVISAO';
