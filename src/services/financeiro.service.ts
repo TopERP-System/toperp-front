@@ -68,6 +68,13 @@ export interface ContasFinanceirasResponse {
   total: number;
   page: number;
   limit: number;
+  /** Somas de todas as contas do filtro, calculadas no backend (não só da página). */
+  totais?: {
+    /** Σ valor total (valor_total ou valor_original). */
+    valor_total: number;
+    /** Σ valor total sem canceladas e sem previsões (competência). */
+    valor_competencia: number;
+  };
 }
 
 export interface HistoricoPagamentoItem {

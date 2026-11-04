@@ -57,9 +57,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRotuloRoca } from "@/hooks/useRotuloRoca";
 import { cn, compareRocaPorCodigo, formatDate, formatarDataBR, formatarFormaPagamento } from "@/lib/utils";
 import {
-  calcularStatsFinanceiroFiltrado,
   fimDoMesYMD,
-  listarContasTodasAsPaginas,
+  somarContas,
   toYMD,
 } from "@/lib/contas-financeiras-listagem";
 import { Cliente, clientesService } from "@/services/clientes.service";
@@ -68,8 +67,8 @@ import {
   type ContaFinanceira,
   CreateContaFinanceiraDto,
   financeiroService,
-  ResumoFinanceiro,
 } from "@/services/financeiro.service";
+import { rotuloMesInteiro } from "@/lib/periodo-pedidos";
 import type { Roca } from "@/types/roca";
 import { relatoriosClienteService } from "@/services/relatorios-cliente.service";
 import { Fornecedor, fornecedoresService } from "@/services/fornecedores.service";
@@ -256,32 +255,6 @@ const Financeiro = () => {
     return undefined;
   }, [secaoTipoFilter, cardTipoFilter]);
 
-  // Parâmetros de filtro para dashboard (tipo vem dos cards/ seção; demais do painel)
-  const dashboardFiltros = useMemo(() => {
-    const f: {
-      data_inicial?: string;
-      data_final?: string;
-      tipo?: string;
-      cliente_id?: number;
-      fornecedor_id?: number;
-      roca_id?: number;
-    } = {};
-    if (dataInicialFilter) f.data_inicial = dataInicialFilter;
-    if (dataFinalFilter) f.data_final = dataFinalFilter;
-    if (tipoFiltroEfetivo) f.tipo = tipoFiltroEfetivo;
-    if (clienteFilterId != null) f.cliente_id = clienteFilterId;
-    if (fornecedorFilterId != null) f.fornecedor_id = fornecedorFilterId;
-    if (rocaFilterId != null) f.roca_id = rocaFilterId;
-    return Object.keys(f).length ? f : undefined;
-  }, [
-    dataInicialFilter,
-    dataFinalFilter,
-    tipoFiltroEfetivo,
-    clienteFilterId,
-    fornecedorFilterId,
-    rocaFilterId,
-  ]);
-
   const relatorioClienteIdParsed = useMemo(() => {
     if (!relatorioClienteIdSelect) return null;
     const n = parseInt(relatorioClienteIdSelect, 10);
@@ -414,31 +387,10 @@ const Financeiro = () => {
     ],
   );
 
-  // GET /financeiro/dashboard (unificado) com fallback para GET /contas-financeiras/dashboard/resumo
-  const { data: dashboardUnificado, isLoading: isLoadingUnificado } = useQuery({
-    queryKey: ["dashboard-unificado-financeiro", dashboardFiltros],
-    queryFn: () => financeiroService.getDashboardUnificado(dashboardFiltros),
-    refetchInterval: 30000,
-    retry: false,
-  });
-
-  const { data: resumoFinanceiro, isLoading: isLoadingResumo } = useQuery<ResumoFinanceiro>({
-    queryKey: ["dashboard-resumo-financeiro", dashboardFiltros],
-    queryFn: () => financeiroService.getDashboardResumo(dashboardFiltros),
-    refetchInterval: 30000,
-    staleTime: 0,
-    retry: false,
-    enabled: !dashboardUnificado,
-  });
-
-  const resumoParaStats = dashboardUnificado ?? resumoFinanceiro;
-  const contasReceberStats = dashboardUnificado?.contas_receber ?? resumoFinanceiro?.contas_receber;
-  const contasPagarStats = dashboardUnificado?.contas_pagar ?? resumoFinanceiro?.contas_pagar;
-
   // Card "Previsão de entrada": todas as previsões pendentes, de qualquer data.
   // Não usa o período da tela — senão zerava ao clicar em Receita/Despesas do Mês
   // (que aplicam o mês atual) quando as previsões são de outro mês.
-  const { data: contasPrevisaoEntrada = [], isLoading: isLoadingPrevisaoEntrada } = useQuery({
+  const { data: somaPrevisaoEntrada, isLoading: isLoadingPrevisaoEntrada } = useQuery({
     queryKey: [
       "contas-financeiras",
       "financeiro",
@@ -446,28 +398,23 @@ const Financeiro = () => {
       clienteFilterId,
       fornecedorFilterId,
       rocaFilterId,
+      buscaAplicada,
     ],
+    // Soma feita no backend (1 requisição), sem baixar todas as contas.
     queryFn: () =>
-      listarContasTodasAsPaginas({
+      somarContas({
         tipo: "RECEBER",
         status: "PREVISAO",
         cliente_id: clienteFilterId,
         fornecedor_id: fornecedorFilterId,
         roca_id: rocaFilterId,
+        busca: buscaAplicada || undefined,
       }),
     refetchInterval: 30000,
     retry: false,
   });
 
-  const totalPrevisaoEntrada = useMemo(
-    () =>
-      Number(
-        contasPrevisaoEntrada
-          .reduce((s, c) => s + (Number(c.valor_total ?? c.valor_original) || 0), 0)
-          .toFixed(2),
-      ),
-    [contasPrevisaoEntrada],
-  );
+  const totalPrevisaoEntrada = somaPrevisaoEntrada?.valorTotal ?? 0;
 
   // Buscar pedidos apenas para uso na UI (seleção de pedidos em formulários)
   // NÃO usado para cálculos financeiros - os valores vêm do resumoFinanceiro
@@ -558,8 +505,9 @@ const Financeiro = () => {
     setFiltrosDialogOpen(false);
   };
 
-  // Totais dos cards: só filtros avançados (sem status/tipo do clique nos cards),
-  // para Previsão/Receita não zerar Despesas indevidamente.
+  // Totais dos cards: mesma base da tabela (período, cliente, fornecedor, empresa e busca),
+  // sem status/tipo do clique nos cards, para Previsão/Receita não zerarem Despesas.
+  // Sem período = todo o histórico, como a tabela.
   const filtrosTotaisCards = useMemo(
     () => ({
       cliente_id: clienteFilterId,
@@ -567,6 +515,7 @@ const Financeiro = () => {
       roca_id: rocaFilterId,
       data_inicial: dataInicialFilter || undefined,
       data_final: dataFinalFilter || undefined,
+      busca: buscaAplicada || undefined,
     }),
     [
       clienteFilterId,
@@ -574,10 +523,11 @@ const Financeiro = () => {
       rocaFilterId,
       dataInicialFilter,
       dataFinalFilter,
+      buscaAplicada,
     ],
   );
 
-  const { data: contasReceberCards } = useQuery({
+  const { data: somaReceberCards } = useQuery({
     queryKey: [
       "contas-financeiras",
       "financeiro",
@@ -588,17 +538,18 @@ const Financeiro = () => {
     ],
     // Receita do mês = faturamento (competência): filtra pela data de emissão,
     // a mesma regra do dashboard do backend — o card não muda ao ser clicado.
+    // Soma feita no backend (1 requisição), sem baixar todas as contas.
     queryFn: () =>
-      listarContasTodasAsPaginas({
+      somarContas({
         ...filtrosTotaisCards,
         tipo: "RECEBER",
         campo_data: "emissao",
       }),
-    enabled: temFiltrosAvancados && secaoTipoFilter !== "despesas" && secaoTipoFilter !== "contas_pagar",
+    enabled: secaoTipoFilter !== "despesas" && secaoTipoFilter !== "contas_pagar",
     retry: false,
   });
 
-  const { data: contasPagarCards } = useQuery({
+  const { data: somaPagarCards } = useQuery({
     queryKey: [
       "contas-financeiras",
       "financeiro",
@@ -609,37 +560,36 @@ const Financeiro = () => {
     ],
     // Despesas do mês = competência (data de emissão), como no dashboard do backend.
     queryFn: () =>
-      listarContasTodasAsPaginas({
+      somarContas({
         ...filtrosTotaisCards,
         tipo: "PAGAR",
         campo_data: "emissao",
       }),
-    enabled: temFiltrosAvancados && secaoTipoFilter !== "contas_receber",
+    enabled: secaoTipoFilter !== "contas_receber",
     retry: false,
   });
 
   const buscaContasReceberCards =
-    temFiltrosAvancados &&
-    secaoTipoFilter !== "despesas" &&
-    secaoTipoFilter !== "contas_pagar";
-  const buscaContasPagarCards =
-    temFiltrosAvancados && secaoTipoFilter !== "contas_receber";
+    secaoTipoFilter !== "despesas" && secaoTipoFilter !== "contas_pagar";
+  const buscaContasPagarCards = secaoTipoFilter !== "contas_receber";
 
   const statsFiltrados = useMemo(() => {
-    if (!temFiltrosAvancados) return null;
     if (
-      (buscaContasReceberCards && contasReceberCards === undefined) ||
-      (buscaContasPagarCards && contasPagarCards === undefined)
+      (buscaContasReceberCards && somaReceberCards === undefined) ||
+      (buscaContasPagarCards && somaPagarCards === undefined)
     ) {
       return null;
     }
-    const receber = buscaContasReceberCards ? (contasReceberCards ?? []) : [];
-    const pagar = buscaContasPagarCards ? (contasPagarCards ?? []) : [];
-    return calcularStatsFinanceiroFiltrado(receber, pagar);
+    const receitaMes = buscaContasReceberCards ? (somaReceberCards?.valorCompetencia ?? 0) : 0;
+    const despesaMes = buscaContasPagarCards ? (somaPagarCards?.valorCompetencia ?? 0) : 0;
+    return {
+      receitaMes,
+      despesaMes,
+      saldoAtual: Number((receitaMes - despesaMes).toFixed(2)),
+    };
   }, [
-    temFiltrosAvancados,
-    contasReceberCards,
-    contasPagarCards,
+    somaReceberCards,
+    somaPagarCards,
     buscaContasReceberCards,
     buscaContasPagarCards,
   ]);
@@ -714,36 +664,27 @@ const Financeiro = () => {
     setPage(1);
   }, [buscaAplicada]);
 
-  // Calcular estatísticas do topo com a mesma base de competência:
-  // - Receita do Mês = receita_mes
-  // - Despesas do Mês = despesa_mes
-  // - Saldo Atual = Receita do Mês - Despesas do Mês
+  // Cards do topo (competência = data de emissão), somando as contas dos filtros da tabela:
+  // - Receita = contas a receber; Despesas = contas a pagar (sem canceladas e previsões)
+  // - Saldo = Receita - Despesas
   const stats = useMemo(() => {
-    // Função auxiliar para converter valor para número seguro
-    const parseValor = (valor: any): number => {
-      if (valor === null || valor === undefined || valor === '') return 0;
-      const num = typeof valor === 'string' ? parseFloat(valor) : Number(valor);
-      return isNaN(num) ? 0 : num;
-    };
+    const receitaMes = statsFiltrados?.receitaMes ?? 0;
+    const despesaMes = statsFiltrados?.despesaMes ?? 0;
+    const saldoAtual = statsFiltrados?.saldoAtual ?? 0;
 
-    const receitaMes =
-      statsFiltrados != null
-        ? statsFiltrados.receitaMes
-        : parseValor(contasReceberStats?.receita_mes) || 0;
-    const despesaMes =
-      statsFiltrados != null
-        ? statsFiltrados.despesaMes
-        : parseValor(contasPagarStats?.despesa_mes) || 0;
-    const saldoAtual =
-      statsFiltrados != null
-        ? statsFiltrados.saldoAtual
-        : receitaMes - despesaMes;
+    // Rótulo segue o período da tabela: mês inteiro → "nov/2026"; sem período → todo o histórico.
+    const mes = rotuloMesInteiro(dataInicialFilter, dataFinalFilter);
+    const sufixo = mes
+      ? ` · ${mes}`
+      : dataInicialFilter || dataFinalFilter
+        ? " no período"
+        : " · todo o período";
 
     /** Visual pastel alinhado ao Dashboard (vendas verde / despesas vermelho / saldo dinâmico). */
     return [
       {
         key: "receita_mes",
-        label: "Receita do Mês",
+        label: mes ? "Receita do Mês" + sufixo : "Receita" + sufixo,
         value: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(receitaMes),
         Icon: TrendingUp,
         ...statTheme.emerald,
@@ -751,7 +692,7 @@ const Financeiro = () => {
       },
       {
         key: "despesa_mes",
-        label: "Despesas do Mês",
+        label: mes ? "Despesas do Mês" + sufixo : "Despesas" + sufixo,
         value: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(despesaMes),
         Icon: TrendingDown,
         ...statTheme.red,
@@ -781,7 +722,7 @@ const Financeiro = () => {
         cardFilter: "todos" as const,
       },
     ];
-  }, [contasReceberStats, contasPagarStats, statsFiltrados, totalPrevisaoEntrada]);
+  }, [statsFiltrados, totalPrevisaoEntrada, dataInicialFilter, dataFinalFilter]);
 
   const periodoMesAtual = useMemo(() => periodoMesAtualYMD(), []);
 
@@ -805,9 +746,7 @@ const Financeiro = () => {
   };
 
   // Cards em carregamento (brilho em vez de piscar R$ 0,00): a fonte em uso ainda não respondeu.
-  const carregandoResumoCards = temFiltrosAvancados
-    ? statsFiltrados == null
-    : resumoParaStats == null && (isLoadingUnificado || isLoadingResumo);
+  const carregandoResumoCards = statsFiltrados == null;
 
   const statsCardItems = useMemo((): ModuleStatCardItem[] => {
     return stats.map((stat) => {
