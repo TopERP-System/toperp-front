@@ -1,5 +1,6 @@
 import { Cliente, clientesService } from '@/services/clientes.service';
 import { Fornecedor, fornecedoresService } from '@/services/fornecedores.service';
+import { periodoPadraoPedidos } from '@/lib/periodo-pedidos';
 import { pedidosService } from '@/services/pedidos.service';
 import { Produto, produtosService } from '@/services/produtos.service';
 import { transportadorasService } from '@/services/transportadoras.service';
@@ -21,7 +22,8 @@ export function useOrders() {
   // Estados de UI
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPageState] = useState(DEFAULT_ITEMS_PER_PAGE);
-  const [filters, setFilters] = useState<FiltrosPedidos>({});
+  // Padrão da tela: mês atual (tabela e cards no mesmo período).
+  const [filters, setFilters] = useState<FiltrosPedidos>(() => periodoPadraoPedidos());
   const [selectedOrder, setSelectedOrder] = useState<Pedido | null>(null);
   const [orderToCancel, setOrderToCancel] = useState<Pedido | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<Pedido | null>(null);

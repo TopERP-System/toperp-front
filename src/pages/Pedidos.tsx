@@ -45,6 +45,7 @@ import {
 import { useOrders } from '@/hooks/useOrders';
 import { useRelatorioPedidos } from '@/hooks/useRelatorioPedidos';
 import { useRotuloRoca } from '@/hooks/useRotuloRoca';
+import { periodoDoMes, rotuloMesInteiro, toYMD } from '@/lib/periodo-pedidos';
 import { formatCurrency, normalizeCurrency } from '@/lib/utils';
 import { controleRocaService } from '@/services/controle-roca.service';
 import { pedidosService } from '@/services/pedidos.service';
@@ -146,25 +147,17 @@ export default function Pedidos() {
   const [relatoriosDialogOpen, setRelatoriosDialogOpen] = useState(false);
   const [notaFiscalDialogOpen, setNotaFiscalDialogOpen] = useState(false);
   const [notaFiscalOrder, setNotaFiscalOrder] = useState<Pedido | null>(null);
+  // Padrão: mês atual (o filtro inicial do useOrders já vem com essas datas).
   const [periodoRapidoLista, setPeriodoRapidoLista] = useState<
     'all' | 'hoje' | '7d' | 'mes_atual' | 'mes_anterior' | 'custom'
-  >('all');
+  >('mes_atual');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isUpdatingFromFiltersRef = useRef(false);
 
-  const toYMD = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
   const hoje = toYMD(new Date());
-  const ontem = toYMD((() => { const d = new Date(); d.setDate(d.getDate() - 1); return d; })());
   const ultimos7 = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return toYMD(d); })();
-  const mesAtualInicio = (() => { const d = new Date(); d.setDate(1); return toYMD(d); })();
-  const mesAtualFim = (() => { const d = new Date(); return toYMD(new Date(d.getFullYear(), d.getMonth() + 1, 0)); })();
-  const mesAnteriorInicio = (() => { const d = new Date(); return toYMD(new Date(d.getFullYear(), d.getMonth() - 1, 1)); })();
-  const mesAnteriorFim = (() => { const d = new Date(); d.setDate(0); return toYMD(d); })();
+  const { data_inicial: mesAtualInicio, data_final: mesAtualFim } = periodoDoMes(0);
+  const { data_inicial: mesAnteriorInicio, data_final: mesAnteriorFim } = periodoDoMes(-1);
 
   const montarFiltrosRelatorioPedidos = () => ({
     data_inicial: dataInicialRelPed?.trim() || undefined,
@@ -267,16 +260,21 @@ export default function Pedidos() {
     filters.fornecedor_id
   );
 
+  // Período conta como 1 filtro, e o padrão (mês atual) não conta.
+  const periodoForaDoPadrao =
+    periodoRapidoLista !== 'mes_atual' &&
+    !!(filters.data_inicial || filters.data_final);
   const qtdFiltrosAtivos = [
     filters.status,
     filters.nota_fiscal,
     filters.cliente_id,
     filters.fornecedor_id,
-    filters.data_inicial,
-    filters.data_final,
+    periodoForaDoPadrao,
     filters.roca_id,
     filters.somente_com_roca,
   ].filter(Boolean).length;
+  /** "Limpar" só faz sentido quando há algo além do padrão (mês atual, aba Todos). */
+  const podeLimparFiltros = qtdFiltrosAtivos > 0 || !!filters.tipo || !!searchTerm;
 
   const labelStatusFiltro = (s?: StatusPedido) => {
     if (!s) return null;
@@ -315,8 +313,9 @@ export default function Pedidos() {
     }
     if (periodoRapidoLista === 'hoje') return 'Hoje';
     if (periodoRapidoLista === '7d') return 'Últimos 7 dias';
-    if (periodoRapidoLista === 'mes_atual') return 'Mês atual';
-    if (periodoRapidoLista === 'mes_anterior') return 'Mês anterior';
+    const mes = rotuloMesInteiro(filters.data_inicial, filters.data_final);
+    if (periodoRapidoLista === 'mes_atual') return mes ? `Mês atual · ${mes}` : 'Mês atual';
+    if (periodoRapidoLista === 'mes_anterior') return mes ? `Mês anterior · ${mes}` : 'Mês anterior';
     if (filters.data_inicial && filters.data_final) {
       const fmt = (d: string) => {
         const [y, m, day] = d.split('-');
@@ -376,10 +375,11 @@ export default function Pedidos() {
     setPeriodoRapidoLista(draftPeriodo);
     setFiltrosDialogOpen(false);
   };
+  /** Limpar volta ao padrão da tela: mês atual, sem os demais filtros. */
   const handleLimparFiltros = () => {
     updateFilters({
-      data_inicial: undefined,
-      data_final: undefined,
+      data_inicial: mesAtualInicio,
+      data_final: mesAtualFim,
       tipo: undefined,
       status: undefined,
       nota_fiscal: undefined,
@@ -392,9 +392,9 @@ export default function Pedidos() {
       cliente_nome: undefined,
     });
     setSearchTerm('');
-    setPeriodoRapidoLista('all');
-    setDraftFiltros({});
-    setDraftPeriodo('all');
+    setPeriodoRapidoLista('mes_atual');
+    setDraftFiltros({ data_inicial: mesAtualInicio, data_final: mesAtualFim });
+    setDraftPeriodo('mes_atual');
     setFiltrosDialogOpen(false);
   };
 
@@ -439,20 +439,8 @@ export default function Pedidos() {
     const base: Partial<FiltrosPedidos> = { card_filtro: key };
     switch (key) {
       case 'faturamento_venda':
-        // Status filtrado no cliente (ATENDIDO + legado QUITADO/PARCIAL).
-        // Sem período na listagem, o card mostra o mês corrente — a tabela acompanha.
-        if (!filters.data_inicial && !filters.data_final) {
-          setPeriodoRapidoLista('mes_atual');
-          updateFilters({
-            ...base,
-            tipo: 'VENDA',
-            status: undefined,
-            data_inicial: mesAtualInicio,
-            data_final: mesAtualFim,
-          });
-        } else {
-          updateFilters({ ...base, tipo: 'VENDA', status: undefined });
-        }
+        // Status filtrado no cliente (ATENDIDO + legado QUITADO/PARCIAL)
+        updateFilters({ ...base, tipo: 'VENDA', status: undefined });
         break;
       case 'aberto_venda':
         updateFilters({ ...base, tipo: 'VENDA', status: 'ABERTO' });
@@ -587,6 +575,7 @@ export default function Pedidos() {
               return rest;
             })()}
             temFiltrosListagemAtivos={temFiltrosAtivos}
+            periodoSemFiltro="todo_historico"
           />
         </div>
 
@@ -619,7 +608,7 @@ export default function Pedidos() {
             </Button>
           </div>
 
-          {(qtdFiltrosAtivos > 0 || searchTerm) && (
+          {(qtdFiltrosAtivos > 0 || searchTerm || labelPeriodoFiltro()) && (
             <div className="flex flex-wrap items-center gap-2 px-3 sm:px-4 py-2.5 border-t border-border/60 bg-muted/20">
               {filters.status && labelStatusFiltro(filters.status) && (
                 <span className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-medium text-foreground">
@@ -662,7 +651,7 @@ export default function Pedidos() {
                 size="sm"
                 className="h-auto p-0 text-xs text-primary ml-auto shrink-0"
                 onClick={handleLimparFiltros}
-                disabled={!temFiltrosAtivos && !searchTerm}
+                disabled={!podeLimparFiltros}
               >
                 Limpar filtros
               </Button>
