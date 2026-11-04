@@ -44,6 +44,10 @@ interface OrderStatsProps {
   temFiltrosListagemAtivos?: boolean;
 }
 
+function toYMD(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function numPainel(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
@@ -73,23 +77,62 @@ export function OrderStats({
     return rest;
   }, [filtrosListagem]);
 
-  const periodoFaturamento = useMemo(
+  /**
+   * Período do card de Faturamento: o da listagem, ou o mês corrente quando não há
+   * filtro de data (valor e quantidade sempre do mesmo período).
+   */
+  const periodoFaturamento = useMemo(() => {
+    const ini = filtrosParaCards.data_inicial?.trim() || undefined;
+    const fim = filtrosParaCards.data_final?.trim() || undefined;
+    if (ini || fim) {
+      return { data_inicial: ini, data_final: fim, mesCorrente: false };
+    }
+    const hoje = new Date();
+    return {
+      data_inicial: toYMD(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
+      data_final: toYMD(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)),
+      mesCorrente: true,
+    };
+  }, [filtrosParaCards.data_inicial, filtrosParaCards.data_final]);
+
+  const rotuloMesCorrente = useMemo(() => {
+    const d = new Date();
+    const mes = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+    return `${mes}/${d.getFullYear()}`;
+  }, []);
+
+  /**
+   * Filtros da listagem que valem para o card de Faturamento (status não entra:
+   * o card é, por definição, a soma dos Atendidos; fornecedor é só de compra).
+   */
+  const filtrosFaturamento = useMemo(
     () => ({
-      data_inicial: filtrosParaCards.data_inicial?.trim() || undefined,
-      data_final: filtrosParaCards.data_final?.trim() || undefined,
+      roca_id: filtrosParaCards.roca_id ?? undefined,
+      pedido_cliente_id: filtrosParaCards.cliente_id ?? undefined,
+      pedido_nota_fiscal: filtrosParaCards.nota_fiscal ?? undefined,
+      pedido_somente_com_roca: filtrosParaCards.somente_com_roca || undefined,
     }),
-    [filtrosParaCards.data_inicial, filtrosParaCards.data_final],
+    [
+      filtrosParaCards.roca_id,
+      filtrosParaCards.cliente_id,
+      filtrosParaCards.nota_fiscal,
+      filtrosParaCards.somente_com_roca,
+    ],
   );
 
   /** Faturamento oficial = pedidos Atendidos + receitas Visão Geral. */
   const { data: resumoFinanceiro, isLoading: isLoadingFaturamento } = useQuery({
-    queryKey: ['financeiro', 'faturamento-oficial', periodoFaturamento],
+    queryKey: [
+      'financeiro',
+      'faturamento-oficial',
+      periodoFaturamento,
+      filtrosFaturamento,
+    ],
     queryFn: () =>
       financeiroService.getDashboardUnificado({
-        ...periodoFaturamento,
-        ...(filtrosParaCards.roca_id != null
-          ? { roca_id: filtrosParaCards.roca_id }
-          : {}),
+        data_inicial: periodoFaturamento.data_inicial,
+        data_final: periodoFaturamento.data_final,
+        ...filtrosFaturamento,
       }),
     staleTime: 0,
   });
@@ -124,9 +167,16 @@ export function OrderStats({
       (painel.linha_registrado as Record<string, unknown>) ??
       (painel.linhaRegistrado as Record<string, unknown>) ??
       {};
+    // receita_mes já respeita período e filtros; painel só como fallback de resposta antiga.
     const valor =
-      numPainel(receber.receita_mes) || numPainel(linha.vendas);
-    return valor;
+      receber.receita_mes != null
+        ? numPainel(receber.receita_mes)
+        : numPainel(linha.vendas);
+    const quantidade = Math.max(
+      0,
+      Math.floor(Number(receber.faturamento_pedidos_quantidade) || 0),
+    );
+    return { valor, quantidade };
   }, [resumoFinanceiro]);
 
   const resumo = useMemo(() => {
@@ -135,9 +185,8 @@ export function OrderStats({
     return {
       ...resumoBase,
       faturamento_confirmado_venda: {
-        valor: faturamentoOficial,
-        quantidade:
-          resumoBase.faturamento_confirmado_venda?.quantidade || 0,
+        valor: faturamentoOficial.valor,
+        quantidade: faturamentoOficial.quantidade,
       },
     };
   }, [resumoBase, faturamentoOficial]);
@@ -163,7 +212,9 @@ export function OrderStats({
 
     const cardFaturamentoVenda: ModuleStatCardItem = {
       key: 'faturamento_venda',
-      label: `Faturamento (Vendas) · ${qtd(qtdFatVenda)}`,
+      label: periodoFaturamento.mesCorrente
+        ? `Faturamento (Vendas) · ${rotuloMesCorrente} · ${qtd(qtdFatVenda)}`
+        : `Faturamento (Vendas) · ${qtd(qtdFatVenda)}`,
       value: isLoading
         ? '—'
         : formatCurrencyValue(resumo?.faturamento_confirmado_venda?.valor),
@@ -275,7 +326,9 @@ export function OrderStats({
 
   const vendasCards = [
     {
-      label: 'Faturamento Confirmado (Vendas)',
+      label: periodoFaturamento.mesCorrente
+        ? `Faturamento Confirmado (Vendas) · ${rotuloMesCorrente}`
+        : 'Faturamento Confirmado (Vendas)',
       value: formatCurrencyValue(resumo?.faturamento_confirmado_venda?.valor),
       subtitle: `${resumo?.faturamento_confirmado_venda?.quantidade || 0} pedidos`,
       description:

@@ -276,6 +276,8 @@ export interface DashboardUnificado {
     valor_total_recebido: number;
     valor_total_pendente: number;
     receita_mes: number;
+    /** Qtd. de pedidos de venda Atendidos que compõem `receita_mes` no período. */
+    faturamento_pedidos_quantidade?: number;
     valor_pago_mes: number;
   };
   contas_pagar: {
@@ -790,6 +792,13 @@ class FinanceiroService {
      * `pagos` = caixa acumulado; `a_receber` = saldos em aberto nas contas.
      */
     painel_totais_gerais_modo?: 'emissao' | 'pagos' | 'a_receber';
+    /**
+     * Filtros da listagem de pedidos aplicados só ao faturamento (`receita_mes` e
+     * `faturamento_pedidos_quantidade`). Com algum ativo, receitas avulsas saem da soma.
+     */
+    pedido_cliente_id?: number;
+    pedido_nota_fiscal?: string;
+    pedido_somente_com_roca?: boolean;
   }): Promise<DashboardUnificado> {
     const q = new URLSearchParams();
     if (params?.data_inicial) q.append('data_inicial', params.data_inicial);
@@ -800,6 +809,11 @@ class FinanceiroService {
     if (params?.roca_id != null && params.roca_id > 0) {
       q.append('roca_id', params.roca_id.toString());
     }
+    if (params?.pedido_cliente_id != null && params.pedido_cliente_id > 0) {
+      q.append('pedido_cliente_id', params.pedido_cliente_id.toString());
+    }
+    if (params?.pedido_nota_fiscal) q.append('pedido_nota_fiscal', params.pedido_nota_fiscal);
+    if (params?.pedido_somente_com_roca) q.append('pedido_somente_com_roca', '1');
     if (params?.painel_totais_gerais) q.append('painel_totais_gerais', '1');
     if (
       params?.painel_totais_gerais &&
