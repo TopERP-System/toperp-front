@@ -147,7 +147,7 @@ export default function Pedidos() {
   const [notaFiscalDialogOpen, setNotaFiscalDialogOpen] = useState(false);
   const [notaFiscalOrder, setNotaFiscalOrder] = useState<Pedido | null>(null);
   const [periodoRapidoLista, setPeriodoRapidoLista] = useState<
-    'all' | 'hoje' | '7d' | 'mes_atual' | 'custom'
+    'all' | 'hoje' | '7d' | 'mes_atual' | 'mes_anterior' | 'custom'
   >('all');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isUpdatingFromFiltersRef = useRef(false);
@@ -162,7 +162,8 @@ export default function Pedidos() {
   const ontem = toYMD((() => { const d = new Date(); d.setDate(d.getDate() - 1); return d; })());
   const ultimos7 = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return toYMD(d); })();
   const mesAtualInicio = (() => { const d = new Date(); d.setDate(1); return toYMD(d); })();
-  const mesAnteriorInicio = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); d.setDate(1); return toYMD(d); })();
+  const mesAtualFim = (() => { const d = new Date(); return toYMD(new Date(d.getFullYear(), d.getMonth() + 1, 0)); })();
+  const mesAnteriorInicio = (() => { const d = new Date(); return toYMD(new Date(d.getFullYear(), d.getMonth() - 1, 1)); })();
   const mesAnteriorFim = (() => { const d = new Date(); d.setDate(0); return toYMD(d); })();
 
   const montarFiltrosRelatorioPedidos = () => ({
@@ -315,6 +316,7 @@ export default function Pedidos() {
     if (periodoRapidoLista === 'hoje') return 'Hoje';
     if (periodoRapidoLista === '7d') return 'Últimos 7 dias';
     if (periodoRapidoLista === 'mes_atual') return 'Mês atual';
+    if (periodoRapidoLista === 'mes_anterior') return 'Mês anterior';
     if (filters.data_inicial && filters.data_final) {
       const fmt = (d: string) => {
         const [y, m, day] = d.split('-');
@@ -324,7 +326,56 @@ export default function Pedidos() {
     }
     return 'Período personalizado';
   };
-  const handleAplicarFiltros = () => setFiltrosDialogOpen(false);
+  type PeriodoRapido = 'all' | 'hoje' | '7d' | 'mes_atual' | 'mes_anterior' | 'custom';
+  type FiltrosSheet = Pick<
+    FiltrosPedidos,
+    | 'status'
+    | 'nota_fiscal'
+    | 'cliente_id'
+    | 'fornecedor_id'
+    | 'roca_id'
+    | 'somente_com_roca'
+    | 'data_inicial'
+    | 'data_final'
+  >;
+
+  /** Rascunho do painel de filtros: só vai para a listagem ao clicar em Aplicar. */
+  const [draftFiltros, setDraftFiltros] = useState<FiltrosSheet>({});
+  const [draftPeriodo, setDraftPeriodo] = useState<PeriodoRapido>('all');
+
+  useEffect(() => {
+    if (!filtrosDialogOpen) return;
+    setDraftFiltros({
+      status: filters.status,
+      nota_fiscal: filters.nota_fiscal,
+      cliente_id: filters.cliente_id,
+      fornecedor_id: filters.fornecedor_id,
+      roca_id: filters.roca_id,
+      somente_com_roca: filters.somente_com_roca,
+      data_inicial: filters.data_inicial,
+      data_final: filters.data_final,
+    });
+    setDraftPeriodo(periodoRapidoLista);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtrosDialogOpen]);
+
+  const updateDraft = (patch: Partial<FiltrosSheet>) =>
+    setDraftFiltros((prev) => ({ ...prev, ...patch }));
+
+  const handleAplicarFiltros = () => {
+    updateFilters({
+      status: draftFiltros.status,
+      nota_fiscal: draftFiltros.nota_fiscal,
+      cliente_id: draftFiltros.cliente_id,
+      fornecedor_id: draftFiltros.fornecedor_id,
+      roca_id: draftFiltros.roca_id,
+      somente_com_roca: draftFiltros.somente_com_roca,
+      data_inicial: draftFiltros.data_inicial,
+      data_final: draftFiltros.data_final,
+    });
+    setPeriodoRapidoLista(draftPeriodo);
+    setFiltrosDialogOpen(false);
+  };
   const handleLimparFiltros = () => {
     updateFilters({
       data_inicial: undefined,
@@ -342,27 +393,24 @@ export default function Pedidos() {
     });
     setSearchTerm('');
     setPeriodoRapidoLista('all');
+    setDraftFiltros({});
+    setDraftPeriodo('all');
     setFiltrosDialogOpen(false);
   };
 
-  const aplicarPeriodoLista = (
-    tipo: 'all' | 'hoje' | '7d' | 'mes_atual' | 'custom',
-  ) => {
-    setPeriodoRapidoLista(tipo);
+  /** Seleção do período no painel: atualiza só o rascunho. */
+  const selecionarPeriodoDraft = (tipo: PeriodoRapido) => {
+    setDraftPeriodo(tipo);
     if (tipo === 'all') {
-      updateFilters({ data_inicial: undefined, data_final: undefined });
-      return;
-    }
-    if (tipo === 'hoje') {
-      updateFilters({ data_inicial: hoje, data_final: hoje });
-      return;
-    }
-    if (tipo === '7d') {
-      updateFilters({ data_inicial: ultimos7, data_final: hoje });
-      return;
-    }
-    if (tipo === 'mes_atual') {
-      updateFilters({ data_inicial: mesAtualInicio, data_final: hoje });
+      updateDraft({ data_inicial: undefined, data_final: undefined });
+    } else if (tipo === 'hoje') {
+      updateDraft({ data_inicial: hoje, data_final: hoje });
+    } else if (tipo === '7d') {
+      updateDraft({ data_inicial: ultimos7, data_final: hoje });
+    } else if (tipo === 'mes_atual') {
+      updateDraft({ data_inicial: mesAtualInicio, data_final: mesAtualFim });
+    } else if (tipo === 'mes_anterior') {
+      updateDraft({ data_inicial: mesAnteriorInicio, data_final: mesAnteriorFim });
     }
   };
 
@@ -391,8 +439,20 @@ export default function Pedidos() {
     const base: Partial<FiltrosPedidos> = { card_filtro: key };
     switch (key) {
       case 'faturamento_venda':
-        // Status filtrado no cliente (ATENDIDO + legado QUITADO/PARCIAL)
-        updateFilters({ ...base, tipo: 'VENDA', status: undefined });
+        // Status filtrado no cliente (ATENDIDO + legado QUITADO/PARCIAL).
+        // Sem período na listagem, o card mostra o mês corrente — a tabela acompanha.
+        if (!filters.data_inicial && !filters.data_final) {
+          setPeriodoRapidoLista('mes_atual');
+          updateFilters({
+            ...base,
+            tipo: 'VENDA',
+            status: undefined,
+            data_inicial: mesAtualInicio,
+            data_final: mesAtualFim,
+          });
+        } else {
+          updateFilters({ ...base, tipo: 'VENDA', status: undefined });
+        }
         break;
       case 'aberto_venda':
         updateFilters({ ...base, tipo: 'VENDA', status: 'ABERTO' });
@@ -629,9 +689,9 @@ export default function Pedidos() {
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Status</Label>
                 <Select
-                  value={filters.status || 'all'}
+                  value={draftFiltros.status || 'all'}
                   onValueChange={(value) =>
-                    updateFilters({
+                    updateDraft({
                       status: value === 'all' ? undefined : (value as StatusPedido),
                     })
                   }
@@ -651,9 +711,9 @@ export default function Pedidos() {
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Nota fiscal</Label>
                 <Select
-                  value={filters.nota_fiscal || 'all'}
+                  value={draftFiltros.nota_fiscal || 'all'}
                   onValueChange={(value) =>
-                    updateFilters({
+                    updateDraft({
                       nota_fiscal:
                         value === 'all' ? undefined : (value as FiltroNotaFiscalPedido),
                     })
@@ -680,9 +740,9 @@ export default function Pedidos() {
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Cliente</Label>
                 <Select
-                  value={filters.cliente_id ? String(filters.cliente_id) : 'all'}
+                  value={draftFiltros.cliente_id ? String(draftFiltros.cliente_id) : 'all'}
                   onValueChange={(value) =>
-                    updateFilters({
+                    updateDraft({
                       cliente_id: value === 'all' ? undefined : Number(value),
                     })
                   }
@@ -704,9 +764,9 @@ export default function Pedidos() {
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Fornecedor</Label>
                 <Select
-                  value={filters.fornecedor_id ? String(filters.fornecedor_id) : 'all'}
+                  value={draftFiltros.fornecedor_id ? String(draftFiltros.fornecedor_id) : 'all'}
                   onValueChange={(value) =>
-                    updateFilters({
+                    updateDraft({
                       fornecedor_id: value === 'all' ? undefined : Number(value),
                     })
                   }
@@ -729,12 +789,12 @@ export default function Pedidos() {
                 <Label className="text-sm font-semibold">{rotulo.singular}</Label>
                 <Select
                   value={
-                    filters.roca_id != null && filters.roca_id > 0
-                      ? String(filters.roca_id)
+                    draftFiltros.roca_id != null && draftFiltros.roca_id > 0
+                      ? String(draftFiltros.roca_id)
                       : 'all'
                   }
                   onValueChange={(value) =>
-                    updateFilters({
+                    updateDraft({
                       roca_id: value === 'all' ? undefined : Number(value),
                     })
                   }
@@ -755,9 +815,9 @@ export default function Pedidos() {
                   <input
                     type="checkbox"
                     className="rounded border-input"
-                    checked={!!filters.somente_com_roca}
+                    checked={!!draftFiltros.somente_com_roca}
                     onChange={(e) =>
-                      updateFilters({
+                      updateDraft({
                         somente_com_roca: e.target.checked || undefined,
                       })
                     }
@@ -769,10 +829,8 @@ export default function Pedidos() {
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Período</Label>
                 <Select
-                  value={periodoRapidoLista}
-                  onValueChange={(v) =>
-                    aplicarPeriodoLista(v as typeof periodoRapidoLista)
-                  }
+                  value={draftPeriodo}
+                  onValueChange={(v) => selecionarPeriodoDraft(v as PeriodoRapido)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Qualquer período" />
@@ -782,18 +840,19 @@ export default function Pedidos() {
                     <SelectItem value="hoje">Hoje</SelectItem>
                     <SelectItem value="7d">Últimos 7 dias</SelectItem>
                     <SelectItem value="mes_atual">Mês atual</SelectItem>
+                    <SelectItem value="mes_anterior">Mês anterior</SelectItem>
                     <SelectItem value="custom">Personalizado</SelectItem>
                   </SelectContent>
                 </Select>
-                {periodoRapidoLista === 'custom' && (
+                {draftPeriodo === 'custom' && (
                   <div className="flex flex-wrap items-end gap-2 pt-1">
                     <div className="flex-1 min-w-[120px] space-y-1">
                       <span className="text-xs text-muted-foreground">De</span>
                       <Input
                         type="date"
-                        value={filters.data_inicial || ''}
+                        value={draftFiltros.data_inicial || ''}
                         onChange={(e) =>
-                          updateFilters({ data_inicial: e.target.value || undefined })
+                          updateDraft({ data_inicial: e.target.value || undefined })
                         }
                       />
                     </div>
@@ -801,9 +860,9 @@ export default function Pedidos() {
                       <span className="text-xs text-muted-foreground">Até</span>
                       <Input
                         type="date"
-                        value={filters.data_final || ''}
+                        value={draftFiltros.data_final || ''}
                         onChange={(e) =>
-                          updateFilters({ data_final: e.target.value || undefined })
+                          updateDraft({ data_final: e.target.value || undefined })
                         }
                       />
                     </div>
