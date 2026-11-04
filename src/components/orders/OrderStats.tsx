@@ -8,6 +8,11 @@ import {
   listarPedidosParaCards,
   type ResumoHeroPedidos,
 } from '@/lib/pedidos-stats';
+import {
+  PERIODO_TODO_HISTORICO,
+  periodoDoMes,
+  rotuloMesInteiro,
+} from '@/lib/periodo-pedidos';
 import { formatCurrency, normalizeCurrency } from '@/lib/utils';
 import { financeiroService } from '@/services/financeiro.service';
 import { pedidosService } from '@/services/pedidos.service';
@@ -42,10 +47,11 @@ interface OrderStatsProps {
   /** Filtros da listagem — quando ativos, cards refletem o subconjunto filtrado. */
   filtrosListagem?: FiltrosPedidos;
   temFiltrosListagemAtivos?: boolean;
-}
-
-function toYMD(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  /**
+   * Período do card de Faturamento quando a listagem não tem datas:
+   * `mes_atual` (padrão, ex.: Dashboard) ou `todo_historico` ("Qualquer período" em Pedidos).
+   */
+  periodoSemFiltro?: 'mes_atual' | 'todo_historico';
 }
 
 function numPainel(v: unknown): number {
@@ -60,6 +66,7 @@ export function OrderStats({
   onCardClick,
   filtrosListagem,
   temFiltrosListagemAtivos = false,
+  periodoSemFiltro = 'mes_atual',
 }: OrderStatsProps = {}) {
   const { data: dashboard, isLoading: isLoadingDashboard } = useQuery({
     queryKey: ['pedidos', 'dashboard'],
@@ -78,28 +85,20 @@ export function OrderStats({
   }, [filtrosListagem]);
 
   /**
-   * Período do card de Faturamento: o da listagem, ou o mês corrente quando não há
-   * filtro de data (valor e quantidade sempre do mesmo período).
+   * Período do card de Faturamento: o da listagem; sem datas, o mês corrente ou
+   * todo o histórico (`periodoSemFiltro`). Valor e quantidade sempre do mesmo período.
    */
   const periodoFaturamento = useMemo(() => {
     const ini = filtrosParaCards.data_inicial?.trim() || undefined;
     const fim = filtrosParaCards.data_final?.trim() || undefined;
-    if (ini || fim) {
-      return { data_inicial: ini, data_final: fim, mesCorrente: false };
-    }
-    const hoje = new Date();
-    return {
-      data_inicial: toYMD(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
-      data_final: toYMD(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)),
-      mesCorrente: true,
-    };
-  }, [filtrosParaCards.data_inicial, filtrosParaCards.data_final]);
-
-  const rotuloMesCorrente = useMemo(() => {
-    const d = new Date();
-    const mes = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
-    return `${mes}/${d.getFullYear()}`;
-  }, []);
+    const p =
+      ini || fim
+        ? { data_inicial: ini, data_final: fim }
+        : periodoSemFiltro === 'todo_historico'
+          ? PERIODO_TODO_HISTORICO
+          : periodoDoMes(0);
+    return { ...p, rotuloMes: rotuloMesInteiro(p.data_inicial, p.data_final) };
+  }, [filtrosParaCards.data_inicial, filtrosParaCards.data_final, periodoSemFiltro]);
 
   /**
    * Filtros da listagem que valem para o card de Faturamento (status não entra:
@@ -212,8 +211,8 @@ export function OrderStats({
 
     const cardFaturamentoVenda: ModuleStatCardItem = {
       key: 'faturamento_venda',
-      label: periodoFaturamento.mesCorrente
-        ? `Faturamento (Vendas) · ${rotuloMesCorrente} · ${qtd(qtdFatVenda)}`
+      label: periodoFaturamento.rotuloMes
+        ? `Faturamento (Vendas) · ${periodoFaturamento.rotuloMes} · ${qtd(qtdFatVenda)}`
         : `Faturamento (Vendas) · ${qtd(qtdFatVenda)}`,
       value: isLoading
         ? '—'
@@ -326,8 +325,8 @@ export function OrderStats({
 
   const vendasCards = [
     {
-      label: periodoFaturamento.mesCorrente
-        ? `Faturamento Confirmado (Vendas) · ${rotuloMesCorrente}`
+      label: periodoFaturamento.rotuloMes
+        ? `Faturamento Confirmado (Vendas) · ${periodoFaturamento.rotuloMes}`
         : 'Faturamento Confirmado (Vendas)',
       value: formatCurrencyValue(resumo?.faturamento_confirmado_venda?.valor),
       subtitle: `${resumo?.faturamento_confirmado_venda?.quantidade || 0} pedidos`,
