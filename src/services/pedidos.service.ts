@@ -17,7 +17,7 @@ import type { ConfirmarPagamentoPayload } from './contas-receber.service';
 export interface RelatorioComprasClienteResponse {
   cliente: { id: number; nome: string };
   periodo: { inicio: string; fim: string };
-  filtros_aplicados: { status: string };
+  filtros_aplicados: { status: string; status_pedido?: string };
   itens: Array<{
     data: string;
     produto_nome: string;
@@ -42,9 +42,11 @@ class PedidosService {
     cliente_id: number;
     data_inicial: string;
     data_final: string;
-    /** Todos | PENDENTE | PAGO_PARCIAL | PAGO_TOTAL | VENCIDO | CANCELADO */
+    /** Situação financeira: Todos | PENDENTE | PAGO_PARCIAL | PAGO_TOTAL | VENCIDO */
     status?: string;
     campo_data?: string;
+    /** Todos | ABERTO | ATENDIDO | CANCELADO */
+    status_pedido?: string;
   }): Promise<RelatorioComprasClienteResponse> {
     const q = new URLSearchParams();
     q.set('cliente_id', String(params.cliente_id));
@@ -52,6 +54,7 @@ class PedidosService {
     q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
     if (params.campo_data) q.set('campo_data', params.campo_data);
+    if (params.status_pedido) q.set('status_pedido', params.status_pedido);
     return apiClient.get<RelatorioComprasClienteResponse>(
       `/pedidos/relatorio/compras-cliente?${q.toString()}`,
     );
@@ -64,6 +67,8 @@ class PedidosService {
     data_final: string;
     status?: string;
     campo_data?: string;
+    /** Todos | ABERTO | ATENDIDO | CANCELADO */
+    status_pedido?: string;
   }): Promise<void> {
     const q = new URLSearchParams();
     q.set('cliente_id', String(params.cliente_id));
@@ -71,6 +76,7 @@ class PedidosService {
     q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
     if (params.campo_data) q.set('campo_data', params.campo_data);
+    if (params.status_pedido) q.set('status_pedido', params.status_pedido);
     const blob = await apiClient.getBlob(
       `/pedidos/relatorio/compras-cliente/pdf?${q.toString()}`,
     );
@@ -90,6 +96,8 @@ class PedidosService {
     data_final: string;
     status?: string;
     campo_data?: string;
+    /** Todos | ABERTO | ATENDIDO | CANCELADO */
+    status_pedido?: string;
   }): Promise<void> {
     const q = new URLSearchParams();
     q.set('cliente_id', String(params.cliente_id));
@@ -97,6 +105,7 @@ class PedidosService {
     q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
     if (params.campo_data) q.set('campo_data', params.campo_data);
+    if (params.status_pedido) q.set('status_pedido', params.status_pedido);
     const blob = await apiClient.getBlob(
       `/pedidos/relatorio/compras-cliente/pdf?${q.toString()}`,
     );

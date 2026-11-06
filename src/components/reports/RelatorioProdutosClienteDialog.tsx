@@ -17,15 +17,14 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { RelatorioPeriodoFinanceiro } from "@/components/reports/RelatorioPeriodoFinanceiro";
-import type { StatusFiltroProdutosCliente } from "@/lib/relatorio-produtos-cliente";
+import { FiltrosStatusProdutosCliente } from "@/components/reports/FiltrosStatusProdutosCliente";
+import type {
+  StatusFiltroProdutosCliente,
+  StatusPedidoFiltroProdutosCliente,
+} from "@/lib/relatorio-produtos-cliente";
 import type { Cliente } from "@/services/clientes.service";
 import { pedidosService } from "@/services/pedidos.service";
-import {
-  Circle,
-  Download,
-  Loader2,
-  Printer,
-} from "lucide-react";
+import { Download, Loader2, Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -58,6 +57,8 @@ export function RelatorioProdutosClienteDialog({
   const [dataFinal, setDataFinal] = useState(defFim);
   const [statusFiltro, setStatusFiltro] =
     useState<StatusFiltroProdutosCliente>("Todos");
+  const [statusPedido, setStatusPedido] =
+    useState<StatusPedidoFiltroProdutosCliente>("Todos");
   const [campoData, setCampoData] = useState<"vencimento" | "emissao" | "pagamento">("vencimento");
   const [pdfLoading, setPdfLoading] = useState<"download" | "print" | null>(
     null,
@@ -68,6 +69,7 @@ export function RelatorioProdutosClienteDialog({
     setDataInicial(defInicio);
     setDataFinal(defFim);
     setStatusFiltro("Todos");
+    setStatusPedido("Todos");
     setCampoData("vencimento");
     setClienteId(
       defaultClienteId != null && defaultClienteId > 0
@@ -87,6 +89,7 @@ export function RelatorioProdutosClienteDialog({
     data_inicial: dataInicial.trim(),
     data_final: dataFinal.trim(),
     status: statusFiltro,
+    status_pedido: statusPedido,
     campo_data: campoData,
   });
 
@@ -193,59 +196,13 @@ export function RelatorioProdutosClienteDialog({
 
             <Separator />
 
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-[#1A3B70]">Status do pedido</Label>
-              <RadioGroup
-                value={statusFiltro}
-                onValueChange={(v) =>
-                  setStatusFiltro(v as StatusFiltroProdutosCliente)
-                }
-                className="space-y-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="Todos" id="produtos-status-todos" />
-                  <Label htmlFor="produtos-status-todos" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-primary" />
-                    <span className="text-[#1A3B70]">Todos</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PENDENTE" id="produtos-status-pendente" />
-                  <Label htmlFor="produtos-status-pendente" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-amber-500" />
-                    <span className="text-[#1A3B70]">Pendente</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PAGO_PARCIAL" id="produtos-status-parcial" />
-                  <Label htmlFor="produtos-status-parcial" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-sky-500" />
-                    <span className="text-[#1A3B70]">Pago parcial</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PAGO_TOTAL" id="produtos-status-quitado" />
-                  <Label htmlFor="produtos-status-quitado" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-emerald-500" />
-                    <span className="text-[#1A3B70]">Quitada</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="VENCIDO" id="produtos-status-vencido" />
-                  <Label htmlFor="produtos-status-vencido" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-red-500" />
-                    <span className="text-[#1A3B70]">Vencido</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="CANCELADO" id="produtos-status-cancelado" />
-                  <Label htmlFor="produtos-status-cancelado" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-slate-600" />
-                    <span className="text-[#1A3B70]">Cancelado</span>
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
+            <FiltrosStatusProdutosCliente
+              idPrefix="produtos-status"
+              statusPedido={statusPedido}
+              onStatusPedido={setStatusPedido}
+              situacao={statusFiltro}
+              onSituacao={setStatusFiltro}
+            />
           </div>
 
           <div className="space-y-2">
