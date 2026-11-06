@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -22,14 +21,18 @@ import {
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
 import {
+  descreverFiltrosStatusProdutosCliente,
   isStatusFiltroProdutosCliente,
+  isStatusPedidoFiltroProdutosCliente,
   mensagemListaVaziaProdutosCliente,
   type StatusFiltroProdutosCliente,
+  type StatusPedidoFiltroProdutosCliente,
 } from "@/lib/relatorio-produtos-cliente";
+import { FiltrosStatusProdutosCliente } from "@/components/reports/FiltrosStatusProdutosCliente";
 import { Cliente, clientesService, extractClientesFromResponse } from "@/services/clientes.service";
 import { pedidosService } from "@/services/pedidos.service";
 import { useQuery } from "@tanstack/react-query";
-import { Circle, Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -52,17 +55,26 @@ const RelatorioComprasCliente = () => {
   const [dataFinal, setDataFinal] = useState(defFim);
   const [statusFiltro, setStatusFiltro] =
     useState<StatusFiltroProdutosCliente>("Todos");
+  const [statusPedido, setStatusPedido] =
+    useState<StatusPedidoFiltroProdutosCliente>("Todos");
 
   useEffect(() => {
     const c = searchParams.get("cliente_id");
     const di = searchParams.get("data_inicial");
     const df = searchParams.get("data_final");
     const st = searchParams.get("status");
+    const sp = searchParams.get("status_pedido");
     if (c) setClienteId(c);
     if (di) setDataInicial(di);
     if (df) setDataFinal(df);
     if (st && isStatusFiltroProdutosCliente(st)) {
       setStatusFiltro(st);
+    }
+    if (sp && isStatusPedidoFiltroProdutosCliente(sp)) {
+      setStatusPedido(sp);
+    } else if (st === "CANCELADO") {
+      // link antigo: "Cancelado" ficava junto com os status de pagamento
+      setStatusPedido("CANCELADO");
     }
   }, [searchParams]);
 
@@ -106,6 +118,7 @@ const RelatorioComprasCliente = () => {
       dataInicial,
       dataFinal,
       statusFiltro,
+      statusPedido,
     ],
     queryFn: () =>
       pedidosService.getRelatorioComprasCliente({
@@ -113,6 +126,7 @@ const RelatorioComprasCliente = () => {
         data_inicial: dataInicial.trim(),
         data_final: dataFinal.trim(),
         status: statusFiltro,
+        status_pedido: statusPedido,
       }),
     enabled: podeBuscar,
     retry: 1,
@@ -134,6 +148,8 @@ const RelatorioComprasCliente = () => {
 
   const statusExibicao =
     relatorio?.filtros_aplicados?.status ?? statusFiltro;
+  const statusPedidoExibicao =
+    relatorio?.filtros_aplicados?.status_pedido ?? statusPedido;
 
   const textoListaVazia = useMemo(() => {
     if (!podeBuscar || !relatorio || relatorio.itens.length > 0) return null;
@@ -142,13 +158,17 @@ const RelatorioComprasCliente = () => {
       dataInicial: dataInicial.trim(),
       dataFinal: dataFinal.trim(),
       statusFiltro: statusExibicao,
+      statusPedido: statusPedidoExibicao,
     });
-  }, [podeBuscar, relatorio, dataInicial, dataFinal, statusExibicao]);
+  }, [podeBuscar, relatorio, dataInicial, dataFinal, statusExibicao, statusPedidoExibicao]);
 
-  const labelStatusResumo =
-    statusExibicao === "Todos"
-      ? "Todos os status"
-      : statusExibicao;
+  const filtrosStatusResumo = descreverFiltrosStatusProdutosCliente(
+    statusPedidoExibicao,
+    statusExibicao,
+  );
+  const labelStatusResumo = filtrosStatusResumo
+    ? filtrosStatusResumo.charAt(0).toUpperCase() + filtrosStatusResumo.slice(1)
+    : "Todos os status";
 
   return (
     <AppLayout>
@@ -158,8 +178,8 @@ const RelatorioComprasCliente = () => {
             Relatório de produtos por cliente
           </h1>
           <p className="text-muted-foreground">
-            Filtro pela <strong>data do pedido</strong> e pelo <strong>status do pedido</strong>{" "}
-            (ABERTO = Pendente, PARCIAL = Pago parcial, QUITADO = Quitada, etc.).
+            Filtro pela <strong>data do pedido</strong>, pelo <strong>status do pedido</strong>{" "}
+            (o mesmo da listagem) e pela <strong>situação financeira</strong> (pelas contas a receber do pedido).
           </p>
         </div>
 
@@ -212,57 +232,14 @@ const RelatorioComprasCliente = () => {
             </div>
 
             <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-3">
-              <Label className="text-sm font-semibold text-[#1A3B70]">Status do pedido</Label>
-              <RadioGroup
-                value={statusFiltro}
-                onValueChange={(v) =>
-                  setStatusFiltro(v as StatusFiltroProdutosCliente)
-                }
-                className="space-y-2 sm:grid sm:grid-cols-2 sm:gap-2 sm:space-y-0"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="Todos" id="page-prod-status-todos" />
-                  <Label htmlFor="page-prod-status-todos" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-primary" />
-                    <span className="text-[#1A3B70]">Todos</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PENDENTE" id="page-prod-status-pendente" />
-                  <Label htmlFor="page-prod-status-pendente" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-amber-500" />
-                    <span className="text-[#1A3B70]">Pendente</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PAGO_PARCIAL" id="page-prod-status-parcial" />
-                  <Label htmlFor="page-prod-status-parcial" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-sky-500" />
-                    <span className="text-[#1A3B70]">Pago parcial</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="PAGO_TOTAL" id="page-prod-status-quitado" />
-                  <Label htmlFor="page-prod-status-quitado" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-emerald-500" />
-                    <span className="text-[#1A3B70]">Quitada</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="VENCIDO" id="page-prod-status-vencido" />
-                  <Label htmlFor="page-prod-status-vencido" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-red-500" />
-                    <span className="text-[#1A3B70]">Vencido</span>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="CANCELADO" id="page-prod-status-cancelado" />
-                  <Label htmlFor="page-prod-status-cancelado" className="flex items-center gap-2 cursor-pointer flex-1">
-                    <Circle className="w-3 h-3 text-slate-600" />
-                    <span className="text-[#1A3B70]">Cancelado</span>
-                  </Label>
-                </div>
-              </RadioGroup>
+              <FiltrosStatusProdutosCliente
+                idPrefix="page-prod-status"
+                statusPedido={statusPedido}
+                onStatusPedido={setStatusPedido}
+                situacao={statusFiltro}
+                onSituacao={setStatusFiltro}
+                grade
+              />
             </div>
 
             <Separator />
@@ -296,7 +273,7 @@ const RelatorioComprasCliente = () => {
                 Período: {fmtDataBr(relatorio?.periodo?.inicio ?? dataInicial)} a{" "}
                 {fmtDataBr(relatorio?.periodo?.fim ?? dataFinal)}
                 {" · "}
-                Status: {labelStatusResumo}
+                {labelStatusResumo}
               </CardDescription>
             </CardHeader>
             <CardContent>

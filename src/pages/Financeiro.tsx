@@ -1100,7 +1100,7 @@ const Financeiro = () => {
                   <DropdownMenuItem
                     onClick={() => setRelatorioProdutosClienteOpen(true)}
                   >
-                    Relatório de produtos por cliente
+                    Relatório de produtos por cliente/fornecedor
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => setRelatorioFornecedorPdfOpen(true)}
@@ -2282,7 +2282,9 @@ const Financeiro = () => {
           open={relatorioProdutosClienteOpen}
           onOpenChange={setRelatorioProdutosClienteOpen}
           clientes={clientes}
+          fornecedores={fornecedores}
           defaultClienteId={clienteFilterId ?? null}
+          defaultFornecedorId={fornecedorFilterId ?? null}
         />
 
         <GerarPedidoDePrevisaoDialog
