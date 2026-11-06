@@ -23,17 +23,32 @@ import type {
   StatusPedidoFiltroProdutosCliente,
 } from "@/lib/relatorio-produtos-cliente";
 import type { Cliente } from "@/services/clientes.service";
+import type { Fornecedor } from "@/services/fornecedores.service";
 import { pedidosService } from "@/services/pedidos.service";
 import { Download, Loader2, Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+export type TipoParceiroProdutos = "cliente" | "fornecedor";
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  clientes: Cliente[];
+  /** Sem `clientes`, o diálogo só oferece fornecedor (e vice-versa). */
+  clientes?: Cliente[];
+  /** Com clientes e fornecedores, mostra a escolha Cliente / Fornecedor (task 016). */
+  fornecedores?: Fornecedor[];
   defaultClienteId?: number | null;
+  defaultFornecedorId?: number | null;
+  /** Modo ao abrir; sem ele, fornecedor só quando há fornecedor (e não cliente) padrão. */
+  modoInicial?: TipoParceiroProdutos;
 };
+
+function nomeFornecedor(f: Fornecedor): string {
+  return f.nome_fantasia?.trim() || f.nome_razao?.trim() || `Fornecedor ${f.id}`;
+}
+
+const idValido = (id?: number | null) => (id != null && id > 0 ? id : null);
 
 function inicioFimMesAtual(): { inicio: string; fim: string } {
   const d = new Date();
@@ -49,10 +64,17 @@ export function RelatorioProdutosClienteDialog({
   open,
   onOpenChange,
   clientes,
+  fornecedores,
   defaultClienteId,
+  defaultFornecedorId,
+  modoInicial,
 }: Props) {
   const { inicio: defInicio, fim: defFim } = useMemo(() => inicioFimMesAtual(), []);
+  const temClientes = clientes != null;
+  const temFornecedores = fornecedores != null;
+  const [modo, setModo] = useState<TipoParceiroProdutos>("cliente");
   const [clienteId, setClienteId] = useState("");
+  const [fornecedorId, setFornecedorId] = useState("");
   const [dataInicial, setDataInicial] = useState(defInicio);
   const [dataFinal, setDataFinal] = useState(defFim);
   const [statusFiltro, setStatusFiltro] =
@@ -71,21 +93,40 @@ export function RelatorioProdutosClienteDialog({
     setStatusFiltro("Todos");
     setStatusPedido("Todos");
     setCampoData("vencimento");
-    setClienteId(
-      defaultClienteId != null && defaultClienteId > 0
-        ? String(defaultClienteId)
-        : "",
-    );
-  }, [open, defaultClienteId, defInicio, defFim]);
+    const cli = idValido(defaultClienteId);
+    const forn = idValido(defaultFornecedorId);
+    setClienteId(cli ? String(cli) : "");
+    setFornecedorId(forn ? String(forn) : "");
+    let m: TipoParceiroProdutos =
+      modoInicial ?? (forn && !cli ? "fornecedor" : "cliente");
+    if (m === "cliente" && !temClientes) m = "fornecedor";
+    if (m === "fornecedor" && !temFornecedores) m = "cliente";
+    setModo(m);
+  }, [
+    open,
+    defaultClienteId,
+    defaultFornecedorId,
+    modoInicial,
+    temClientes,
+    temFornecedores,
+    defInicio,
+    defFim,
+  ]);
+
+  const ehFornecedor = modo === "fornecedor";
+  const parceiroId = ehFornecedor ? fornecedorId : clienteId;
+  const rotulo = ehFornecedor ? "fornecedor" : "cliente";
 
   const podeConsultar =
-    !!clienteId &&
-    Number(clienteId) > 0 &&
+    !!parceiroId &&
+    Number(parceiroId) > 0 &&
     !!dataInicial?.trim() &&
     !!dataFinal?.trim();
 
   const paramsPdf = () => ({
-    cliente_id: Number(clienteId),
+    ...(ehFornecedor
+      ? { fornecedor_id: Number(fornecedorId) }
+      : { cliente_id: Number(clienteId) }),
     data_inicial: dataInicial.trim(),
     data_final: dataFinal.trim(),
     status: statusFiltro,
@@ -95,7 +136,7 @@ export function RelatorioProdutosClienteDialog({
 
   const handleDownloadPdf = async () => {
     if (!podeConsultar) {
-      toast.error("Preencha cliente e período.");
+      toast.error(`Preencha ${rotulo} e período.`);
       return;
     }
     setPdfLoading("download");
@@ -112,7 +153,7 @@ export function RelatorioProdutosClienteDialog({
 
   const handlePrintPdf = async () => {
     if (!podeConsultar) {
-      toast.error("Preencha cliente e período.");
+      toast.error(`Preencha ${rotulo} e período.`);
       return;
     }
     setPdfLoading("print");
@@ -130,26 +171,61 @@ export function RelatorioProdutosClienteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Relatório de produtos por cliente</DialogTitle>
+          <DialogTitle>Relatório de produtos por {rotulo}</DialogTitle>
           <DialogDescription>
-            Inclui dados da empresa e os itens de pedidos de venda do cliente no período
-            (data do pedido), conforme os filtros selecionados.
+            {ehFornecedor
+              ? "Inclui os dados do fornecedor e os itens dos pedidos de compra feitos a ele no período, conforme os filtros selecionados."
+              : "Inclui os dados do cliente e os itens dos pedidos de venda feitos a ele no período, conforme os filtros selecionados."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
+          {temClientes && temFornecedores && (
+            <RadioGroup
+              value={modo}
+              onValueChange={(v) => setModo(v as TipoParceiroProdutos)}
+              className="flex gap-6"
+              aria-label="Relatório por"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="cliente" id="relatorio-produtos-modo-cliente" />
+                <Label htmlFor="relatorio-produtos-modo-cliente" className="cursor-pointer">
+                  Cliente (vendas)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="fornecedor" id="relatorio-produtos-modo-fornecedor" />
+                <Label htmlFor="relatorio-produtos-modo-fornecedor" className="cursor-pointer">
+                  Fornecedor (compras)
+                </Label>
+              </div>
+            </RadioGroup>
+          )}
+
           <div className="space-y-2">
-            <Label htmlFor="relatorio-produtos-cliente">Cliente</Label>
-            <Select value={clienteId} onValueChange={setClienteId}>
-              <SelectTrigger id="relatorio-produtos-cliente">
-                <SelectValue placeholder="Selecione o cliente" />
+            <Label htmlFor="relatorio-produtos-parceiro">
+              {ehFornecedor ? "Fornecedor" : "Cliente"}
+            </Label>
+            <Select
+              key={modo}
+              value={parceiroId}
+              onValueChange={ehFornecedor ? setFornecedorId : setClienteId}
+            >
+              <SelectTrigger id="relatorio-produtos-parceiro">
+                <SelectValue placeholder={`Selecione o ${rotulo}`} />
               </SelectTrigger>
               <SelectContent className="max-h-[280px]">
-                {clientes.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
+                {ehFornecedor
+                  ? (fornecedores ?? []).map((f) => (
+                      <SelectItem key={f.id} value={String(f.id)}>
+                        {nomeFornecedor(f)}
+                      </SelectItem>
+                    ))
+                  : (clientes ?? []).map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
               </SelectContent>
             </Select>
           </div>
@@ -202,6 +278,7 @@ export function RelatorioProdutosClienteDialog({
               onStatusPedido={setStatusPedido}
               situacao={statusFiltro}
               onSituacao={setStatusFiltro}
+              tipoParceiro={modo}
             />
           </div>
 
@@ -238,7 +315,7 @@ export function RelatorioProdutosClienteDialog({
             </div>
             {!podeConsultar && (
               <p className="text-center text-xs text-[#3558a8]/85">
-                Selecione o cliente e o período para habilitar o PDF.
+                Selecione o {rotulo} e o período para habilitar o PDF.
               </p>
             )}
           </div>

@@ -985,8 +985,8 @@ export default function Pedidos() {
               />
               <RelatorioHubCard
                 icon={Users}
-                title="Produtos por cliente"
-                description="Itens vendidos a um cliente no período, pedido a pedido, com total geral."
+                title="Produtos por cliente/fornecedor"
+                description="Itens vendidos a um cliente ou comprados de um fornecedor no período, pedido a pedido, com total geral."
                 onClick={() => {
                   setRelatoriosDialogOpen(false);
                   setProdutosClienteDialogOpen(true);
@@ -1007,7 +1007,9 @@ export default function Pedidos() {
           open={produtosClienteDialogOpen}
           onOpenChange={setProdutosClienteDialogOpen}
           clientes={clientes}
+          fornecedores={fornecedores}
           defaultClienteId={filters.cliente_id}
+          defaultFornecedorId={filters.fornecedor_id}
         />
 
         <Dialog open={relatorioPedidosDialogOpen} onOpenChange={setRelatorioPedidosDialogOpen}>

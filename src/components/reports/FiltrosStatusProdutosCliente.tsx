@@ -34,6 +34,8 @@ type Props = {
   onSituacao: (v: StatusFiltroProdutosCliente) => void;
   /** Opções em duas colunas a partir de `sm`. */
   grade?: boolean;
+  /** Ajusta o texto de ajuda: contas a receber (cliente) ou a pagar (fornecedor). */
+  tipoParceiro?: "cliente" | "fornecedor";
 };
 
 function Grupo<T extends string>({
@@ -94,7 +96,9 @@ export function FiltrosStatusProdutosCliente({
   situacao,
   onSituacao,
   grade,
+  tipoParceiro = "cliente",
 }: Props) {
+  const contas = tipoParceiro === "fornecedor" ? "contas a pagar" : "contas a receber";
   return (
     <>
       <Grupo
@@ -111,7 +115,7 @@ export function FiltrosStatusProdutosCliente({
       <Grupo
         idPrefix={`${idPrefix}-financeiro`}
         titulo="Situação financeira"
-        ajuda="Pelas contas a receber do pedido. Pedido sem conta (não atendido) só aparece em “Todas”."
+        ajuda={`Pelas ${contas} do pedido. Pedido sem conta (não atendido) só aparece em “Todas”.`}
         value={situacao}
         onChange={onSituacao}
         labels={STATUS_FILTRO_PRODUTOS_LABELS}

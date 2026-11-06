@@ -15,6 +15,9 @@ import type { ConfirmarPagamentoPayload } from './contas-receber.service';
 
 /** Resposta de GET /pedidos/relatorio/compras-cliente */
 export interface RelatorioComprasClienteResponse {
+  tipo_parceiro?: 'cliente' | 'fornecedor';
+  parceiro?: { id: number; nome: string };
+  /** Alias de `parceiro` (era só cliente). */
   cliente: { id: number; nome: string };
   periodo: { inicio: string; fim: string };
   filtros_aplicados: { status: string; status_pedido?: string };
@@ -35,6 +38,14 @@ export type { PedidoItem as ItemPedido } from '@/types/pedido';
 export type { CreatePedidoDto, DashboardPedidos, FiltrosPedidos, Pedido, PedidosResponse };
 
 class PedidosService {
+  private setParceiroRelatorioProdutos(
+    q: URLSearchParams,
+    params: { cliente_id?: number; fornecedor_id?: number },
+  ) {
+    if (params.fornecedor_id) q.set('fornecedor_id', String(params.fornecedor_id));
+    else if (params.cliente_id) q.set('cliente_id', String(params.cliente_id));
+  }
+
   /**
    * Relatório de produtos por cliente — GET /pedidos/relatorio/compras-cliente
    */
@@ -62,7 +73,9 @@ class PedidosService {
 
   /** GET /pedidos/relatorio/compras-cliente/pdf — mesmo filtro do JSON */
   async downloadRelatorioComprasClientePdf(params: {
-    cliente_id: number;
+    /** Exatamente um: cliente_id (vendas) ou fornecedor_id (compras) */
+    cliente_id?: number;
+    fornecedor_id?: number;
     data_inicial: string;
     data_final: string;
     status?: string;
@@ -71,7 +84,7 @@ class PedidosService {
     status_pedido?: string;
   }): Promise<void> {
     const q = new URLSearchParams();
-    q.set('cliente_id', String(params.cliente_id));
+    this.setParceiroRelatorioProdutos(q, params);
     q.set('data_inicial', params.data_inicial);
     q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
@@ -83,7 +96,7 @@ class PedidosService {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `relatorio-produtos-cliente-${params.data_inicial}.pdf`;
+    a.download = `relatorio-produtos-${params.fornecedor_id ? 'fornecedor' : 'cliente'}-${params.data_inicial}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -91,7 +104,8 @@ class PedidosService {
   }
 
   async printRelatorioComprasClientePdf(params: {
-    cliente_id: number;
+    cliente_id?: number;
+    fornecedor_id?: number;
     data_inicial: string;
     data_final: string;
     status?: string;
@@ -100,7 +114,7 @@ class PedidosService {
     status_pedido?: string;
   }): Promise<void> {
     const q = new URLSearchParams();
-    q.set('cliente_id', String(params.cliente_id));
+    this.setParceiroRelatorioProdutos(q, params);
     q.set('data_inicial', params.data_inicial);
     q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');

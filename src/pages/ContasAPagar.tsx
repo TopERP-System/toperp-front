@@ -1,6 +1,7 @@
 import { EditarContaFinanceiraDialog } from "@/components/financeiro/EditarContaFinanceiraDialog";
 import AppLayout from "@/components/layout/AppLayout";
 import { RelatorioPeriodoFinanceiro } from "@/components/reports/RelatorioPeriodoFinanceiro";
+import { RelatorioProdutosClienteDialog } from "@/components/reports/RelatorioProdutosClienteDialog";
 import { TableRowActionsMenu } from "@/components/TableRowActionsMenu";
 import { ModulePageHeader } from "@/components/layout/ModulePageHeader";
 import {
@@ -321,6 +322,7 @@ function ContasAPagar() {
   const [relatorioFornecedorPdfOpen, setRelatorioFornecedorPdfOpen] = useState(false);
   const [relatorioGeralPdfOpen, setRelatorioGeralPdfOpen] = useState(false);
   const [relatorioCentroCustoPdfOpen, setRelatorioCentroCustoPdfOpen] = useState(false);
+  const [relatorioProdutosFornecedorOpen, setRelatorioProdutosFornecedorOpen] = useState(false);
   const [relatorioFornecedorIdSelect, setRelatorioFornecedorIdSelect] = useState<string>("");
   const [relatorioFornecedorPdfLoading, setRelatorioFornecedorPdfLoading] = useState(false);
   const [relatorioGeralPdfLoading, setRelatorioGeralPdfLoading] = useState(false);
@@ -2705,6 +2707,11 @@ function ContasAPagar() {
                 >
                   Relatório por centro de custo
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setRelatorioProdutosFornecedorOpen(true)}
+                >
+                  Relatório de produtos por fornecedor
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -3780,6 +3787,13 @@ function ContasAPagar() {
             </div>
           </DialogContent>
         </Dialog>
+        <RelatorioProdutosClienteDialog
+          open={relatorioProdutosFornecedorOpen}
+          onOpenChange={setRelatorioProdutosFornecedorOpen}
+          fornecedores={fornecedores}
+          defaultFornecedorId={fornecedorFilterId}
+          modoInicial="fornecedor"
+        />
         <Dialog
           open={relatorioCentroCustoPdfOpen}
           onOpenChange={(open) => {
