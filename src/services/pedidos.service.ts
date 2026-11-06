@@ -19,7 +19,7 @@ export interface RelatorioComprasClienteResponse {
   parceiro?: { id: number; nome: string };
   /** Alias de `parceiro` (era só cliente). */
   cliente: { id: number; nome: string };
-  periodo: { inicio: string; fim: string };
+  periodo: { inicio: string | null; fim: string | null };
   filtros_aplicados: { status: string; status_pedido?: string };
   itens: Array<{
     data: string;
@@ -61,8 +61,8 @@ class PedidosService {
   }): Promise<RelatorioComprasClienteResponse> {
     const q = new URLSearchParams();
     q.set('cliente_id', String(params.cliente_id));
-    q.set('data_inicial', params.data_inicial);
-    q.set('data_final', params.data_final);
+    if (params.data_inicial) q.set('data_inicial', params.data_inicial);
+    if (params.data_final) q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
     if (params.campo_data) q.set('campo_data', params.campo_data);
     if (params.status_pedido) q.set('status_pedido', params.status_pedido);
@@ -76,8 +76,9 @@ class PedidosService {
     /** Exatamente um: cliente_id (vendas) ou fornecedor_id (compras) */
     cliente_id?: number;
     fornecedor_id?: number;
-    data_inicial: string;
-    data_final: string;
+    /** Opcionais: sem datas = todo o histórico */
+    data_inicial?: string;
+    data_final?: string;
     status?: string;
     campo_data?: string;
     /** Todos | ABERTO | ATENDIDO | CANCELADO */
@@ -85,8 +86,8 @@ class PedidosService {
   }): Promise<void> {
     const q = new URLSearchParams();
     this.setParceiroRelatorioProdutos(q, params);
-    q.set('data_inicial', params.data_inicial);
-    q.set('data_final', params.data_final);
+    if (params.data_inicial) q.set('data_inicial', params.data_inicial);
+    if (params.data_final) q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
     if (params.campo_data) q.set('campo_data', params.campo_data);
     if (params.status_pedido) q.set('status_pedido', params.status_pedido);
@@ -96,7 +97,7 @@ class PedidosService {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `relatorio-produtos-${params.fornecedor_id ? 'fornecedor' : 'cliente'}-${params.data_inicial}.pdf`;
+    a.download = `relatorio-produtos-${params.fornecedor_id ? 'fornecedor' : 'cliente'}-${params.data_inicial || 'todo-periodo'}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -106,8 +107,9 @@ class PedidosService {
   async printRelatorioComprasClientePdf(params: {
     cliente_id?: number;
     fornecedor_id?: number;
-    data_inicial: string;
-    data_final: string;
+    /** Opcionais: sem datas = todo o histórico */
+    data_inicial?: string;
+    data_final?: string;
     status?: string;
     campo_data?: string;
     /** Todos | ABERTO | ATENDIDO | CANCELADO */
@@ -115,8 +117,8 @@ class PedidosService {
   }): Promise<void> {
     const q = new URLSearchParams();
     this.setParceiroRelatorioProdutos(q, params);
-    q.set('data_inicial', params.data_inicial);
-    q.set('data_final', params.data_final);
+    if (params.data_inicial) q.set('data_inicial', params.data_inicial);
+    if (params.data_final) q.set('data_final', params.data_final);
     q.set('status', params.status ?? 'Todos');
     if (params.campo_data) q.set('campo_data', params.campo_data);
     if (params.status_pedido) q.set('status_pedido', params.status_pedido);

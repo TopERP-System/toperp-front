@@ -18,9 +18,10 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { RelatorioPeriodoFinanceiro } from "@/components/reports/RelatorioPeriodoFinanceiro";
 import { FiltrosStatusProdutosCliente } from "@/components/reports/FiltrosStatusProdutosCliente";
-import type {
-  StatusFiltroProdutosCliente,
-  StatusPedidoFiltroProdutosCliente,
+import {
+  isStatusPedidoFiltroProdutosCliente,
+  type StatusFiltroProdutosCliente,
+  type StatusPedidoFiltroProdutosCliente,
 } from "@/lib/relatorio-produtos-cliente";
 import type { Cliente } from "@/services/clientes.service";
 import type { Fornecedor } from "@/services/fornecedores.service";
@@ -42,6 +43,21 @@ type Props = {
   defaultFornecedorId?: number | null;
   /** Modo ao abrir; sem ele, fornecedor só quando há fornecedor (e não cliente) padrão. */
   modoInicial?: TipoParceiroProdutos;
+  /**
+   * Filtros aplicados na listagem de Pedidos (task 017). Com eles, cada abertura
+   * herda parceiro, período (data do pedido; vazio = todo o histórico) e status.
+   */
+  filtrosListagem?: FiltrosListagemProdutos;
+};
+
+export type FiltrosListagemProdutos = {
+  cliente_id?: number | null;
+  fornecedor_id?: number | null;
+  data_inicial?: string | null;
+  data_final?: string | null;
+  status?: string | null;
+  /** Aba da listagem: decide o modo quando há cliente e fornecedor filtrados. */
+  tipo?: "VENDA" | "COMPRA" | null;
 };
 
 function nomeFornecedor(f: Fornecedor): string {
@@ -68,6 +84,7 @@ export function RelatorioProdutosClienteDialog({
   defaultClienteId,
   defaultFornecedorId,
   modoInicial,
+  filtrosListagem,
 }: Props) {
   const { inicio: defInicio, fim: defFim } = useMemo(() => inicioFimMesAtual(), []);
   const temClientes = clientes != null;
@@ -86,49 +103,58 @@ export function RelatorioProdutosClienteDialog({
     null,
   );
 
+  // Recarrega a cada abertura (só no momento em que abre, para não apagar o que o
+  // usuário mudar no diálogo quando a tela re-renderiza).
   useEffect(() => {
     if (!open) return;
-    setDataInicial(defInicio);
-    setDataFinal(defFim);
+    const fl = filtrosListagem;
     setStatusFiltro("Todos");
-    setStatusPedido("Todos");
-    setCampoData("vencimento");
-    const cli = idValido(defaultClienteId);
-    const forn = idValido(defaultFornecedorId);
+    if (fl) {
+      setDataInicial(fl.data_inicial?.trim() || "");
+      setDataFinal(fl.data_final?.trim() || "");
+      setCampoData("emissao");
+      setStatusPedido(
+        fl.status && isStatusPedidoFiltroProdutosCliente(fl.status) ? fl.status : "Todos",
+      );
+    } else {
+      setDataInicial(defInicio);
+      setDataFinal(defFim);
+      setCampoData("vencimento");
+      setStatusPedido("Todos");
+    }
+    const cli = idValido(fl ? fl.cliente_id : defaultClienteId);
+    const forn = idValido(fl ? fl.fornecedor_id : defaultFornecedorId);
     setClienteId(cli ? String(cli) : "");
     setFornecedorId(forn ? String(forn) : "");
     let m: TipoParceiroProdutos =
-      modoInicial ?? (forn && !cli ? "fornecedor" : "cliente");
+      modoInicial ??
+      (fl?.tipo === "COMPRA"
+        ? "fornecedor"
+        : fl?.tipo === "VENDA"
+          ? "cliente"
+          : forn && !cli
+            ? "fornecedor"
+            : "cliente");
     if (m === "cliente" && !temClientes) m = "fornecedor";
     if (m === "fornecedor" && !temFornecedores) m = "cliente";
     setModo(m);
-  }, [
-    open,
-    defaultClienteId,
-    defaultFornecedorId,
-    modoInicial,
-    temClientes,
-    temFornecedores,
-    defInicio,
-    defFim,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const ehFornecedor = modo === "fornecedor";
   const parceiroId = ehFornecedor ? fornecedorId : clienteId;
   const rotulo = ehFornecedor ? "fornecedor" : "cliente";
 
-  const podeConsultar =
-    !!parceiroId &&
-    Number(parceiroId) > 0 &&
-    !!dataInicial?.trim() &&
-    !!dataFinal?.trim();
+  // Período opcional: sem datas = todo o histórico do parceiro (task 017)
+  const podeConsultar = !!parceiroId && Number(parceiroId) > 0;
+  const semPeriodo = !dataInicial?.trim() && !dataFinal?.trim();
 
   const paramsPdf = () => ({
     ...(ehFornecedor
       ? { fornecedor_id: Number(fornecedorId) }
       : { cliente_id: Number(clienteId) }),
-    data_inicial: dataInicial.trim(),
-    data_final: dataFinal.trim(),
+    data_inicial: dataInicial.trim() || undefined,
+    data_final: dataFinal.trim() || undefined,
     status: statusFiltro,
     status_pedido: statusPedido,
     campo_data: campoData,
@@ -136,7 +162,7 @@ export function RelatorioProdutosClienteDialog({
 
   const handleDownloadPdf = async () => {
     if (!podeConsultar) {
-      toast.error(`Preencha ${rotulo} e período.`);
+      toast.error(`Selecione o ${rotulo}.`);
       return;
     }
     setPdfLoading("download");
@@ -153,7 +179,7 @@ export function RelatorioProdutosClienteDialog({
 
   const handlePrintPdf = async () => {
     if (!podeConsultar) {
-      toast.error(`Preencha ${rotulo} e período.`);
+      toast.error(`Selecione o ${rotulo}.`);
       return;
     }
     setPdfLoading("print");
@@ -249,7 +275,7 @@ export function RelatorioProdutosClienteDialog({
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="emissao" id="relatorio-produtos-campo-emissao" />
                   <Label htmlFor="relatorio-produtos-campo-emissao" className="cursor-pointer">
-                    Data de emissão
+                    Data do pedido (emissão)
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -263,12 +289,31 @@ export function RelatorioProdutosClienteDialog({
 
             <Separator />
 
-            <RelatorioPeriodoFinanceiro
-              dataInicial={dataInicial}
-              dataFinal={dataFinal}
-              onDataInicial={setDataInicial}
-              onDataFinal={setDataFinal}
-            />
+            <div className="space-y-2">
+              <RelatorioPeriodoFinanceiro
+                dataInicial={dataInicial}
+                dataFinal={dataFinal}
+                onDataInicial={setDataInicial}
+                onDataFinal={setDataFinal}
+              />
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>{semPeriodo ? "Sem período: todo o histórico." : "Deixe vazio para todo o histórico."}</span>
+                {!semPeriodo && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => {
+                      setDataInicial("");
+                      setDataFinal("");
+                    }}
+                  >
+                    Todo o histórico
+                  </Button>
+                )}
+              </div>
+            </div>
 
             <Separator />
 
@@ -315,7 +360,7 @@ export function RelatorioProdutosClienteDialog({
             </div>
             {!podeConsultar && (
               <p className="text-center text-xs text-[#3558a8]/85">
-                Selecione o {rotulo} e o período para habilitar o PDF.
+                Selecione o {rotulo} para habilitar o PDF.
               </p>
             )}
           </div>

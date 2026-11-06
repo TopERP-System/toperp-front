@@ -1008,8 +1008,14 @@ export default function Pedidos() {
           onOpenChange={setProdutosClienteDialogOpen}
           clientes={clientes}
           fornecedores={fornecedores}
-          defaultClienteId={filters.cliente_id}
-          defaultFornecedorId={filters.fornecedor_id}
+          filtrosListagem={{
+            cliente_id: filters.cliente_id,
+            fornecedor_id: filters.fornecedor_id,
+            data_inicial: filters.data_inicial,
+            data_final: filters.data_final,
+            status: filters.status,
+            tipo: filters.tipo,
+          }}
         />
 
         <Dialog open={relatorioPedidosDialogOpen} onOpenChange={setRelatorioPedidosDialogOpen}>
