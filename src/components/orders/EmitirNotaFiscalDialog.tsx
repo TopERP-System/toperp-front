@@ -192,8 +192,10 @@ function calcularFaltantesLocal(data: {
 }): CampoFaltanteNotaFiscal[] {
   const faltantes: CampoFaltanteNotaFiscal[] = [];
 
-  if (campoVazio(data.empresaCnpj) || normalizarDoc(data.empresaCnpj).length !== 14) {
-    faltantes.push({ campo: 'empresa.cnpj', label: 'CNPJ da empresa', secao: 'empresa' });
+  // Produtor rural emite NF-e com CPF (IE de produtor); demais empresas com CNPJ.
+  const docEmpresa = normalizarDoc(data.empresaCnpj ?? '');
+  if (docEmpresa.length !== 11 && docEmpresa.length !== 14) {
+    faltantes.push({ campo: 'empresa.cnpj', label: 'CPF/CNPJ da empresa', secao: 'empresa' });
   }
   if (!data.spedyConfigurado) {
     faltantes.push({
@@ -229,7 +231,7 @@ function calcularFaltantesLocal(data: {
     faltantes.push({ campo: 'cliente.cpf_cnpj', label: 'CPF/CNPJ do cliente', secao: 'cliente' });
   }
   if (!data.endereco) {
-    faltantes.push({ campo: 'endereco', label: 'Endereço completo', secao: 'endereco' });
+    faltantes.push({ campo: 'endereco', label: 'Endereço do cliente (destinatário)', secao: 'endereco' });
   } else {
     const checks: Array<[string, string, keyof NotaFiscalPreEmissaoEndereco]> = [
       ['endereco.cep', 'CEP', 'cep'],
@@ -763,7 +765,7 @@ export function EmitirNotaFiscalDialog({
                   />
                   <ReadOnlyField label="Nome fantasia" value={data.empresa.nome_fantasia} />
                   <ReadOnlyField
-                    label="CNPJ"
+                    label="CPF/CNPJ"
                     value={
                       <span className={inputClass('empresa.cnpj') ? 'text-destructive' : ''}>
                         {data.empresa.cnpj || 'Não informado'}
