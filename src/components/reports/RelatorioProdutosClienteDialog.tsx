@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { RelatorioPeriodoFinanceiro } from "@/components/reports/RelatorioPeriodoFinanceiro";
 import { FiltrosStatusProdutosCliente } from "@/components/reports/FiltrosStatusProdutosCliente";
 import {
@@ -48,6 +49,11 @@ type Props = {
    * herda parceiro, período (data do pedido; vazio = todo o histórico) e status.
    */
   filtrosListagem?: FiltrosListagemProdutos;
+  /**
+   * Oferece a opção "Mostrar situação financeira" (task 019): coluna com a
+   * situação do pedido em cada item. Só nas telas do Financeiro.
+   */
+  permitirSituacao?: boolean;
 };
 
 export type FiltrosListagemProdutos = {
@@ -85,6 +91,7 @@ export function RelatorioProdutosClienteDialog({
   defaultFornecedorId,
   modoInicial,
   filtrosListagem,
+  permitirSituacao = false,
 }: Props) {
   const { inicio: defInicio, fim: defFim } = useMemo(() => inicioFimMesAtual(), []);
   const temClientes = clientes != null;
@@ -102,6 +109,7 @@ export function RelatorioProdutosClienteDialog({
   const [pdfLoading, setPdfLoading] = useState<"download" | "print" | null>(
     null,
   );
+  const [comSituacao, setComSituacao] = useState(false);
 
   // Recarrega a cada abertura (só no momento em que abre, para não apagar o que o
   // usuário mudar no diálogo quando a tela re-renderiza).
@@ -109,6 +117,7 @@ export function RelatorioProdutosClienteDialog({
     if (!open) return;
     const fl = filtrosListagem;
     setStatusFiltro("Todos");
+    setComSituacao(false);
     if (fl) {
       setDataInicial(fl.data_inicial?.trim() || "");
       setDataFinal(fl.data_final?.trim() || "");
@@ -158,6 +167,7 @@ export function RelatorioProdutosClienteDialog({
     status: statusFiltro,
     status_pedido: statusPedido,
     campo_data: campoData,
+    ...(permitirSituacao && comSituacao && { modelo: "situacao" as const }),
   });
 
   const handleDownloadPdf = async () => {
@@ -326,6 +336,29 @@ export function RelatorioProdutosClienteDialog({
               tipoParceiro={modo}
             />
           </div>
+
+          {permitirSituacao && (
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-border/80 p-4">
+              <div className="space-y-1">
+                <Label
+                  htmlFor="relatorio-produtos-com-situacao"
+                  className="text-sm font-semibold text-[#1A3B70] cursor-pointer"
+                >
+                  Mostrar situação financeira
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {`Acrescenta uma coluna com a situação do pedido de cada produto: Quitado, Pago parcial, ${
+                    ehFornecedor ? "A pagar" : "A receber"
+                  }, Vencido ou Sem cobrança.`}
+                </p>
+              </div>
+              <Switch
+                id="relatorio-produtos-com-situacao"
+                checked={comSituacao}
+                onCheckedChange={setComSituacao}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">

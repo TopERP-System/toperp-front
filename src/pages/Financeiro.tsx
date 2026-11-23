@@ -2285,6 +2285,7 @@ const Financeiro = () => {
           fornecedores={fornecedores}
           defaultClienteId={clienteFilterId ?? null}
           defaultFornecedorId={fornecedorFilterId ?? null}
+          permitirSituacao
         />
 
         <GerarPedidoDePrevisaoDialog

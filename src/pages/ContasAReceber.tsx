@@ -4215,6 +4215,7 @@ const ContasAReceber = () => {
           onOpenChange={setRelatorioProdutosClienteOpen}
           clientes={clientes}
           defaultClienteId={clienteFilterId}
+          permitirSituacao
         />
 
         <Dialog

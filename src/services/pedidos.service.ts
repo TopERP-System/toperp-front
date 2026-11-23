@@ -83,6 +83,8 @@ class PedidosService {
     campo_data?: string;
     /** Todos | ABERTO | ATENDIDO | CANCELADO */
     status_pedido?: string;
+    /** `situacao` (task 019): coluna de situação financeira em cada item */
+    modelo?: 'situacao';
   }): Promise<void> {
     const q = new URLSearchParams();
     this.setParceiroRelatorioProdutos(q, params);
@@ -91,6 +93,7 @@ class PedidosService {
     q.set('status', params.status ?? 'Todos');
     if (params.campo_data) q.set('campo_data', params.campo_data);
     if (params.status_pedido) q.set('status_pedido', params.status_pedido);
+    if (params.modelo) q.set('modelo', params.modelo);
     const blob = await apiClient.getBlob(
       `/pedidos/relatorio/compras-cliente/pdf?${q.toString()}`,
     );
@@ -114,6 +117,8 @@ class PedidosService {
     campo_data?: string;
     /** Todos | ABERTO | ATENDIDO | CANCELADO */
     status_pedido?: string;
+    /** `situacao` (task 019): coluna de situação financeira em cada item */
+    modelo?: 'situacao';
   }): Promise<void> {
     const q = new URLSearchParams();
     this.setParceiroRelatorioProdutos(q, params);
@@ -122,6 +127,7 @@ class PedidosService {
     q.set('status', params.status ?? 'Todos');
     if (params.campo_data) q.set('campo_data', params.campo_data);
     if (params.status_pedido) q.set('status_pedido', params.status_pedido);
+    if (params.modelo) q.set('modelo', params.modelo);
     const blob = await apiClient.getBlob(
       `/pedidos/relatorio/compras-cliente/pdf?${q.toString()}`,
     );
