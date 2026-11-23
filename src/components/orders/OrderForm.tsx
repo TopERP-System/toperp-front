@@ -42,6 +42,7 @@ import {
   CadastroRapidoTipo,
 } from '@/components/orders/cadastro-rapido/CadastroRapidoEntidade';
 import { CampoSelectComCadastroRapido } from '@/components/orders/cadastro-rapido/CampoSelectComCadastroRapido';
+import { ParceiroCombobox } from '@/components/orders/ParceiroCombobox';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CreditCard,
@@ -789,6 +790,26 @@ export function OrderForm({
       .map((v) => (typeof v === 'string' ? v.trim() : ''))
       .find(Boolean) || '';
 
+  const opcoesClientes = useMemo(
+    () =>
+      clientesLista.map((cliente) => ({
+        id: Number(cliente.id),
+        nome: nomeExibicaoParceiro(cliente) || `Cliente #${cliente.id}`,
+        cpf_cnpj: cliente.cpf_cnpj,
+      })),
+    [clientesLista],
+  );
+
+  const opcoesFornecedores = useMemo(
+    () =>
+      fornecedoresLista.map((fornecedor) => ({
+        id: Number(fornecedor.id),
+        nome: nomeExibicaoParceiro(fornecedor) || `Fornecedor #${fornecedor.id}`,
+        cpf_cnpj: fornecedor.cpf_cnpj,
+      })),
+    [fornecedoresLista],
+  );
+
   const clienteSelecionado = clientesLista.find(
     (c) => Number(c.id) === Number(clienteId),
   );
@@ -1260,27 +1281,18 @@ export function OrderForm({
                   onCloseCadastroRapido={() => setCadastroRapidoAtivo(null)}
                   onCadastroCriado={handleCadastroCriado}
                 >
-                  <Select
-                    value={clienteId?.toString() || ''}
-                    onValueChange={(value) => setClienteId(Number(value))}
-                  >
-                    <SelectTrigger className={inputClass}>
-                      <SelectValue placeholder="Selecione um cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientesLista.length === 0 ? (
-                        <div className="py-4 px-2 text-sm text-destructive text-center">
-                          Nenhum cliente cadastrado
-                        </div>
-                      ) : (
-                        clientesLista.map((cliente) => (
-                          <SelectItem key={cliente.id} value={cliente.id.toString()}>
-                            {nomeExibicaoParceiro(cliente) || `Cliente #${cliente.id}`}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <ParceiroCombobox
+                    opcoes={opcoesClientes}
+                    value={clienteId}
+                    onChange={setClienteId}
+                    className={inputClass}
+                    placeholder="Digite o nome ou CPF/CNPJ do cliente"
+                    vazioMensagem={
+                      clientesLista.length === 0
+                        ? 'Nenhum cliente cadastrado'
+                        : 'Nenhum cliente encontrado'
+                    }
+                  />
                   {clientesLista.length === 0 && (
                     <Alert className="mt-3 border-destructive/50 bg-destructive/5">
                       <AlertDescription>
@@ -1323,27 +1335,18 @@ export function OrderForm({
                   onCloseCadastroRapido={() => setCadastroRapidoAtivo(null)}
                   onCadastroCriado={handleCadastroCriado}
                 >
-                  <Select
-                    value={fornecedorId?.toString() || ''}
-                    onValueChange={(value) => setFornecedorId(Number(value))}
-                  >
-                    <SelectTrigger className={inputClass}>
-                      <SelectValue placeholder="Selecione um fornecedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {fornecedoresLista.length === 0 ? (
-                        <div className="py-4 px-2 text-sm text-destructive text-center">
-                          Nenhum fornecedor cadastrado
-                        </div>
-                      ) : (
-                        fornecedoresLista.map((fornecedor) => (
-                          <SelectItem key={fornecedor.id} value={fornecedor.id.toString()}>
-                            {fornecedor.nome_fantasia || fornecedor.nome_razao}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <ParceiroCombobox
+                    opcoes={opcoesFornecedores}
+                    value={fornecedorId}
+                    onChange={setFornecedorId}
+                    className={inputClass}
+                    placeholder="Digite o nome ou CPF/CNPJ do fornecedor"
+                    vazioMensagem={
+                      fornecedoresLista.length === 0
+                        ? 'Nenhum fornecedor cadastrado'
+                        : 'Nenhum fornecedor encontrado'
+                    }
+                  />
                   {fornecedoresLista.length === 0 && (
                     <Alert className="mt-3 border-destructive/50 bg-destructive/5">
                       <AlertDescription>
