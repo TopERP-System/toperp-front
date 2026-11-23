@@ -3793,6 +3793,7 @@ function ContasAPagar() {
           fornecedores={fornecedores}
           defaultFornecedorId={fornecedorFilterId}
           modoInicial="fornecedor"
+          permitirSituacao
         />
         <Dialog
           open={relatorioCentroCustoPdfOpen}
