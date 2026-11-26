@@ -197,6 +197,8 @@ export interface FiltrosPedidos {
   numero_pedido?: string;
   /** Busca por número do pedido, cliente, fornecedor ou roça (enviado como param único no backend) */
   busca?: string;
+  /** Sem status: a API traz também os cancelados (usado na busca da tela de Pedidos) */
+  incluir_cancelados?: boolean;
   roca_id?: number;
   /** Apenas pedidos com roça vinculada */
   somente_com_roca?: boolean;

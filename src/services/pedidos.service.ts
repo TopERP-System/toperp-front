@@ -145,6 +145,7 @@ class PedidosService {
     if (params?.id) queryParams.append('id', params.id.toString());
     if (params?.numero_pedido) queryParams.append('numero_pedido', params.numero_pedido);
     if (params?.busca) queryParams.append('busca', params.busca);
+    if (params?.incluir_cancelados) queryParams.append('incluir_cancelados', 'true');
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.tipo) queryParams.append('tipo', params.tipo);

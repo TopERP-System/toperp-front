@@ -100,6 +100,12 @@ export function useOrders() {
           apiFilters = { ...apiFilters, status: 'ABERTO' };
         }
 
+        // Quem digita o número/cliente espera achar o pedido mesmo cancelado (task 020).
+        // Sem busca, a listagem continua sem os cancelados.
+        if (hasBusca && !apiFilters.status) {
+          apiFilters = { ...apiFilters, incluir_cancelados: true };
+        }
+
         const params = {
           ...apiFilters,
           page: needsWideFetch ? 1 : currentPage,
